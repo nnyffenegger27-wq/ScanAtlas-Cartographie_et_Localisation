@@ -400,25 +400,28 @@ class Atelier(tk.Tk):
         self.fin_dessin('Nuages')
 
     def verifier_scans_grille(self, scans):
+        remarques = []
         for scan in scans:
             d = diagnostic_scan(scan.mesures)
-            if not d['tour_plausible']:
-                raise ValueError(f"{scan.nom} : {d['etat']} ({d['etendue']:.1f}°). "
-                                 'Choisis un scan valide ou décoche ce bloc dans Carte.')
             if not mesures_valides(scan, **self.filtres()).any():
                 raise ValueError(f'{scan.nom} : aucune mesure utilisable après filtrage.')
+            if not d['tour_plausible']:
+                remarques.append(f"{d['etat']} ({d['etendue']:.1f}°), conservé")
+        if remarques:
+            return 'Information : ' + ' ; '.join(remarques) + '. Une pose unique est appliquée à chaque bloc.'
+        return ''
 
     def creer_grille_selection(self):
         self.annuler_geste()
         scan = self.scans[self.indice()]
-        self.verifier_scans_grille([scan])
+        remarque = self.verifier_scans_grille([scan])
         opts, resolution = self.filtres(), self.nombre('resolution')
         grille = Grille.depuis_scan(scan, resolution, **opts)
         self.grille = grille
         self.scans_grille = {id(scan)}
         self.parametres_grille = (resolution, opts)
         self.dessiner_grille()
-        self.statut.set('Grille créée depuis le scan sélectionné et sa pose. Ajoute ensuite un autre scan.')
+        self.statut.set('Grille créée depuis le scan sélectionné et sa pose. ' + remarque)
 
     def ajouter_grille_selection(self):
         self.annuler_geste()
@@ -431,16 +434,16 @@ class Atelier(tk.Tk):
         if id(scan) in self.scans_grille:
             self.statut.set('Ce scan est déjà intégré : aucune observation comptée deux fois.')
             return
-        self.verifier_scans_grille([scan])
+        remarque = self.verifier_scans_grille([scan])
         self.grille.mettre_a_jour(scan, **opts)
         self.scans_grille.add(id(scan))
         self.dessiner_grille()
-        self.statut.set(f'Grille mise à jour : {len(self.scans_grille)} scans intégrés, anciennes observations conservées.')
+        self.statut.set(f'Grille mise à jour : {len(self.scans_grille)} scans intégrés, anciennes observations conservées. ' + remarque)
 
     def calculer_grille(self):
         self.annuler_geste()
         scans, opts = self.choisis(), self.filtres()
-        self.verifier_scans_grille(scans)
+        remarque = self.verifier_scans_grille(scans)
         resolution = self.nombre('resolution')
         g = Grille.creer(scans, resolution, **opts)
         for s in scans:
@@ -449,7 +452,7 @@ class Atelier(tk.Tk):
         self.scans_grille = {id(s) for s in scans}
         self.parametres_grille = (resolution, opts)
         self.dessiner_grille()
-        self.statut.set(f'Grille reconstruite depuis {len(scans)} scans ; résolution {g.resolution:g} m/cellule.')
+        self.statut.set(f'Grille reconstruite depuis {len(scans)} scans ; résolution {g.resolution:g} m/cellule. ' + remarque)
 
     def dessiner_grille(self):
         g = self.grille
@@ -610,7 +613,7 @@ class Atelier(tk.Tk):
         self.champ(cadre,'quantite','Nombre de scans à capturer (1 à 20)',1)
         self.bouton(cadre,'Capturer',self.lancer_capture)
         self.bouton(cadre,'Annuler la capture',self.annuler.set)
-        ttk.Label(cadre,text='Garde le lidar immobile. Les scans reçus sont ajoutés à la liste ; exporte-les ensuite.\nLe port se ferme automatiquement en fin de capture. Le délai maximal est de 40 s.\nLa capture attend le début d’un scan et rejette les blocs incomplets.\nContrôle : étendue 340–380° et aucun saut >10°. Cela ne garantit pas zéro perte en amont.',wraplength=740).pack(anchor='w',pady=15)
+        ttk.Label(cadre,text='Garde le lidar immobile. Les scans reçus sont ajoutés à la liste ; exporte-les ensuite.\nLe port se ferme automatiquement en fin de capture. Le délai maximal est de 40 s.\nLa capture attend le début d’un scan et rejette les blocs incomplets.\nCapture : étendue ≥340°. Les blocs de plusieurs tours sont conservés avec une information.',wraplength=740).pack(anchor='w',pady=15)
 
     def actualiser_ports(self):
         try:

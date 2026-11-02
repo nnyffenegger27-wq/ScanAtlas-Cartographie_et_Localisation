@@ -54,7 +54,7 @@ class AssembleurCSV:
 def capturer(port, baud, quantite, annuler, progression, delai=40):
     """À appeler dans un thread. Une ligne incomplète reste en tampon.
 
-    Chaque résultat passe un contrôle de tour plausible (340–380°, saut <=10°) ; cela ne garantit
+    Chaque résultat couvre au moins 340°. Les blocs multiples sont conservés ; cela ne garantit
     pas l'absence de pertes de trames binaires en amont de l'ESP32.
     """
     import serial
@@ -82,13 +82,14 @@ def capturer(port, baud, quantite, annuler, progression, delai=40):
                 if donnees is not None:
                     # Angles déjà mathématiques : ils décroissent dans le flux.
                     diagnostic = diagnostic_scan(donnees)
-                    if not diagnostic['tour_plausible']:
+                    if diagnostic['etendue'] < 340.:
                         assembleur.rejets += 1
                         progression(f"Bloc rejeté : {diagnostic['etat']} ({diagnostic['etendue']:.1f}°)")
                         continue
                     scans.append(Scan(f'USB {len(scans)+1}', donnees, source='Acquisition USB réelle',
                                       angle_reference=ANGLE_REFERENCE_DEFAUT))
-                    progression(f'{len(scans)}/{quantite} scans reçus')
+                    detail = f" · {diagnostic['etat']} conservé à pose unique" if not diagnostic['tour_plausible'] else ''
+                    progression(f'{len(scans)}/{quantite} scans reçus' + detail)
                     if len(scans) >= quantite:
                         break
     return scans

@@ -54,7 +54,7 @@ Les coordonnées sont actualisées ; Échap annule le geste avant validation.
 Recalculer ensuite les cartes et enregistrer la session.
 
 Le diagnostic du scan sélectionné signale les tours multiples et les grandes
-lacunes. Les prochaines captures USB refusent ces blocs. Un scan de 305 points
+lacunes. Les blocs de plusieurs tours sont conservés ; leur étendue est indiquée à titre informatif. Un scan de 305 points
 couvrant 360° ne prouve pas que toutes les mesures ont été reçues.
 Voir [l'analyse des acquisitions et des difficultés](ANALYSE_SCANS_ET_SOURIS.md).
 
@@ -80,7 +80,7 @@ Dans l'onglet Grille, trois actions sont distinguées :
 3. **Reconstruire depuis les scans cochés Carte** : recalcule tout depuis les
    poses actuelles des scans inclus, sans cumuler avec la grille précédente.
 
-Avant chaque intégration : validation du tour plausible et filtrage distance/
+Avant chaque intégration : diagnostic angulaire informatif et filtrage distance/
 intensité. Les cellules traversées avant l'impact reçoivent une preuve libre
 (log-odds -0,4) ; la cellule d'impact reçoit une preuve occupée (+0,85).
 Une même cellule ne reçoit qu'une preuve par scan, l'impact étant prioritaire.
@@ -108,3 +108,15 @@ pas la grille calculée : la reconstruire après réouverture.
 Alignement utilisé : poses manuelles, sans scan matching automatique.
 Le vieillissement temporel et le lissage spatial décrits comme extensions dans
 le cours restent à développer ; ils ne sont pas nécessaires au parcours de base.
+
+
+## Décision actuelle sur les blocs de plusieurs tours
+
+Les acquisitions de 766 et 545 points sont conservées et peuvent être cochées
+dans Carte. Le nombre de points et une étendue supérieure à un tour ne bloquent
+plus la grille ni les captures USB. Une information signale l'étendue, sans
+demander de confirmation. La pose choisie s'applique à l'ensemble du bloc :
+elle suppose le lidar immobile pendant ses mesures. Les points invalides ou
+hors filtres restent exclus ; les données originales ne sont pas modifiées.
+Une cellule reçoit au plus une preuve par bloc, même si plusieurs tours la
+mesurent. Cette décision remplace les anciennes recommandations d'exclusion.

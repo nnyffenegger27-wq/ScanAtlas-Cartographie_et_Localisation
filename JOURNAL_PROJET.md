@@ -315,3 +315,31 @@ Limites : scan matching automatique non implémenté ; pas de vieillissement
 ni de lissage spatial ; grille calculée exportable en NPZ mais non conservée
 dans la session JSON. Le rapport Word sera complété avec une capture du
 nouveau parcours ; la documentation texte décrit dès maintenant les changements.
+
+
+## Conservation des blocs multiples et comparaison de grille — 2 novembre 2026
+
+Décision explicite utilisateur : conserver les acquisitions de 766 et 545 points.
+Les anciennes recommandations d'exclusion sont abandonnées. Le problème n'est
+pas « trop de points » ; plusieurs tours peuvent être cartographiés sous une
+même pose si le lidar reste immobile. Les poses internes à un bloc ne sont
+pas connues : un éventuel mouvement ne peut pas être corrigé automatiquement.
+
+Modification : vérification angulaire informative et non bloquante pour les
+trois actions de grille ; captures USB autorisées au-delà d'un tour. Le seuil
+minimal de capture de 340° reste en place ; pas de seuil maximal ni de quota
+de points ajouté. Les erreurs de format, indices CSV manquants et filtres de
+mesure restent contrôlés. Le texte « bloc anormal » devient « bloc de plusieurs
+tours ». Une preuve au plus par cellule et par bloc évite que répéter les mêmes
+rayons à pose fixe augmente artificiellement leur poids dans un seul bloc.
+
+49 tests passent, dont création, ajout, reconstruction et capture simulée
+d'un bloc de deux tours. Une répétition identique de deux tours produit les
+mêmes preuves par cellule qu'un seul tour dans ce bloc.
+
+Captures reçues : à 0,05 m, grille 290 × 267 ; à 0,10 m, grille 146 × 134.
+Les deux blocs étaient décochés sur ces images ; ce sont des résultats avant
+réintégration. Le Word est corrigé et complété par ces deux figures, avec
+comparaison visuelle de la résolution et sans prétendre mesurer la précision.
+Aucun changement des cases dans la session locale de l'utilisateur n'est
+possible ici : il doit recocher les blocs dans Carte après mise à jour.

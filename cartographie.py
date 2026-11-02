@@ -43,7 +43,7 @@ def diagnostic_scan(mesures):
     pas = np.abs(np.diff(deroules))
     lacune = float(pas.max()) if len(pas) else 0.
     if etendue > 380.:
-        etat = 'Plusieurs tours / bloc anormal'
+        etat = 'Bloc de plusieurs tours'
     elif etendue < 340.:
         etat = 'Tour incomplet'
     elif lacune > 10.:
