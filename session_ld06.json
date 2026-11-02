@@ -1,13 +1,13 @@
 {
-  "version": 1,
+  "version": 2,
   "parametres": {
     "mini": "0.05",
-    "maxi": "12",
-    "intensite": "0",
+    "maxi": "12.0",
+    "intensite": "0.0",
     "resolution": "0.05",
     "saut": "0.2",
     "erreur": "0.04",
-    "angle_max": "8",
+    "angle_max": "8.0",
     "distance_max": "0.12",
     "baud": "115200",
     "quantite": "1"
@@ -4940,9 +4940,10 @@
       "pose": [
         0.0,
         0.0,
-        90.0
+        0.0
       ],
       "source": "Acquisition USB réelle",
+      "angle_reference": 270.0,
       "inclus": true
     },
     {
@@ -7232,9 +7233,10 @@
       "pose": [
         0.0,
         0.0,
-        90.0
+        0.0
       ],
       "source": "Acquisition USB réelle",
+      "angle_reference": 270.0,
       "inclus": true
     },
     {
@@ -12154,9 +12156,10 @@
       "pose": [
         0.0,
         0.0,
-        90.0
+        0.0
       ],
       "source": "Acquisition USB réelle",
+      "angle_reference": 270.0,
       "inclus": true
     },
     {
@@ -14446,9 +14449,10 @@
       "pose": [
         0.0,
         0.0,
-        90.0
+        0.0
       ],
       "source": "Acquisition USB réelle",
+      "angle_reference": 270.0,
       "inclus": true
     }
   ]
