@@ -60,3 +60,13 @@ Les étapes de base du TP sont donc utilisables séparément. Le recalage demeur
 manuel et les extensions de vieillissement/nettoyage temporel ne sont pas
 implémentées. Le rapport Word illustré reste un état antérieur : son prochain
 complément pourra présenter ce parcours incrémental et une nouvelle capture.
+
+
+## Correction sur la conservation des données
+
+Sur décision utilisateur, les blocs de 766 et 545 points restent exploitables
+dans la grille. Le rejet automatique pour plusieurs tours est supprimé.
+L'hypothèse d'une pose unique par bloc est explicitée. Le rapport Word a été
+corrigé pour supprimer la consigne d'exclusion et complété avec les captures
+de grille à 0,05 m et 0,10 m. Ces captures précèdent la réintégration des
+deux blocs et ne constituent pas une comparaison avec/sans ces acquisitions.

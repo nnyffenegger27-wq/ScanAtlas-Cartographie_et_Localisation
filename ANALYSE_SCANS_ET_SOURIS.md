@@ -18,9 +18,9 @@ L'analyse porte sur les mesures polaires originales, avant filtrage et pose.
 | 8 | 306 | 359.78° | 2.90° | Environ un tour (pertes non exclues) |
 | 9 | 304 | 357.79° | 2.34° | Environ un tour (pertes non exclues) |
 | 10 | 304 | 358.59° | 2.34° | Environ un tour (pertes non exclues) |
-| 11 | 766 | 1079.54° | 176.99° | Plusieurs tours / bloc anormal |
+| 11 | 766 | 1079.54° | 176.99° | Bloc de plusieurs tours |
 | 12 | 305 | 358.37° | 2.38° | Environ un tour (pertes non exclues) |
-| 13 | 545 | 643.04° | 2.46° | Plusieurs tours / bloc anormal |
+| 13 | 545 | 643.04° | 2.46° | Bloc de plusieurs tours |
 
 Onze blocs couvrent environ un tour, avec 304 à 306 mesures. Le bloc 11
 couvre près de trois tours (1079,54°) et le bloc 13 couvre 643,04°. Ils ne
@@ -76,8 +76,8 @@ La bibliothèque ESP32 n'a pas été modifiée dans cette livraison.
 `diagnostic_scan()` déroule les angles dans l'ordre reçu et mesure l'étendue
 et le plus grand saut. Une capture est jugée plausible si elle couvre
 340 à 380° et ne présente aucun saut supérieur à 10°. Ces seuils sont des
-garde-fous pédagogiques, pas une preuve d'absence de pertes. Les prochains
-blocs USB qui échouent sont refusés et un message indique pourquoi.
+garde-fous pédagogiques, pas une preuve d'absence de pertes. Les prochains blocs USB couvrant au moins 340° sont conservés, y compris
+les blocs de plusieurs tours. Le diagnostic reste informatif.
 Les imports et sessions existants restent consultables, avec le diagnostic
 affiché. Aucun découpage ou effacement automatique des anciens scans.
 
@@ -127,3 +127,13 @@ que le repère de déplacement change sous le curseur.
 - [Manuel LDROBOT LD06, protocole et interpolation, §3.2](https://www.yahboom.net/xiazai/LiDar-LD06/LDROBOT_LD06_Development_manual.pdf).
 - Programme ESP32 fourni : `ESP32_LD06_Test.zip`, examen en lecture seule.
 - Résultats numériques : session JSON utilisateur, analyse locale, sans matériel.
+
+
+## Décision utilisateur après les essais de grille
+
+Conserver les blocs 766 et 545 : un regroupement de plusieurs tours ne rend pas
+leurs mesures inutilisables si la pose est constante. La grille les accepte
+désormais sans blocage ; seules les mesures invalides ou hors filtres sont
+écartées. Le diagnostic de tour plausible reste descriptif et ne vaut plus
+critère d'exclusion de la grille. Les analyses précédentes restent utiles
+pour expliquer la segmentation des acquisitions, sans imposer leur suppression.

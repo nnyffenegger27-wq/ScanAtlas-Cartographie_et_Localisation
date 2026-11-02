@@ -104,7 +104,7 @@ class Diagnostic(unittest.TestCase):
         self.assertTrue(d['tour_plausible'])
         self.assertAlmostEqual(d['etendue'], 359.)
 
-    def test_tours_multiples_et_fragment_refuses(self):
+    def test_tours_multiples_et_fragment_signales(self):
         for angles in [np.linspace(359, -720, 766), np.linspace(283, -360, 545),
                        np.linspace(280, 1, 230)]:
             self.assertFalse(diagnostic_scan(self.mesures(angles))['tour_plausible'])
