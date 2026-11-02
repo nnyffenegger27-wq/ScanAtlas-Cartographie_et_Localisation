@@ -190,3 +190,13 @@ Suppression du champ « Zéro lidar » : le décalage de 90° est automatique et
 pour les données réelles, y compris les anciennes sessions. Aucun angle brut
 n'est modifié. Prochaines priorités : diagnostiquer les scans à 720°, vérifier
 l'acquisition, améliorer les segments, puis documenter les résultats réels.
+
+
+## Orientation fixe portée à 180° — 2 novembre 2026
+
+Sur demande utilisateur, le décalage fixe de 90° est remplacé par 180° :
+`angle_local = angle_mesure - 180°`. L'ancien 180° est donc sur +x lorsque
+la pose du robot est nulle. La règle s'applique aux imports, à l'USB et aux
+sessions réelles rouvertes. Aucun champ supplémentaire ; angles bruts conservés.
+Les paragraphes précédents décrivent l'historique des réglages, cette décision
+est la référence actuelle. Les 25 tests locaux passent.

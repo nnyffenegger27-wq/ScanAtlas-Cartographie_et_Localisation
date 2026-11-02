@@ -25,8 +25,8 @@ AIDE = '''PARCOURS CONSEILLÉ
 
 CONVENTIONS
 Distances internes et poses en mètres ; angles en degrés antihoraires.
-Pour les nouveaux imports/USB : angle utilisé = angle mesuré - 90°.
-La référence 90° est fixe : seul le réglage de pose du robot est affiché.
+Pour les nouveaux imports/USB : angle utilisé = angle mesuré - 180°.
+La référence 180° est fixe : seul le réglage de pose du robot est affiché.
 Elle est aussi appliquée aux scans réels des anciennes sessions.
 Le CSV ESP32 a 6 colonnes : indice, angle°, distance mm, intensité, x mm, y mm.
 Nous recalculons x = r cos(angle), y = r sin(angle) : les colonnes x/y ESP32
@@ -462,7 +462,7 @@ class Atelier(tk.Tk):
                 raise ValueError('Mesures ou pose invalides.')
             if (m[:,1] < 0).any() or ((m[:,2]<0)|(m[:,2]>255)).any():
                 raise ValueError('Distance ou intensité invalide.')
-            # Les scans réels utilisent toujours l'ancien 90° comme zéro.
+            # Les scans réels utilisent toujours l'ancien 180° comme zéro.
             # Les exemples synthétiques sont construits dans un repère neutre.
             reference = 0. if 'SIMULATION' in str(d['source']) else ANGLE_REFERENCE_DEFAUT
             scans.append(Scan(str(d['nom']),m,pose.tolist(),str(d['source']),reference))
