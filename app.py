@@ -14,6 +14,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 from cartographie import (Scan, Grille, lire_csv, exporter_scan, demonstration,
                          mesures_valides, extraire_segments, carte_vectorielle,
                          angle_segments, proches, fusionner, intersection, decouper, EPS)
+from cartographie import ANGLE_REFERENCE_DEFAUT
 
 AIDE = '''PARCOURS CONSEILLÉ
 1. « Démonstration simulée » pour découvrir les vues sans matériel.
@@ -24,6 +25,9 @@ AIDE = '''PARCOURS CONSEILLÉ
 
 CONVENTIONS
 Distances internes et poses en mètres ; angles en degrés antihoraires.
+Pour les nouveaux imports/USB : angle utilisé = angle mesuré - 90°.
+Le champ Zéro lidar règle cet ancien angle devenu 0° ; la pose robot est séparée.
+Les sessions anciennes gardent leur référence 0° pour préserver leur carte.
 Le CSV ESP32 a 6 colonnes : indice, angle°, distance mm, intensité, x mm, y mm.
 Nous recalculons x = r cos(angle), y = r sin(angle) : les colonnes x/y ESP32
 ne sont pas utilisées. Ne pas inverser de nouveau les angles de la bibliothèque.
@@ -118,6 +122,9 @@ class Atelier(tk.Tk):
         pose.pack(fill='x', pady=8)
         for cle, titre, valeur in [('x','Position x (m)',0), ('y','Position y (m)',0), ('orientation','Orientation (°)',0)]:
             self.champ(pose, cle, titre, valeur)
+        self.champ(pose, 'reference', 'Zéro lidar (ancien angle °)', ANGLE_REFERENCE_DEFAUT)
+        ttk.Label(pose, text='90° : l’ancien 90° devient le nouveau 0°.\nOrientation = pose du robot dans la carte.',
+                  wraplength=300, font=('Segoe UI', 9)).pack(anchor='w', pady=4)
         self.bouton(pose, 'Appliquer la pose', self.appliquer_pose)
         filtres = ttk.LabelFrame(gauche, text='3 · Filtrage commun', padding=8)
         filtres.pack(fill='x')
@@ -237,6 +244,7 @@ class Atelier(tk.Tk):
         s = self.scans[self.indice()]
         for k, v in zip(['x','y','orientation'], s.pose):
             self.vars[k].set(str(round(v,5)))
+        self.vars['reference'].set(str(s.angle_reference))
         couverture = np.ptp(np.rad2deg(np.unwrap(np.deg2rad(s.mesures[:,0]))))
         self.info.configure(text=f'{s.source}\n{len(s.mesures)} points · étendue ≈ {couverture:.1f}°')
         self.segments = []
@@ -278,7 +286,10 @@ class Atelier(tk.Tk):
 
     def appliquer_pose(self):
         s = self.scans[self.indice()]
-        s.pose = [self.nombre(k) for k in ['x','y','orientation']]
+        nouvelle_pose = [self.nombre(k) for k in ['x','y','orientation']]
+        reference = self.nombre('reference')
+        s.pose = nouvelle_pose
+        s.angle_reference = reference
         self.invalider()
         self.dessiner_nuages()
         self.statut.set('Pose appliquée. Recalcule les cartes pour utiliser cette nouvelle pose.')
@@ -435,8 +446,9 @@ class Atelier(tk.Tk):
     def sauver_session(self):
         p = filedialog.asksaveasfilename(defaultextension='.json',initialfile='session_ld06.json')
         if p:
-            contenu = dict(version=1, parametres={k:v.get() for k,v in self.vars.items() if k not in ['x','y','orientation']},
-                           scans=[dict(nom=s.nom,mesures=s.mesures.tolist(),pose=s.pose,source=s.source,inclus=oui) for s,oui in zip(self.scans,self.inclus)])
+            contenu = dict(version=2, parametres={k:v.get() for k,v in self.vars.items() if k not in ['x','y','orientation','reference']},
+                           scans=[dict(nom=s.nom,mesures=s.mesures.tolist(),pose=s.pose,source=s.source,
+                                       angle_reference=s.angle_reference,inclus=oui) for s,oui in zip(self.scans,self.inclus)])
             Path(p).write_text(json.dumps(contenu,ensure_ascii=False,indent=2),encoding='utf-8')
             self.statut.set('Session enregistrée : mesures originales, sources, poses et paramètres. Les cartes se recalculent.')
 
@@ -447,7 +459,7 @@ class Atelier(tk.Tk):
         if self.scans and not messagebox.askyesno('Ouvrir une session', 'Remplacer la session affichée ? Enregistre-la avant si nécessaire.'):
             return
         data = json.loads(Path(p).read_text(encoding='utf-8'))
-        if data.get('version') != 1:
+        if data.get('version') not in (1, 2):
             raise ValueError('Version de session inconnue.')
         scans, inclus = [], []
         for d in data['scans']:
@@ -456,7 +468,10 @@ class Atelier(tk.Tk):
                 raise ValueError('Mesures ou pose invalides.')
             if (m[:,1] < 0).any() or ((m[:,2]<0)|(m[:,2]>255)).any():
                 raise ValueError('Distance ou intensité invalide.')
-            scans.append(Scan(str(d['nom']),m,pose.tolist(),str(d['source'])))
+            reference = float(d.get('angle_reference', 0.))
+            if not np.isfinite(reference):
+                raise ValueError('Référence angulaire invalide.')
+            scans.append(Scan(str(d['nom']),m,pose.tolist(),str(d['source']),reference))
             inclus.append(bool(d['inclus']))
         parametres = data.get('parametres',{})
         nouveaux = {}

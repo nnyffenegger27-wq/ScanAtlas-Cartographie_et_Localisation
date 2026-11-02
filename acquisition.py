@@ -3,7 +3,7 @@ Aucun accès à l'interface graphique dans ce module.
 """
 import time
 import numpy as np
-from cartographie import Scan
+from cartographie import Scan, ANGLE_REFERENCE_DEFAUT
 
 
 class AssembleurCSV:
@@ -84,7 +84,8 @@ def capturer(port, baud, quantite, annuler, progression, delai=40):
                     couverture = np.ptp(np.rad2deg(np.unwrap(np.deg2rad(donnees[:, 0]))))
                     if couverture < 340:
                         continue
-                    scans.append(Scan(f'USB {len(scans)+1}', donnees, source='Acquisition USB réelle'))
+                    scans.append(Scan(f'USB {len(scans)+1}', donnees, source='Acquisition USB réelle',
+                                      angle_reference=ANGLE_REFERENCE_DEFAUT))
                     progression(f'{len(scans)}/{quantite} scans reçus')
                     if len(scans) >= quantite:
                         break

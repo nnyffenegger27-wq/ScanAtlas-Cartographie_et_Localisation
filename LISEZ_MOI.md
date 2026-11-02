@@ -261,3 +261,21 @@ Le contrôle visuel de l'interface Windows reste également à effectuer sur ton
 Ne présente pas les résultats simulés comme tes relevés de salle. Pour expliquer
 ta démarche, distingue les choix de cette application, tes propres réglages et
 ce que tu as réellement observé sur tes acquisitions.
+
+## Mise à jour v0.2.0 du repère robot
+
+La précision finale demandée est : **l'ancien angle 90° devient le nouveau 0°**.
+Pour les nouveaux imports CSV et les captures USB, le champ « Zéro lidar (ancien
+angle °) » vaut 90. Le calcul utilise `angle_mesure - angle_reference`, puis
+applique la pose du robot. Les formules de conversion présentées plus haut se
+lisent désormais avec cet angle local. L'orientation de la pose reste 0° par défaut.
+
+Pour une ancienne session, la référence reste 0° pour conserver l'affichage
+antérieur. Pour changer de convention : sélectionner chaque scan, régler le
+zéro lidar à 90°, choisir la pose du robot souhaitée, appliquer et recalculer les
+cartes. Si le lidar est resté immobile, utiliser une même pose pour les scans.
+Les exemples simulés gardent leur convention explicite et ne sont pas recalibrés.
+
+La session JSON version 2 conserve cette référence par scan ; le CSV exporté
+conserve les angles originaux. Utiliser le JSON pour reprendre le travail complet.
+Le journal et le guide GitHub expliquent l'état et l'historique du projet.

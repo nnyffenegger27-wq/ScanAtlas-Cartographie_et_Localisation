@@ -9,6 +9,7 @@ import csv
 import numpy as np
 
 EPS = 1e-8  # Tolérance géométrique en mètres ; angles comparés en radians.
+ANGLE_REFERENCE_DEFAUT = 90.  # Ancien angle 90° = axe x positif du robot.
 
 
 @dataclass
@@ -17,10 +18,11 @@ class Scan:
     mesures: np.ndarray
     pose: list = field(default_factory=lambda: [0., 0., 0.])
     source: str = 'CSV réel/importé'
+    angle_reference: float = 0.  # Géométrie neutre ; imports/USB utilisent 90°.
 
     def points(self):
         """Polaire -> repère lidar -> rotation et translation dans la carte."""
-        theta = np.deg2rad(self.mesures[:, 0])
+        theta = np.deg2rad(self.mesures[:, 0] - self.angle_reference)
         rayon = self.mesures[:, 1]
         locaux = np.column_stack((rayon * np.cos(theta), rayon * np.sin(theta)))
         a = np.deg2rad(self.pose[2])
@@ -73,7 +75,8 @@ def lire_csv(chemin):
     terminer()
     if not groupes:
         raise ValueError('Aucune mesure dans ce fichier.')
-    return [Scan(f'{Path(chemin).stem} / {i+1}', g) for i, g in enumerate(groupes)]
+    return [Scan(f'{Path(chemin).stem} / {i+1}', g,
+                 angle_reference=ANGLE_REFERENCE_DEFAUT) for i, g in enumerate(groupes)]
 
 
 def exporter_scan(scan, chemin):

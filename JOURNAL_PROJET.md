@@ -1,0 +1,189 @@
+# LD06 Atelier — journal et mémoire du projet
+
+Mise à jour : 2 novembre 2026. Version Python : v0.2.0.
+
+Ce fichier sert de point de reprise du projet. Le mettre à jour après chaque
+modification importante et le conserver dans Git. Il fournit un contexte lisible
+à une prochaine conversation ; il ne constitue pas une promesse de mémoire
+personnelle automatique entre toutes les conversations.
+
+## Objectif et préférences
+
+TP EIGSI Jour 1 : acquérir ses propres scans polaires réels, afficher plusieurs
+nuages en couleurs et régler chaque pose, construire et mettre à jour une grille,
+extraire et manipuler des segments, construire une carte vectorielle et expliquer
+la démarche. L'utilisateur voulait d'abord être guidé, puis a demandé la création
+de l'application en gardant le code clair et compréhensible.
+
+Une version web a été construite, avec un rapport Word. Le choix final confirmé
+est de poursuivre **l'application Python locale**. Ne pas reprendre le travail
+sur le site web par défaut. Les évolutions Python ne modifient pas le site ni la
+trame Word déjà livrée, qui reflète une étape précédente.
+
+## Ressources fournies
+
+- ESP32_LD06_Test.zip : sketch Arduino et bibliothèque LD06.
+- LD06 Communication Protocol.pdf : manuel LDROBOT v1.0.
+- LD06 datasheet.pdf.
+- Acquisition des données issues du Lidar LD06.md.
+- Quatre captures d'écran des résultats réels Python.
+- Les deux documents de cours sur les constructions des cartes ne sont pas fournis.
+- Les CSV/JSON de la session réelle à quatre acquisitions ne sont pas encore reçus.
+
+## Ce qui a été réalisé
+
+- Lecture du sketch et de la bibliothèque ; compréhension trame contre scan.
+- Confirmation de la réception des données sur ESP32.
+- Passage de printScanTeleplot à printScanCSV.
+- Explication angle-distance, degrés/radians, sin/cos, indexation NumPy et baud.
+- Application Tkinter/Matplotlib avec import CSV et capture USB PySerial.
+- Affichage de plusieurs scans, couleurs et poses indépendantes.
+- Filtrage des mesures sans modifier les données brutes.
+- Grille d'occupation : rayons, cellules libres, impacts et masque inconnu.
+- Extraction de segments, angle, proximité, fusion, intersection et découpage.
+- Carte vectorielle : extraction globale puis fusion des voisins.
+- Exports polaires, session JSON, grille NPZ et segments CSV.
+- Guide en français, exemples explicitement simulés et tests automatisés.
+- Version web alternative : 29 tests ; elle reste une piste non retenue.
+- Trame Word de sept pages avec comparaisons et résultats réels à compléter.
+- Git local préparé : baseline v0.1.0 et évolution v0.2.0.
+- Nouveau zéro angulaire demandé : ancien 90° devient 0° pour nouveaux scans.
+
+## Convention angulaire actuelle
+
+La dernière précision de l'utilisateur remplace sa première formulation
+« orientation par défaut à 90° » : **le nouveau zéro doit être l'ancien 90°**.
+
+On garde les angles polaires originaux et on applique :
+
+```text
+angle_local = angle_mesure - angle_reference
+angle_reference = 90 degres pour tout nouveau CSV ou scan USB
+angle_carte = angle_local + orientation_pose_robot
+```
+
+À pose robot (0,0,0) et distance 1 m :
+
+| Angle original | Angle local | x robot | y robot |
+|---:|---:|---:|---:|
+| 90° | 0° | 1 m | 0 m |
+| 0° | -90° | 0 m | -1 m |
+| 180° | 90° | 0 m | 1 m |
+
+Le champ **Zéro lidar (ancien angle °)** règle la calibration de chaque scan.
+Le champ **Orientation (°)** reste la pose du robot dans la carte. Ne pas confondre
+ces deux réglages et ne pas appliquer deux fois la calibration.
+
+Les sessions v1 se rouvrent avec référence 0° et leur pose enregistrée : aucune
+rotation rétroactive silencieuse. Pour adopter le nouveau repère dans une ancienne
+session, sélectionner chaque scan, régler référence 90°, régler la pose souhaitée
+(pour des relevés immobiles : même pose pour tous), puis appliquer et recalculer.
+Les sessions v2 stockent la référence de chaque scan. Les démonstrations conservent
+leur convention propre (référence 0°) et leurs poses explicites.
+Le CSV exporté conserve l'angle original ; utiliser la session JSON pour conserver
+la calibration et les poses. Vérifier physiquement la convention sur le robot.
+
+## Résultats réels observés et faits confirmés
+
+- L'utilisateur confirme que les quatre acquisitions ont été faites **sans déplacer
+  le lidar**. Ne pas attribuer les écarts à un changement volontaire de pose.
+- Les grands murs se superposent visuellement assez bien.
+- Les petits groupes centraux diffèrent ; mouvements de personnes possibles,
+  mais non confirmés. Ne pas présenter cette hypothèse comme un fait.
+- La grille a des zones inconnues et des traces de rayons ; cela peut venir des
+  occultations et de la discrétisation, pas forcément d'une mauvaise pose.
+- Capture : 984, 456, 982 et 456 points ; les quatre scans portent le nom USB 1.
+- Le scan sélectionné affiche 719,4° : presque deux tours dans un même bloc.
+- Extraction affichée : 52 segments pour le scan sélectionné ; carte fusionnée :
+  43 segments pour l'ensemble. Ces deux nombres ne décrivent pas le même périmètre.
+
+## Anomalie prioritaire encore ouverte
+
+L'acquisition Python rejette une étendue inférieure à 340°, mais ne borne pas
+l'étendue supérieure. Un bloc proche de 720° peut donc être accepté à tort comme
+un scan unique. L'origine précise doit être recherchée dans la session et dans
+la chaîne ESP32/bibliothèque/CSV. Ce problème **n'est pas corrigé en v0.2.0**.
+Ne pas supprimer arbitrairement la moitié des points et ne pas seulement augmenter
+les seuils de fusion pour masquer les conséquences.
+
+## Choix techniques et solutions à privilégier
+
+| Sujet | Choix retenu ou recommandé | Pourquoi et limites |
+|---|---|---|
+| Référence robot | Calibration distincte de la pose | Ancien 90° = zéro, sans altérer les mesures |
+| Unités | Mètres en interne, degrés dans l'interface | Conversion unique à l'entrée ; radians pour trigonométrie |
+| Source polaire | Recalculer x/y depuis angle et distance | Le y du code fourni utilise un signe moins malgré les angles corrigés |
+| Acquisition | Indice 0, continuité, fin de bloc, CRC en amont | Ajouter un vrai contrôle du nombre de tours ; CSV seul ne prouve pas l'absence de pertes en amont |
+| Grille | Rayons libres + impacts occupés + inconnu séparé | Ne jamais déclarer libres les zones masquées |
+| Probabilités | Log-odds -0,4/+0,85, bornées [-4,4] | Poids pédagogiques non calibrés ; une preuve/cellule/scan |
+| Mise à jour | Recalcul depuis les scans choisis après changement | Évite de recompter les mêmes scans ou de garder les anciennes poses |
+| Extraction | Ruptures, split-and-fit, ajustement orthogonal | Simple et explicable ; sensible au bruit et aux seuils |
+| Fusion | Angle non orienté ET distance | L'angle seul confond des murs parallèles éloignés |
+| Découpage | Intersection sur A et B et strictement intérieure à A | Colinéaires et extrémités inchangés ; égalité : côté de A[0] |
+| Carte vectorielle | Fusion progressive des segments globaux | Heuristique, ordre dépendant ; ne pas couper tous les croisements automatiquement |
+| Versionnement | Commits courts et versions identifiées | Conserver les mesures réelles séparément et les réglages reproductibles |
+
+Les réglages 0,20 m rupture, 0,04 m erreur, 8° fusion et 0,12 m distance sont des
+points de départ. Les améliorer un par un après contrôle de la séparation des tours.
+
+## Reste à faire par priorité
+
+### P0 — Fiabilité des acquisitions
+
+- [ ] Récupérer la session JSON réelle à quatre acquisitions.
+- [ ] Examiner les angles, les retours à zéro et les indices dans les blocs à 720°.
+- [ ] Vérifier la bibliothèque ESP32 et ses frontières de tours.
+- [ ] Définir puis tester un découpage fiable en scans d'un seul tour.
+- [ ] Avertir ou rejeter clairement les blocs partiels ou multiples.
+- [ ] Donner un nom unique à chaque acquisition entre plusieurs captures.
+
+### P1 — Repère et qualité des cartes
+
+- [ ] Vérifier sur le robot qu'un obstacle à l'ancien 90° apparaît bien sur +x.
+- [ ] Adapter explicitement les anciennes sessions au repère retenu, si souhaité.
+- [ ] Vérifier l'absence de mouvement pendant chaque tour et les objets mobiles.
+- [ ] Comparer deux résolutions et mesurer le compromis détail/mémoire/temps.
+- [ ] Comparer les seuils de segmentation et relever les fragments perdus.
+- [ ] Mesurer les effets de la fusion, sans boucher les ouvertures réelles.
+
+### P2 — Rapport et GitHub
+
+- [ ] Lire les deux documents du cours encore manquants.
+- [ ] Adapter le rapport à la version Python et au zéro angulaire actuel.
+- [ ] Ajouter scans réels, conditions, paramètres et figures aux résultats.
+- [ ] Distinguer tests artificiels, observations réelles et hypothèses.
+- [ ] Créer ou fournir un dépôt GitHub vide et son URL.
+- [ ] Publier main et les tags ; vérifier le dépôt distant.
+- [ ] Configurer l'identité Git réelle pour les prochains commits.
+
+### Plus tard seulement
+
+- [ ] Filtrage spatial prudent, pondération des segments par leur support.
+- [ ] Durée de vie des cellules si objets mobiles réellement problématiques.
+- [ ] Recalage automatique uniquement si plusieurs poses différentes sont acquises.
+- [ ] Amélioration visuelle de l'interface sans cacher les paramètres du TP.
+
+## Fichiers et validation
+
+- app.py : interface et sessions v1/v2.
+- cartographie.py : géométrie, calibration, grille et segments.
+- acquisition.py : capture série CSV.
+- LISEZ_MOI.md : guide de fonctionnement ; GUIDE_GITHUB.md : versionnement.
+- tests/ : calculs, coordonnées, géométrie et compatibilité des sessions.
+
+Commande : `python -m unittest discover -s tests -v`.
+Version v0.2.0 : **24 tests réussis**, dont nouveau zéro 90°, pose séparée et
+compatibilité v1. Pas de vérification visuelle Windows ni de nouvel essai matériel
+pour cette modification. La version initiale avait 21 tests ; la web 29.
+Les commits de préparation sont attribués à Codex (codex@localhost), pas à
+l'utilisateur. Aucun dépôt distant GitHub n'est encore configuré ni publié.
+
+
+## Publication GitHub — 2 novembre 2026
+
+La v0.2.0 est appliquée sur la branche `main` du dépôt
+`nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation`, à la suite de
+l’import initial existant. La session réelle `session_ld06.json` est conservée.
+Les 24 tests locaux passent. Le zéro lidar des nouveaux scans vaut 90° ;
+les anciennes sessions gardent leur référence pour préserver leur affichage.
+Le problème des acquisitions proches de 720° reste à traiter séparément.
