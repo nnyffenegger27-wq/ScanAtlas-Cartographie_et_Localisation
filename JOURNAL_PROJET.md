@@ -217,3 +217,32 @@ Ajout de la colonne Visible : masquer/réafficher les nuages et leurs poses
 indépendamment de la colonne Carte. Aucun scan supprimé, aucune pose modifiée.
 État conservé en JSON ; les anciennes sessions reprennent leur affichage initial.
 Les cartes calculées restent indépendantes de la visibilité des nuages.
+
+
+## Acquisitions à plusieurs positions et souris — 2 novembre 2026
+
+Session analysée : « Test plusieur scans pas la meme position.json », 13 blocs.
+Onze ont 304–306 points et 357,79–359,78° d'étendue. Les blocs 11 et 13
+ont respectivement 766 points/1079,54° et 545 points/643,04° : plusieurs tours
+ou bloc partiel multiple, et non un scan unique.
+
+Ajouts : modes souris Déplacer/Tourner, coordonnées synchronisées, rotation
+autour de la pose, conservation du zoom, Échap annule. Contrôle de tour
+plausible affiché et appliqué aux prochaines captures USB (340–380°, saut <=10°).
+Les sessions existantes restent intactes et consultables. La référence reste 270°.
+
+Difficultés : conflits avec Pan/Zoom, sélection de nuages superposés, instabilité
+près du pivot, discontinuité ±180°, cartes périmées après déplacement.
+Solutions et limites décrites dans [ANALYSE_SCANS_ET_SOURIS.md](ANALYSE_SCANS_ET_SOURIS.md).
+
+Pistes matérielles non résolues : vitesse réelle absente du JSON, interpolation
+ESP32 différente du manuel (diviseur 12 au lieu de 11 et demi-pas), pertes
+possibles pendant l'impression CSV bloquante. Aucun changement du firmware
+dans cette livraison ; ne pas attribuer avec certitude les 305 points à une cause.
+Le problème des tours multiples est désormais détecté côté Python, sa cause
+amont reste à corriger. L'ancienne tâche de diagnostic 720° devient donc
+partiellement traitée, sans prétendre avoir réparé le firmware.
+
+Validation : 38 tests automatisés passent, dont événements Matplotlib de
+translation, rotation, Échap, passage ±180°, garde Pan/Zoom et diagnostics.
+La fenêtre Tkinter sous Windows et la capture sur ESP32 restent à essayer.

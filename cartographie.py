@@ -30,6 +30,30 @@ class Scan:
         return locaux @ rotation.T + np.asarray(self.pose[:2])
 
 
+def diagnostic_scan(mesures):
+    """Contrôle angulaire indicatif ; ni horodatage ni vitesse moteur dans le CSV.
+
+    340..380° : tolérance autour d'un tour. Une grande lacune reste suspecte
+    même si les angles de début et de fin sont proches d'un tour complet.
+    Aucun point n'est ajouté, supprimé ou réordonné.
+    """
+    angles = np.asarray(mesures, float)[:, 0]
+    deroules = np.rad2deg(np.unwrap(np.deg2rad(angles)))
+    etendue = float(np.ptp(deroules)) if len(angles) else 0.
+    pas = np.abs(np.diff(deroules))
+    lacune = float(pas.max()) if len(pas) else 0.
+    if etendue > 380.:
+        etat = 'Plusieurs tours / bloc anormal'
+    elif etendue < 340.:
+        etat = 'Tour incomplet'
+    elif lacune > 10.:
+        etat = 'Lacune angulaire importante'
+    else:
+        etat = 'Environ un tour (pertes non exclues)'
+    return dict(points=len(angles), etendue=etendue, pas_max=lacune, etat=etat,
+                tour_plausible=340. <= etendue <= 380. and lacune <= 10.)
+
+
 def lire_csv(chemin):
     """Lit le CSV ESP32 (6 colonnes) ou notre export (3 colonnes).
 

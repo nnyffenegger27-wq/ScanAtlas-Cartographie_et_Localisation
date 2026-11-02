@@ -3,7 +3,7 @@ Aucun accès à l'interface graphique dans ce module.
 """
 import time
 import numpy as np
-from cartographie import Scan, ANGLE_REFERENCE_DEFAUT
+from cartographie import Scan, ANGLE_REFERENCE_DEFAUT, diagnostic_scan
 
 
 class AssembleurCSV:
@@ -54,7 +54,7 @@ class AssembleurCSV:
 def capturer(port, baud, quantite, annuler, progression, delai=40):
     """À appeler dans un thread. Une ligne incomplète reste en tampon.
 
-    Chaque résultat couvre une révolution angulaire >=340° ; cela ne garantit
+    Chaque résultat passe un contrôle de tour plausible (340–380°, saut <=10°) ; cela ne garantit
     pas l'absence de pertes de trames binaires en amont de l'ESP32.
     """
     import serial
@@ -81,8 +81,10 @@ def capturer(port, baud, quantite, annuler, progression, delai=40):
                     continue
                 if donnees is not None:
                     # Angles déjà mathématiques : ils décroissent dans le flux.
-                    couverture = np.ptp(np.rad2deg(np.unwrap(np.deg2rad(donnees[:, 0]))))
-                    if couverture < 340:
+                    diagnostic = diagnostic_scan(donnees)
+                    if not diagnostic['tour_plausible']:
+                        assembleur.rejets += 1
+                        progression(f"Bloc rejeté : {diagnostic['etat']} ({diagnostic['etendue']:.1f}°)")
                         continue
                     scans.append(Scan(f'USB {len(scans)+1}', donnees, source='Acquisition USB réelle',
                                       angle_reference=ANGLE_REFERENCE_DEFAUT))

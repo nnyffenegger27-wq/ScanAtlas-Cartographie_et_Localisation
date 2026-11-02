@@ -281,3 +281,17 @@ Dans « Mes scans », cliquer sur la case de la colonne **Visible** pour masquer
 ou réafficher un scan dans l'onglet Nuages, avec ses points et sa flèche de pose.
 La colonne **Carte** choisit indépendamment les scans utilisés pour les calculs
 de cartographie. La visibilité est sauvegardée dans la session JSON.
+
+
+## Déplacer et tourner un scan à la souris
+
+Dans Nuages : sélectionner un scan visible dans la liste, désactiver Pan/Zoom,
+puis choisir **Déplacer le scan** ou **Tourner le scan**. Maintenir le clic
+gauche et glisser dans le graphique. La rotation pivote autour du lidar.
+Les coordonnées sont actualisées ; Échap annule le geste avant validation.
+Recalculer ensuite les cartes et enregistrer la session.
+
+Le diagnostic du scan sélectionné signale les tours multiples et les grandes
+lacunes. Les prochaines captures USB refusent ces blocs. Un scan de 305 points
+couvrant 360° ne prouve pas que toutes les mesures ont été reçues.
+Voir [l'analyse des acquisitions et des difficultés](ANALYSE_SCANS_ET_SOURIS.md).

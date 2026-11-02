@@ -14,12 +14,13 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 from cartographie import (Scan, Grille, lire_csv, exporter_scan, demonstration,
                          mesures_valides, extraire_segments, carte_vectorielle,
                          angle_segments, proches, fusionner, intersection, decouper, EPS)
-from cartographie import ANGLE_REFERENCE_DEFAUT
+from cartographie import ANGLE_REFERENCE_DEFAUT, diagnostic_scan
+from manipulation import ManipulationScan
 
 AIDE = '''PARCOURS CONSEILLÉ
 1. « Démonstration simulée » pour découvrir les vues sans matériel.
 2. Importer un CSV réel ou capturer l'USB. Les scans importés sont ajoutés.
-3. Sélectionner un scan, régler x, y et orientation, puis « Appliquer la pose ».
+3. Sélectionner un scan ; régler sa pose par coordonnées ou modes souris Déplacer/Tourner.
 4. « Visible » masque un scan dans Nuages ; « Carte » choisit les scans à cartographier.
 5. Exporter les scans réels et la session pour conserver le travail.
 
@@ -72,6 +73,7 @@ class Atelier(tk.Tk):
         self.scans, self.inclus, self.visibles = [], [], []
         self.grille, self.vecteurs = None, None
         self.segments = []
+        self.manipulation = None
         self.messages, self.annuler = queue.Queue(), threading.Event()
         self.travail = False
         self.vars = {}
@@ -160,13 +162,23 @@ class Atelier(tk.Tk):
                 self.bouton(barre, 'Exporter les segments (.csv)…', self.sauver_vecteurs)
             else:
                 ttk.Label(barre, text='Une couleur par scan · repère global en mètres · flèches = poses').pack(anchor='w')
-                ttk.Label(barre, text='Utilise la barre sous le graphique pour zoomer et déplacer la vue.').pack(anchor='w')
+                self.mode_souris = tk.StringVar(value='naviguer')
+                modes = ttk.Frame(barre)
+                modes.pack(fill='x')
+                for valeur, texte in [('naviguer','Naviguer'), ('deplacer','Déplacer le scan'), ('tourner','Tourner le scan')]:
+                    ttk.Radiobutton(modes, text=texte, variable=self.mode_souris,
+                                    value=valeur, command=self.annuler_geste).pack(side='left', padx=4)
+                ttk.Label(barre, text='Sélectionne un scan dans la liste, puis glisse avec le clic gauche. Échap annule.\nRotation autour de sa flèche. Désactive Pan/Zoom pour modifier le scan.').pack(anchor='w')
             fig = Figure(figsize=(7,5), dpi=100, constrained_layout=True)
             self.axes[titre] = fig.add_subplot(111)
             canvas = FigureCanvasTkAgg(fig, cadre)
             canvas.get_tk_widget().pack(fill='both', expand=True)
             NavigationToolbar2Tk(canvas, cadre).update()
             self.canvas[titre] = canvas
+            if titre == 'Nuages':
+                self.manipulation = ManipulationScan(canvas, self.axes[titre], self.mode_souris.get,
+                    self.scan_manipulable, self.apercu_pose, self.fin_geste)
+                canvas.get_tk_widget().bind('<Button-1>', lambda e: e.widget.focus_set(), add='+')
         ttk.Label(self, textvariable=self.statut, padding=(16, 8), wraplength=1250).pack(fill='x')
         self.protocol('WM_DELETE_WINDOW', self.fermer)
         self.actualiser()
@@ -238,17 +250,19 @@ class Atelier(tk.Tk):
         self.dessiner_nuages()
 
     def selection(self, event=None):
+        self.annuler_geste()
         if not self.liste.selection():
             return
         s = self.scans[self.indice()]
         for k, v in zip(['x','y','orientation'], s.pose):
             self.vars[k].set(str(round(v,5)))
-        couverture = np.ptp(np.rad2deg(np.unwrap(np.deg2rad(s.mesures[:,0]))))
-        self.info.configure(text=f'{s.source}\n{len(s.mesures)} points · étendue ≈ {couverture:.1f}°')
+        d = diagnostic_scan(s.mesures)
+        self.info.configure(text=f"{s.source}\n{d['points']} points · étendue ≈ {d['etendue']:.1f}°\n{d['etat']} · écart max {d['pas_max']:.1f}°")
         self.segments = []
         self.effacer('Segments', 'Extraire les segments du scan sélectionné')
 
     def clic_liste(self, event):
+        self.annuler_geste()
         item = self.liste.identify_row(event.y)
         colonne = self.liste.identify_column(event.x)
         if item and colonne in ('#1', '#2'):
@@ -264,6 +278,7 @@ class Atelier(tk.Tk):
                 self.actualiser(i)
 
     def ajouter(self, scans):
+        self.annuler_geste()
         self.scans.extend(scans)
         self.inclus.extend([True]*len(scans))
         self.visibles.extend([True]*len(scans))
@@ -284,6 +299,7 @@ class Atelier(tk.Tk):
         self.statut.set('Deux scans SIMULÉS ajoutés. Ils ne remplacent pas tes propres acquisitions réelles.')
 
     def supprimer(self):
+        self.annuler_geste()
         i = self.indice()
         self.scans.pop(i)
         self.inclus.pop(i)
@@ -291,7 +307,31 @@ class Atelier(tk.Tk):
         self.invalider()
         self.actualiser()
 
+    def annuler_geste(self):
+        if self.manipulation is not None:
+            self.manipulation.annuler()
+
+    def scan_manipulable(self):
+        if not self.liste.selection():
+            self.statut.set('Sélectionne un scan dans la liste avant de le déplacer.')
+            return None
+        i = self.indice()
+        if not self.visibles[i]:
+            self.statut.set('Réaffiche ce scan dans Visible avant de le déplacer.')
+            return None
+        return self.scans[i]
+
+    def apercu_pose(self, scan, limites):
+        for cle, valeur in zip(['x','y','orientation'], scan.pose):
+            self.vars[cle].set(f'{valeur:.5f}')
+        self.dessiner_nuages(limites)
+
+    def fin_geste(self):
+        self.invalider()
+        self.statut.set('Pose modifiée à la souris. Recalcule les cartes, puis enregistre la session.')
+
     def appliquer_pose(self):
+        self.annuler_geste()
         s = self.scans[self.indice()]
         nouvelle_pose = [self.nombre(k) for k in ['x','y','orientation']]
         s.pose = nouvelle_pose
@@ -324,7 +364,7 @@ class Atelier(tk.Tk):
         ax.grid(True, alpha=.15)
         self.canvas[titre].draw_idle()
 
-    def dessiner_nuages(self):
+    def dessiner_nuages(self, limites=None):
         ax = self.axes['Nuages']
         ax.clear()
         try:
@@ -345,6 +385,9 @@ class Atelier(tk.Tk):
         if any(self.visibles):
             ax.legend(fontsize=8, loc='upper right')
         ax.set_title('Scans visibles dans leur pose — coordonnées recalculées depuis angle et distance')
+        if limites is not None:
+            ax.set_xlim(limites[0])
+            ax.set_ylim(limites[1])
         self.fin_dessin('Nuages')
 
     def calculer_grille(self):
@@ -449,6 +492,7 @@ class Atelier(tk.Tk):
             self.statut.set('Segments de la carte exportés en mètres.')
 
     def sauver_session(self):
+        self.annuler_geste()
         p = filedialog.asksaveasfilename(defaultextension='.json',initialfile='session_ld06.json')
         if p:
             contenu = dict(version=2, parametres={k:v.get() for k,v in self.vars.items() if k not in ['x','y','orientation','reference']},
@@ -459,6 +503,7 @@ class Atelier(tk.Tk):
             self.statut.set('Session enregistrée : mesures originales, sources, poses et paramètres. Les cartes se recalculent.')
 
     def ouvrir_session(self):
+        self.annuler_geste()
         p = filedialog.askopenfilename(filetypes=[('Session','*.json')])
         if not p:
             return
@@ -508,7 +553,7 @@ class Atelier(tk.Tk):
         self.champ(cadre,'quantite','Nombre de scans à capturer (1 à 20)',1)
         self.bouton(cadre,'Capturer',self.lancer_capture)
         self.bouton(cadre,'Annuler la capture',self.annuler.set)
-        ttk.Label(cadre,text='Garde le lidar immobile. Les scans reçus sont ajoutés à la liste ; exporte-les ensuite.\nLe port se ferme automatiquement en fin de capture. Le délai maximal est de 40 s.\nLa capture attend le début d’un scan et rejette les blocs incomplets.\nUne étendue ≥340° ne permet pas de détecter toutes les pertes en amont de l’ESP32.',wraplength=740).pack(anchor='w',pady=15)
+        ttk.Label(cadre,text='Garde le lidar immobile. Les scans reçus sont ajoutés à la liste ; exporte-les ensuite.\nLe port se ferme automatiquement en fin de capture. Le délai maximal est de 40 s.\nLa capture attend le début d’un scan et rejette les blocs incomplets.\nContrôle : étendue 340–380° et aucun saut >10°. Cela ne garantit pas zéro perte en amont.',wraplength=740).pack(anchor='w',pady=15)
 
     def actualiser_ports(self):
         try:
