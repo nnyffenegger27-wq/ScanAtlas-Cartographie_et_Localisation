@@ -176,10 +176,20 @@ def distance_point_segment(p, s):
 
 
 def proches(a, b, angle_max=8., distance_max=.12):
+    """Proximité en angle, distance ET compatibilité des droites supports.
+
+    Une intersection seule ne suffit pas : les extrémités doivent rester
+    proches de la droite de l'autre segment pour éviter de fusionner un éventail.
+    """
     if min(longueur(a), longueur(b)) <= EPS:
         return False
     if angle_segments(a, b) > angle_max:
         return False
+    for support, points in ((a, b), (b, a)):
+        u = (support[1]-support[0])/longueur(support)
+        normale = np.array([-u[1], u[0]])
+        if np.max(np.abs((points-support[0]) @ normale)) > distance_max + EPS:
+            return False
     distance = 0. if intersection(a, b) is not None else min(
         *(distance_point_segment(p, b) for p in a),
         *(distance_point_segment(p, a) for p in b))
@@ -202,7 +212,7 @@ def fusionner(a, b, angle_max=8., distance_max=.12):
 
 
 def extraire_segments(scan, mini=.05, maxi=12., intensite=0,
-                     saut=.20, erreur=.04, nb_min=6, longueur_min=.15):
+                     saut=.20, erreur=.04, nb_min=6, longueur_min=.15, retour_supports=False):
     """Coupe aux discontinuités, puis split-and-fit par erreur orthogonale.
 
     On respecte l'ordre temporel des points, sans relier le dernier au premier.
@@ -210,13 +220,16 @@ def extraire_segments(scan, mini=.05, maxi=12., intensite=0,
     """
     points, valide = scan.points(), mesures_valides(scan, mini, maxi, intensite)
     groupes, groupe = [], []
-    for p, ok in zip(points, valide):
-        if not ok or (groupe and np.linalg.norm(p-groupe[-1]) > saut):
+    precedent = None
+    for p, ok, angle in zip(points, valide, scan.mesures[:,0]):
+        nouveau_tour = precedent is not None and abs(angle-precedent) > 180.
+        if not ok or nouveau_tour or (groupe and np.linalg.norm(p-groupe[-1]) > saut):
             if len(groupe) >= nb_min:
                 groupes.append(np.array(groupe))
             groupe = []
         if ok:
             groupe.append(p)
+        precedent = angle
     if len(groupe) >= nb_min:
         groupes.append(np.array(groupe))
     resultat = []
@@ -241,24 +254,120 @@ def extraire_segments(scan, mini=.05, maxi=12., intensite=0,
                 if nb_min <= len(sous) < len(pts):
                     groupes.append(sous)
         elif longueur(seg) >= longueur_min:
-            resultat.append(seg)
+            u = (seg[1]-seg[0])/longueur(seg)
+            erreurs_fit = np.abs((pts-seg[0]) @ np.array([-u[1],u[0]]))
+            if erreurs_fit.max() > erreur:
+                k = int(np.argmax(erreurs_fit))
+                if k in (0, len(pts)-1):
+                    k = len(pts)//2
+                groupes.extend(s for s in (pts[:k+1],pts[k:]) if nb_min <= len(s) < len(pts))
+            else:
+                resultat.append((seg, pts.copy()) if retour_supports else seg)
     return resultat
 
 
-def carte_vectorielle(scans, angle_max=8., distance_max=.12, **options):
-    """Accumule les segments ; fusionne les voisins jusqu'à stabilisation."""
-    carte = []
+def extraire_multiscans(scans, **options):
+    """Extrait séparément chaque scan dans sa pose, sans relier leurs points."""
+    segments, origines = [], []
+    for i, scan in enumerate(scans):
+        nouveaux = extraire_segments(scan, **options)
+        segments.extend(nouveaux)
+        origines.extend([i]*len(nouveaux))
+    return segments, origines
+
+
+def nettoyer_segments(carte, scan, marge=.12, minimum_rayons=3, longueur_min=.15):
+    """Raccourcit les anciennes formes traversées par plusieurs rayons libres.
+
+    Une pose est appliquée au bloc entier. Les rayons d'angles identiques
+    (bins de 0,5°) ne votent qu'une fois, même si le bloc contient plusieurs tours.
+    Les impacts proches du segment et les contacts à ses extrémités sont ignorés.
+    """
+    depart = np.asarray(scan.pose[:2], float)
+    impacts = scan.points()
+    directions = impacts-depart
+    distances = np.linalg.norm(directions, axis=1)
+    bins = np.floor((scan.mesures[:,0] % 360.)/.5).astype(int)
+    resultat, coupes = [], 0
+    for ancien in carte:
+        u = ancien[1]-ancien[0]
+        taille = longueur(ancien)
+        if taille <= EPS:
+            continue
+        q = depart-ancien[0]
+        den = u[0]*directions[:,1]-u[1]*directions[:,0]
+        with np.errstate(divide='ignore', invalid='ignore'):
+            t = (q[0]*directions[:,1]-q[1]*directions[:,0])/den
+            r = (q[0]*u[1]-q[1]*u[0])/den
+        # t est la position sur l'ancien segment ; r est la position sur le rayon.
+        valides = (np.abs(den)>EPS*taille*distances) & (distances>EPS)
+        valides &= (t>EPS/taille) & (t<1-EPS/taille) & (r>=0) & (r<=1)
+        valides &= (r*distances>marge) & ((1-r)*distances>marge)
+        indices = np.flatnonzero(valides)
+        if len(indices):
+            _, premiers = np.unique(bins[indices], return_index=True)
+            indices = indices[premiers]
+        nouveau = ancien.copy()
+        if len(indices) >= minimum_rayons:
+            # Une seule coupe médiane par ancien segment et nouveau bloc.
+            i = indices[np.argsort(t[indices])[len(indices)//2]]
+            nouveau = decouper(ancien, np.array([depart, impacts[i]]))
+            if not np.allclose(nouveau, ancien, rtol=0, atol=EPS):
+                coupes += 1
+        if longueur(nouveau) >= longueur_min:
+            resultat.append(nouveau)
+    return resultat, coupes
+
+
+def carte_vectorielle(scans, angle_max=8., distance_max=.12, retour_details=False, **options):
+    """Carte successive : rayons libres, extraction, fusion sur les points sources.
+
+    Les supports de chaque fusion sont les mesures d'origine, pas les seules
+    extrémités d'un segment déjà moyenné. Une fusion doit respecter l'erreur
+    d'ajustement sur TOUS ses points, ce qui limite la dérive par fusions en chaîne.
+    """
+    erreur = options.get('erreur', .04)
+    longueur_min = options.get('longueur_min', .15)
+    carte = []  # Couples (segment, points sources).
+    details = dict(extraits=0, fusions=0, coupes=0, scans=len(scans))
     for scan in scans:
-        for nouveau in extraire_segments(scan, **options):
+        valide = mesures_valides(scan, options.get('mini', .05), options.get('maxi', 12.), options.get('intensite', 0))
+        filtre = Scan(scan.nom, scan.mesures[valide], scan.pose, scan.source, scan.angle_reference)
+        nettoyee = []
+        for segment, supports in carte:
+            morceaux, coupes = nettoyer_segments([segment], filtre,
+                marge=max(.05, 2*erreur), longueur_min=longueur_min)
+            details['coupes'] += coupes
+            for morceau in morceaux:
+                if coupes:
+                    # Conserver uniquement le support observé dans la partie gardée.
+                    u = (morceau[1]-morceau[0])/longueur(morceau)
+                    projections = (supports-morceau[0]) @ u
+                    supports = supports[(projections >= -EPS) & (projections <= longueur(morceau)+EPS)]
+                    if len(supports) < 2:
+                        supports = morceau.copy()
+                nettoyee.append((morceau, supports))
+        carte = nettoyee
+        for nouveau, supports in extraire_segments(scan, retour_supports=True, **options):
+            details['extraits'] += 1
             i = 0
             while i < len(carte):
-                if proches(carte[i], nouveau, angle_max, distance_max):
-                    nouveau = fusionner(carte.pop(i), nouveau, angle_max, distance_max)
-                    i = 0
-                else:
-                    i += 1
-            carte.append(nouveau)
-    return carte
+                ancien, appuis = carte[i]
+                if proches(ancien, nouveau, angle_max, distance_max):
+                    candidats = np.vstack([appuis, supports])
+                    fusion = ajuster_segment(candidats)
+                    u = (fusion[1]-fusion[0])/longueur(fusion)
+                    residus = np.abs((candidats-fusion[0]) @ np.array([-u[1], u[0]]))
+                    if residus.max() <= erreur + EPS:
+                        nouveau, supports = fusion, candidats
+                        carte.pop(i)
+                        details['fusions'] += 1
+                        i = 0
+                        continue
+                i += 1
+            carte.append((nouveau, supports))
+    segments = [s for s, _ in carte]
+    return (segments, details) if retour_details else segments
 
 
 def cellules_ligne(x0, y0, x1, y1):

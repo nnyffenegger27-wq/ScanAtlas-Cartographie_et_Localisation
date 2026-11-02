@@ -13,7 +13,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from cartographie import (Scan, Grille, lire_csv, exporter_scan, demonstration,
                          mesures_valides, extraire_segments, carte_vectorielle,
-                         angle_segments, proches, fusionner, intersection, decouper, EPS)
+                         angle_segments, proches, fusionner, intersection, decouper, EPS, extraire_multiscans)
 from cartographie import ANGLE_REFERENCE_DEFAUT, diagnostic_scan
 from manipulation import ManipulationScan
 
@@ -157,7 +157,8 @@ class Atelier(tk.Tk):
             elif titre == 'Segments':
                 for cle, label, v in [('saut','Rupture entre points (m)',.20), ('erreur','Erreur de droite max (m)',.04)]:
                     self.champ(barre, cle, label, v)
-                self.bouton(barre, 'Extraire les segments du scan sélectionné', self.calculer_segments)
+                self.bouton(barre, 'Extraire les segments des scans cochés Carte', self.calculer_segments)
+                self.bouton(barre, 'Rétablir des seuils prudents', self.seuils_prudents)
                 self.bouton(barre, 'Laboratoire : angle, fusion, intersection, découpage', self.laboratoire)
             elif titre == 'Carte vectorielle':
                 for cle, label, v in [('angle_max','Écart angulaire max (°)',8), ('distance_max','Distance de fusion max (m)',.12)]:
@@ -262,8 +263,6 @@ class Atelier(tk.Tk):
             self.vars[k].set(str(round(v,5)))
         d = diagnostic_scan(s.mesures)
         self.info.configure(text=f"{s.source}\n{d['points']} points · étendue ≈ {d['etendue']:.1f}°\n{d['etat']} · écart max {d['pas_max']:.1f}°")
-        self.segments = []
-        self.effacer('Segments', 'Extraire les segments du scan sélectionné')
 
     def clic_liste(self, event):
         self.annuler_geste()
@@ -468,31 +467,50 @@ class Atelier(tk.Tk):
         self.fin_dessin('Grille')
 
 
-    def tracer_segments(self, titre, segments, fond=None):
+    def tracer_segments(self, titre, segments, fond=None, couleurs=None):
         ax = self.axes[titre]
         ax.clear()
         if fond is not None:
             ax.scatter(fond[:,0], fond[:,1], s=3, color='#bbc4cf')
         for i,s in enumerate(segments):
-            ax.plot(s[:,0], s[:,1], linewidth=2)
+            ax.plot(s[:,0], s[:,1], linewidth=2, **({'color':couleurs[i]} if couleurs is not None else {}))
             if titre == 'Segments':
                 ax.text(*s.mean(axis=0), str(i), fontsize=9)
         ax.set_title(f'{len(segments)} segments · longueurs minimales 0,15 m · au moins 6 points/groupe')
         self.fin_dessin(titre)
 
+    def seuils_prudents(self):
+        for cle, valeur in [('saut',.25),('erreur',.05),('angle_max',8),('distance_max',.12)]:
+            self.vars[cle].set(str(valeur))
+        self.segments, self.vecteurs = [], None
+        self.effacer('Segments', 'Recalculer les segments avec les nouveaux seuils')
+        self.effacer('Carte vectorielle', 'Reconstruire avec les nouveaux seuils')
+        self.statut.set('Seuils rétablis : rupture 0,25 m ; erreur 0,05 m ; fusion 8° et 0,12 m.')
+
     def calculer_segments(self):
-        scan = self.scans[self.indice()]
-        self.segments = extraire_segments(scan, **self.options_segments())
-        self.tracer_segments('Segments', self.segments, scan.points()[mesures_valides(scan, **self.filtres())])
-        self.statut.set('Les numéros identifient les segments utilisables dans le laboratoire.')
+        scans = self.choisis()
+        self.segments, self.origines_segments = extraire_multiscans(scans, **self.options_segments())
+        fonds = [s.points()[mesures_valides(s, **self.filtres())] for s in scans]
+        fond = np.vstack(fonds)
+        from matplotlib import colormaps
+        palette = {id(s): colormaps['hsv'](i/max(len(self.scans),1)*.85) for i,s in enumerate(self.scans)}
+        couleurs = [palette[id(scans[i])] for i in self.origines_segments]
+        self.tracer_segments('Segments', self.segments, fond, couleurs)
+        self.axes['Segments'].set_title(f'{len(self.segments)} segments extraits de {len(scans)} scans cochés Carte · avant fusion')
+        self.canvas['Segments'].draw_idle()
+        self.statut.set(f'Segments de {len(scans)} scans, chacun dans sa pose ; aucun lien entre deux scans. Numéros utilisables au laboratoire.')
 
     def calculer_vecteurs(self):
         a, d = self.nombre('angle_max'), self.nombre('distance_max')
         if not 0 <= a <= 90 or d < 0:
             raise ValueError('Angle entre 0 et 90°, distance positive ou nulle.')
-        self.vecteurs = carte_vectorielle(self.choisis(), a, d, **self.options_segments())
-        self.tracer_segments('Carte vectorielle', self.vecteurs)
-        self.statut.set('Carte vectorielle calculée : extraction puis fusion des segments proches.')
+        scans = self.choisis()
+        self.vecteurs, bilan = carte_vectorielle(scans, a, d, retour_details=True, **self.options_segments())
+        fonds = [s.points()[mesures_valides(s, **self.filtres())] for s in scans]
+        self.tracer_segments('Carte vectorielle', self.vecteurs, np.vstack(fonds))
+        self.axes['Carte vectorielle'].set_title(f"{len(self.vecteurs)} segments de carte · {len(scans)} scans · {bilan['fusions']} fusions · {bilan['coupes']} coupes")
+        self.canvas['Carte vectorielle'].draw_idle()
+        self.statut.set('Carte : extraction par scan, fusion contrôlée sur les points sources et raccourcissement après au moins trois rayons libres distincts.')
 
     def laboratoire(self):
         if len(self.segments) < 2:
