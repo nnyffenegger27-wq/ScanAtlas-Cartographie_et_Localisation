@@ -209,3 +209,11 @@ initial déjà décalé de 90°. La référence fixe correcte est donc 270°,
 et non 180° : `angle_local = angle_mesure - 270°`. Un test vérifie que
 les points locaux sont les opposés de ceux du réglage initial à 90°.
 Cette correction remplace la décision précédente. Les 26 tests passent.
+
+
+## Visibilité individuelle — 2 novembre 2026
+
+Ajout de la colonne Visible : masquer/réafficher les nuages et leurs poses
+indépendamment de la colonne Carte. Aucun scan supprimé, aucune pose modifiée.
+État conservé en JSON ; les anciennes sessions reprennent leur affichage initial.
+Les cartes calculées restent indépendantes de la visibilité des nuages.

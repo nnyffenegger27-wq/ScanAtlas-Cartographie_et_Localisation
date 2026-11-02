@@ -20,7 +20,7 @@ AIDE = '''PARCOURS CONSEILLÉ
 1. « Démonstration simulée » pour découvrir les vues sans matériel.
 2. Importer un CSV réel ou capturer l'USB. Les scans importés sont ajoutés.
 3. Sélectionner un scan, régler x, y et orientation, puis « Appliquer la pose ».
-4. Cocher les scans à inclure, puis calculer une grille ou une carte vectorielle.
+4. « Visible » masque un scan dans Nuages ; « Carte » choisit les scans à cartographier.
 5. Exporter les scans réels et la session pour conserver le travail.
 
 CONVENTIONS
@@ -69,7 +69,7 @@ class Atelier(tk.Tk):
         self.title('LD06 Atelier · Acquisition et cartographie 2D')
         self.geometry('1320x850')
         self.minsize(1050, 720)
-        self.scans, self.inclus = [], []
+        self.scans, self.inclus, self.visibles = [], [], []
         self.grille, self.vecteurs = None, None
         self.segments = []
         self.messages, self.annuler = queue.Queue(), threading.Event()
@@ -104,9 +104,11 @@ class Atelier(tk.Tk):
         fichiers.pack(fill='x')
         self.bouton(fichiers, 'Importer un ou plusieurs CSV…', self.importer)
         self.bouton(fichiers, 'Démonstration simulée (2 scans)', self.demo)
-        self.liste = ttk.Treeview(fichiers, columns=('inclure', 'points'), show='tree headings', height=7, selectmode='browse')
+        self.liste = ttk.Treeview(fichiers, columns=('visible', 'inclure', 'points'), show='tree headings', height=7, selectmode='browse')
         self.liste.heading('#0', text='Scan')
-        self.liste.column('#0', width=175)
+        self.liste.column('#0', width=140)
+        self.liste.heading('visible', text='Visible')
+        self.liste.column('visible', width=50, anchor='center')
         self.liste.heading('inclure', text='Carte')
         self.liste.column('inclure', width=45, anchor='center')
         self.liste.heading('points', text='Pts')
@@ -114,7 +116,7 @@ class Atelier(tk.Tk):
         self.liste.pack(fill='x', pady=6)
         self.liste.bind('<<TreeviewSelect>>', self.selection)
         self.liste.bind('<ButtonRelease-1>', self.clic_liste)
-        ttk.Label(fichiers, text='Clique dans « Carte » pour inclure/exclure.', font=('Segoe UI', 9)).pack(anchor='w')
+        ttk.Label(fichiers, text='Visible : afficher/masquer · Carte : inclure/exclure.', font=('Segoe UI', 9)).pack(anchor='w')
         self.info = ttk.Label(fichiers, text='Aucun scan sélectionné', wraplength=300)
         self.info.pack(fill='x', pady=5)
         self.bouton(fichiers, 'Supprimer le scan sélectionné', self.supprimer)
@@ -226,7 +228,7 @@ class Atelier(tk.Tk):
         ancien = self.liste.selection()
         self.liste.delete(*self.liste.get_children())
         for i,s in enumerate(self.scans):
-            self.liste.insert('', 'end', iid=str(i), text=s.nom, values=('✓' if self.inclus[i] else '—', len(s.mesures)))
+            self.liste.insert('', 'end', iid=str(i), text=s.nom, values=('✓' if self.visibles[i] else '—', '✓' if self.inclus[i] else '—', len(s.mesures)))
         if self.scans:
             i = min(selection if selection is not None else int(ancien[0]) if ancien else 0, len(self.scans)-1)
             self.liste.selection_set(str(i))
@@ -248,15 +250,23 @@ class Atelier(tk.Tk):
 
     def clic_liste(self, event):
         item = self.liste.identify_row(event.y)
-        if item and self.liste.identify_column(event.x) == '#1':
+        colonne = self.liste.identify_column(event.x)
+        if item and colonne in ('#1', '#2'):
             i = int(item)
-            self.inclus[i] = not self.inclus[i]
-            self.invalider()
-            self.actualiser(i)
+            if colonne == '#1':
+                self.visibles[i] = not self.visibles[i]
+                self.liste.set(item, 'visible', '✓' if self.visibles[i] else '—')
+                self.dessiner_nuages()
+                self.statut.set('Visibilité modifiée. La participation aux cartes reste inchangée.')
+            else:
+                self.inclus[i] = not self.inclus[i]
+                self.invalider()
+                self.actualiser(i)
 
     def ajouter(self, scans):
         self.scans.extend(scans)
         self.inclus.extend([True]*len(scans))
+        self.visibles.extend([True]*len(scans))
         self.invalider()
         self.actualiser(len(self.scans)-len(scans))
         self.statut.set(f'{len(scans)} scan(s) ajouté(s). Vérifie la source, les points et l’étendue angulaire.')
@@ -277,6 +287,7 @@ class Atelier(tk.Tk):
         i = self.indice()
         self.scans.pop(i)
         self.inclus.pop(i)
+        self.visibles.pop(i)
         self.invalider()
         self.actualiser()
 
@@ -323,7 +334,7 @@ class Atelier(tk.Tk):
         from matplotlib import colormaps
         nombre = max(len(self.scans), 1)
         for i, s in enumerate(self.scans):
-            if not self.inclus[i]:
+            if not self.visibles[i]:
                 continue
             couleur = colormaps['hsv'](i/nombre*.85)
             pts = s.points()[mesures_valides(s, **filtres)]
@@ -331,9 +342,9 @@ class Atelier(tk.Tk):
             a = np.deg2rad(s.pose[2])
             ax.plot(*s.pose[:2], marker='x', color=couleur)
             ax.arrow(*s.pose[:2], .3*np.cos(a), .3*np.sin(a), width=.012, color=couleur)
-        if any(self.inclus):
+        if any(self.visibles):
             ax.legend(fontsize=8, loc='upper right')
-        ax.set_title('Scans cochés dans leur pose — coordonnées recalculées depuis angle et distance')
+        ax.set_title('Scans visibles dans leur pose — coordonnées recalculées depuis angle et distance')
         self.fin_dessin('Nuages')
 
     def calculer_grille(self):
@@ -442,7 +453,8 @@ class Atelier(tk.Tk):
         if p:
             contenu = dict(version=2, parametres={k:v.get() for k,v in self.vars.items() if k not in ['x','y','orientation','reference']},
                            scans=[dict(nom=s.nom,mesures=s.mesures.tolist(),pose=s.pose,source=s.source,
-                                       angle_reference=s.angle_reference,inclus=oui) for s,oui in zip(self.scans,self.inclus)])
+                                       angle_reference=s.angle_reference,inclus=oui,visible=visible)
+                                  for s,oui,visible in zip(self.scans,self.inclus,self.visibles)])
             Path(p).write_text(json.dumps(contenu,ensure_ascii=False,indent=2),encoding='utf-8')
             self.statut.set('Session enregistrée : mesures originales, sources, poses et paramètres. Les cartes se recalculent.')
 
@@ -455,7 +467,7 @@ class Atelier(tk.Tk):
         data = json.loads(Path(p).read_text(encoding='utf-8'))
         if data.get('version') not in (1, 2):
             raise ValueError('Version de session inconnue.')
-        scans, inclus = [], []
+        scans, inclus, visibles = [], [], []
         for d in data['scans']:
             m,pose = np.asarray(d['mesures'],float),np.asarray(d['pose'],float)
             if m.ndim != 2 or m.shape[1] != 3 or len(m)==0 or pose.shape != (3,) or not np.isfinite(m).all() or not np.isfinite(pose).all():
@@ -467,6 +479,7 @@ class Atelier(tk.Tk):
             reference = 0. if 'SIMULATION' in str(d['source']) else ANGLE_REFERENCE_DEFAUT
             scans.append(Scan(str(d['nom']),m,pose.tolist(),str(d['source']),reference))
             inclus.append(bool(d['inclus']))
+            visibles.append(bool(d.get('visible', d['inclus'])))
         parametres = data.get('parametres',{})
         nouveaux = {}
         for k in ['mini','maxi','intensite','resolution','saut','erreur','angle_max','distance_max']:
@@ -477,7 +490,7 @@ class Atelier(tk.Tk):
         if not (0 <= nouveaux['mini'] < nouveaux['maxi'] and 0 <= nouveaux['intensite'] <= 255 and
                 all(nouveaux[k]>0 for k in ['resolution','saut','erreur']) and 0<=nouveaux['angle_max']<=90 and nouveaux['distance_max']>=0):
             raise ValueError('Paramètres de session hors limites.')
-        self.scans,self.inclus=scans,inclus
+        self.scans,self.inclus,self.visibles=scans,inclus,visibles
         for k,v in nouveaux.items():
             self.vars[k].set(str(v))
         self.invalider()

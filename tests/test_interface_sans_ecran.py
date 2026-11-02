@@ -34,6 +34,7 @@ def interface_factice():
         setattr(a,nom,types.MethodType(getattr(Atelier,nom),a))
     a.scans=demonstration()
     a.inclus=[True,True]
+    a.visibles=[True,True]
     a.vars={k:Variable(v) for k,v in dict(mini=.05,maxi=12,intensite=0,resolution=.05,saut=.2,erreur=.04,angle_max=8,distance_max=.12).items()}
     a.statut=Variable()
     a.axes={}
@@ -51,6 +52,7 @@ def interface_factice():
 class Actions(unittest.TestCase):
     def test_traces_et_exports_et_session(self):
         a=interface_factice()
+        a.visibles[1]=False
         a.dessiner_nuages()
         a.calculer_grille()
         a.calculer_segments()
@@ -72,6 +74,7 @@ class Actions(unittest.TestCase):
             self.assertEqual(a.scans[1].pose,[-.8,.4,15.])
             self.assertIn('SIMULATION',a.scans[0].source)
             self.assertTrue(a.inclus[0])
+            self.assertEqual(a.visibles,[True,False])
 
 class AnciennesSessions(unittest.TestCase):
     def test_version_1_conserve_reference_et_pose(self):
@@ -98,3 +101,31 @@ class AnciennesSessions(unittest.TestCase):
                 import numpy as np
                 np.testing.assert_allclose(a.scans[0].points(),[[1,0]],atol=1e-12)
                 self.assertEqual(a.scans[0].mesures[0,0],270.)
+
+
+class Visibilite(unittest.TestCase):
+    def test_masquer_ne_change_pas_les_cartes(self):
+        a=interface_factice()
+        a.visibles=[False,True]
+        a.dessiner_nuages()
+        self.assertEqual(len(a.axes['Nuages'].collections),1)
+        self.assertEqual(a.axes['Nuages'].collections[0].get_label(),a.scans[1].nom)
+        self.assertEqual(len(a.choisis()),2)
+        a.visibles=[False,False]
+        a.dessiner_nuages()
+        self.assertEqual(len(a.axes['Nuages'].collections),0)
+        self.assertIsNone(a.axes['Nuages'].get_legend())
+        a.visibles=[True,True]
+        a.dessiner_nuages()
+        self.assertEqual(len(a.axes['Nuages'].collections),2)
+
+    def test_ancienne_session_retrouve_affichage(self):
+        a=interface_factice()
+        a.scans=[]
+        with tempfile.TemporaryDirectory() as dossier:
+            p=Path(dossier)/'ancienne.json'
+            p.write_text(json.dumps(dict(version=2,scans=[dict(nom='test',
+                mesures=[[270,1,200]],pose=[0,0,0],source='CSV',inclus=False)])))
+            with patch('app.filedialog.askopenfilename',return_value=str(p)):
+                a.ouvrir_session()
+            self.assertEqual(a.visibles,[False])

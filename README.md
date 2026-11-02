@@ -35,3 +35,11 @@ python -m unittest discover -s tests -v
 Limite connue prioritaire : un bloc proche de 720° peut encore être accepté comme
 un seul scan. La correction nécessite de vérifier les frontières de tours dans
 les mesures réelles. Les captures d'écran ne suffisent pas à localiser sa cause.
+
+
+## Masquer un scan
+
+Dans « Mes scans », cliquer sur la case de la colonne **Visible** pour masquer
+ou réafficher un scan dans l'onglet Nuages, avec ses points et sa flèche de pose.
+La colonne **Carte** choisit indépendamment les scans utilisés pour les calculs
+de cartographie. La visibilité est sauvegardée dans la session JSON.

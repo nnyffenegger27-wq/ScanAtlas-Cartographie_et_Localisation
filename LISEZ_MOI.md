@@ -273,3 +273,11 @@ Les scans réels des anciennes sessions adoptent aussi ce repère lors de leur
 ouverture : leur affichage peut donc tourner par rapport à la version précédente.
 Recalculer les cartes après chargement. Les exemples simulés gardent leur repère
 propre. La session JSON conserve les poses ; le CSV conserve les angles originaux.
+
+
+## Masquer un scan
+
+Dans « Mes scans », cliquer sur la case de la colonne **Visible** pour masquer
+ou réafficher un scan dans l'onglet Nuages, avec ses points et sa flèche de pose.
+La colonne **Carte** choisit indépendamment les scans utilisés pour les calculs
+de cartographie. La visibilité est sauvegardée dans la session JSON.
