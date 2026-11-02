@@ -57,3 +57,12 @@ Le diagnostic du scan sélectionné signale les tours multiples et les grandes
 lacunes. Les prochaines captures USB refusent ces blocs. Un scan de 305 points
 couvrant 360° ne prouve pas que toutes les mesures ont été reçues.
 Voir [l'analyse des acquisitions et des difficultés](ANALYSE_SCANS_ET_SOURIS.md).
+
+
+## Rapport et supports du cours
+
+Le premier rapport Word illustré reprend les cinq captures utilisateur.
+Le suivi du rapport et la comparaison aux méthodes du cours sont consignés
+dans [SUIVI_RAPPORT_ET_COURS.md](SUIVI_RAPPORT_ET_COURS.md).
+La grid map est rapprochée de la méthode fournie ; la gestion des anciennes
+formes traversées par les nouveaux rayons reste à intégrer à la carte vectorielle.
