@@ -264,8 +264,8 @@ ce que tu as réellement observé sur tes acquisitions.
 
 ## Repère robot — référence fixe
 
-L'ancien angle 180° devient automatiquement le nouveau 0° :
-`angle_local = angle_mesure - 180°`, puis la pose du robot est appliquée.
+L'ancien angle 270° devient automatiquement le nouveau 0° :
+`angle_local = angle_mesure - 270°`, puis la pose du robot est appliquée.
 Il n'y a aucun paramètre de calibration dans l'interface. Seuls x, y et
 l'orientation règlent la pose. Les mesures polaires originales restent intactes.
 

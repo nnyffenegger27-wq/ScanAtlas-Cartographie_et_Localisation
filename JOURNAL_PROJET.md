@@ -200,3 +200,12 @@ la pose du robot est nulle. La règle s'applique aux imports, à l'USB et aux
 sessions réelles rouvertes. Aucun champ supplémentaire ; angles bruts conservés.
 Les paragraphes précédents décrivent l'historique des réglages, cette décision
 est la référence actuelle. Les 25 tests locaux passent.
+
+
+## Correction : ajouter 180° aux 90° initiaux — 2 novembre 2026
+
+La demande était une rotation supplémentaire de 180° par rapport au repère
+initial déjà décalé de 90°. La référence fixe correcte est donc 270°,
+et non 180° : `angle_local = angle_mesure - 270°`. Un test vérifie que
+les points locaux sont les opposés de ceux du réglage initial à 90°.
+Cette correction remplace la décision précédente. Les 26 tests passent.

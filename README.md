@@ -14,8 +14,8 @@ Python 3.10 ou plus récent. Sous Windows : `installer_windows.bat`, puis
 
 ## Repère robot depuis v0.2.0
 
-Pour les nouveaux imports/USB, **l'ancien 180° devient 0°** :
-`angle_local = angle_mesure - 180°`. La pose du robot reste un réglage séparé.
+Pour les nouveaux imports/USB, **l'ancien 270° devient 0°** :
+`angle_local = angle_mesure - 270°`. La pose du robot reste un réglage séparé.
 Cette référence est fixe, sans champ supplémentaire dans l'interface. Elle
 s'applique aussi aux scans réels des anciennes sessions ; les mesures restent
 intactes et les cartes doivent être recalculées. Les simulations gardent leur

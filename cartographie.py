@@ -9,7 +9,7 @@ import csv
 import numpy as np
 
 EPS = 1e-8  # Tolérance géométrique en mètres ; angles comparés en radians.
-ANGLE_REFERENCE_DEFAUT = 180.  # Ancien angle 180° = axe x positif du robot.
+ANGLE_REFERENCE_DEFAUT = 270.  # Ancien angle 270° = axe x positif du robot.
 
 
 @dataclass
@@ -18,7 +18,7 @@ class Scan:
     mesures: np.ndarray
     pose: list = field(default_factory=lambda: [0., 0., 0.])
     source: str = 'CSV réel/importé'
-    angle_reference: float = 0.  # Géométrie neutre ; imports/USB utilisent 180°.
+    angle_reference: float = 0.  # Géométrie neutre ; imports/USB utilisent 270°.
 
     def points(self):
         """Polaire -> repère lidar -> rotation et translation dans la carte."""

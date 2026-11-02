@@ -90,11 +90,11 @@ class AnciennesSessions(unittest.TestCase):
                 a.scans=[]
                 p=Path(dossier)/'ancienne.json'
                 p.write_text(json.dumps(dict(version=version, scans=[dict(
-                    nom='reel', mesures=[[180,1,200]], pose=[0,0,0],
+                    nom='reel', mesures=[[270,1,200]], pose=[0,0,0],
                     source='CSV réel/importé', angle_reference=0, inclus=True)])))
                 with patch('app.filedialog.askopenfilename',return_value=str(p)):
                     a.ouvrir_session()
-                self.assertEqual(a.scans[0].angle_reference,180.)
+                self.assertEqual(a.scans[0].angle_reference,270.)
                 import numpy as np
                 np.testing.assert_allclose(a.scans[0].points(),[[1,0]],atol=1e-12)
-                self.assertEqual(a.scans[0].mesures[0,0],180.)
+                self.assertEqual(a.scans[0].mesures[0,0],270.)
