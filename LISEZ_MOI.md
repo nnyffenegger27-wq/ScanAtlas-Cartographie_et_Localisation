@@ -295,3 +295,45 @@ Le diagnostic du scan sélectionné signale les tours multiples et les grandes
 lacunes. Les prochaines captures USB refusent ces blocs. Un scan de 305 points
 couvrant 360° ne prouve pas que toutes les mesures ont été reçues.
 Voir [l'analyse des acquisitions et des difficultés](ANALYSE_SCANS_ET_SOURIS.md).
+
+
+## Grille conforme au parcours du TP
+
+Dans l'onglet Grille, trois actions sont distinguées :
+
+1. **Créer depuis le scan sélectionné** : repart d'une grille inconnue et intègre
+   ce scan dans sa pose actuelle. Cette action remplace la grille affichée.
+2. **Ajouter le scan sélectionné à la grille** : met à jour la grille existante
+   et étend ses bornes si nécessaire, en conservant les anciennes observations.
+   Cette action porte sur la sélection, indépendamment de la case Carte.
+3. **Reconstruire depuis les scans cochés Carte** : recalcule tout depuis les
+   poses actuelles des scans inclus, sans cumuler avec la grille précédente.
+
+Avant chaque intégration : validation du tour plausible et filtrage distance/
+intensité. Les cellules traversées avant l'impact reçoivent une preuve libre
+(log-odds -0,4) ; la cellule d'impact reçoit une preuve occupée (+0,85).
+Une même cellule ne reçoit qu'une preuve par scan, l'impact étant prioritaire.
+Les preuves sont bornées à [-4,+4]. Le masque observe conserve la différence
+entre une cellule jamais vue et une cellule observée de probabilité neutre.
+
+Un double clic sur Ajouter ne recompte pas le même objet scan. Le noyau de
+calcul autorise des observations répétées pour les expériences probabilistes ;
+la protection contre le double compte se situe dans l'interface. Importer
+plusieurs fois un même fichier crée en revanche des scans distincts.
+
+Importer ou acquérir un nouveau scan conserve la grille. Le déplacement d'un
+scan qui n'a pas encore été intégré conserve aussi la grille. Modifier la pose
+d'un scan déjà intégré l'invalide : il faut reconstruire, car ses anciennes
+preuves ne peuvent pas être simplement déplacées. Les changements de filtres
+ou de résolution nécessitent également une reconstruction. Changer les cases
+Carte ou supprimer un scan invalide actuellement les cartes.
+
+La résolution reste fixe pendant l'agrandissement ; les cellules ajoutées sont
+inconnues. La limite de quatre millions de cellules protège la mémoire.
+L'export NPZ conserve l'origine, la résolution, les log-odds, les probabilités
+et le masque observé. Les sessions JSON conservent les scans et leurs poses,
+pas la grille calculée : la reconstruire après réouverture.
+
+Alignement utilisé : poses manuelles, sans scan matching automatique.
+Le vieillissement temporel et le lissage spatial décrits comme extensions dans
+le cours restent à développer ; ils ne sont pas nécessaires au parcours de base.

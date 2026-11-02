@@ -46,3 +46,17 @@ actuelles sur les pertes et l'interpolation ESP32 ne sont pas des causes prouvé
 
 Sources : supports EIGSI de Jonathan Quillès, 2026, contenus dans les archives
 Cartographie-20261102.zip et Localisation-20261102.zip.
+
+
+## Mise à jour de la grille après lecture du cours
+
+Création depuis un scan sélectionné et ajout explicite d'un nouveau scan à
+la carte existante désormais disponibles dans l'interface. Les bornes peuvent
+s'agrandir sans perdre les observations déjà intégrées. Le comportement antérieur
+ignorait un rayon hors grille dans le noyau ; ce cas est désormais traité
+par l'agrandissement. Un double ajout manuel du même scan est empêché.
+
+Les étapes de base du TP sont donc utilisables séparément. Le recalage demeure
+manuel et les extensions de vieillissement/nettoyage temporel ne sont pas
+implémentées. Le rapport Word illustré reste un état antérieur : son prochain
+complément pourra présenter ce parcours incrémental et une nouvelle capture.
