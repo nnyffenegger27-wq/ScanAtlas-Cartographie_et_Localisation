@@ -51,7 +51,6 @@ def interface_factice():
 class Actions(unittest.TestCase):
     def test_traces_et_exports_et_session(self):
         a=interface_factice()
-        a.scans[0].angle_reference=90.
         a.dessiner_nuages()
         a.calculer_grille()
         a.calculer_segments()
@@ -69,7 +68,7 @@ class Actions(unittest.TestCase):
             with patch('app.filedialog.askopenfilename',return_value=str(Path(d)/'session.json')):
                 a.ouvrir_session()
             self.assertEqual(len(a.scans),2)
-            self.assertEqual(a.scans[0].angle_reference,90.)
+            self.assertEqual(a.scans[0].angle_reference,0.)
             self.assertEqual(a.scans[1].pose,[-.8,.4,15.])
             self.assertIn('SIMULATION',a.scans[0].source)
             self.assertTrue(a.inclus[0])
@@ -83,3 +82,19 @@ class AnciennesSessions(unittest.TestCase):
             a.ouvrir_session()
         self.assertEqual(a.scans[0].angle_reference,0.)
         self.assertEqual(a.scans[1].pose,[-.8,.4,15.])
+
+    def test_sessions_reelles_reference_fixe(self):
+        for version in (1, 2):
+            with self.subTest(version=version), tempfile.TemporaryDirectory() as dossier:
+                a=interface_factice()
+                a.scans=[]
+                p=Path(dossier)/'ancienne.json'
+                p.write_text(json.dumps(dict(version=version, scans=[dict(
+                    nom='reel', mesures=[[90,1,200]], pose=[0,0,0],
+                    source='CSV réel/importé', angle_reference=0, inclus=True)])))
+                with patch('app.filedialog.askopenfilename',return_value=str(p)):
+                    a.ouvrir_session()
+                self.assertEqual(a.scans[0].angle_reference,90.)
+                import numpy as np
+                np.testing.assert_allclose(a.scans[0].points(),[[1,0]],atol=1e-12)
+                self.assertEqual(a.scans[0].mesures[0,0],90.)

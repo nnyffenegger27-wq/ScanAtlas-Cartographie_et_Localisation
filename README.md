@@ -16,7 +16,10 @@ Python 3.10 ou plus récent. Sous Windows : `installer_windows.bat`, puis
 
 Pour les nouveaux imports/USB, **l'ancien 90° devient 0°** :
 `angle_local = angle_mesure - 90°`. La pose du robot reste un réglage séparé.
-Les sessions anciennes conservent leur convention tant qu'on ne la modifie pas.
+Cette référence est fixe, sans champ supplémentaire dans l'interface. Elle
+s'applique aussi aux scans réels des anciennes sessions ; les mesures restent
+intactes et les cartes doivent être recalculées. Les simulations gardent leur
+repère de démonstration.
 
 ## Suivi du projet
 

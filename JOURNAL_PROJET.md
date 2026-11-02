@@ -70,16 +70,11 @@ angle_carte = angle_local + orientation_pose_robot
 | 0° | -90° | 0 m | -1 m |
 | 180° | 90° | 0 m | 1 m |
 
-Le champ **Zéro lidar (ancien angle °)** règle la calibration de chaque scan.
-Le champ **Orientation (°)** reste la pose du robot dans la carte. Ne pas confondre
-ces deux réglages et ne pas appliquer deux fois la calibration.
-
-Les sessions v1 se rouvrent avec référence 0° et leur pose enregistrée : aucune
-rotation rétroactive silencieuse. Pour adopter le nouveau repère dans une ancienne
-session, sélectionner chaque scan, régler référence 90°, régler la pose souhaitée
-(pour des relevés immobiles : même pose pour tous), puis appliquer et recalculer.
-Les sessions v2 stockent la référence de chaque scan. Les démonstrations conservent
-leur convention propre (référence 0°) et leurs poses explicites.
+La référence est désormais **fixe à 90° pour les scans réels**, sans champ
+supplémentaire dans l'interface, conformément à la demande du 2 novembre.
+Seule l'orientation règle la pose du robot. Les anciennes sessions réelles
+adoptent également cette référence lors de leur ouverture ; recalculer les cartes.
+Les démonstrations conservent leur repère synthétique à 0°.
 Le CSV exporté conserve l'angle original ; utiliser la session JSON pour conserver
 la calibration et les poses. Vérifier physiquement la convention sur le robot.
 
@@ -187,3 +182,11 @@ l’import initial existant. La session réelle `session_ld06.json` est conserv�
 Les 24 tests locaux passent. Le zéro lidar des nouveaux scans vaut 90° ;
 les anciennes sessions gardent leur référence pour préserver leur affichage.
 Le problème des acquisitions proches de 720° reste à traiter séparément.
+
+
+## Simplification après retour utilisateur — 2 novembre 2026
+
+Suppression du champ « Zéro lidar » : le décalage de 90° est automatique et fixe
+pour les données réelles, y compris les anciennes sessions. Aucun angle brut
+n'est modifié. Prochaines priorités : diagnostiquer les scans à 720°, vérifier
+l'acquisition, améliorer les segments, puis documenter les résultats réels.
