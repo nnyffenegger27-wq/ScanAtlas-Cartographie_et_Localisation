@@ -246,3 +246,72 @@ partiellement traitée, sans prétendre avoir réparé le firmware.
 Validation : 38 tests automatisés passent, dont événements Matplotlib de
 translation, rotation, Échap, passage ±180°, garde Pan/Zoom et diagnostics.
 La fenêtre Tkinter sous Windows et la capture sur ESP32 restent à essayer.
+
+
+## Supports du cours et premier rapport illustré — 2 novembre 2026
+
+Archives reçues : Cartographie-20261102.zip et Localisation-20261102.zip.
+Les deux méthodes de construction précédemment manquantes sont maintenant
+disponibles et lues, ainsi que les notes sur la pose et le scan matching.
+Les anciennes mentions « documents manquants » sont donc historiques.
+
+Grid map : rapprochement avec le cours effectué pour le repère global,
+l'état initial inconnu, les cellules traversées via Bresenham, les impacts
+et les observations successives. L'implémentation utilise des log-odds.
+Le nettoyage temporel demeure une extension non implémentée.
+
+Carte vectorielle : extraction et fusion présentes, mais le traitement des
+anciennes features traversées par les nouveaux rayons n'est pas intégré.
+La fonction de découpage testée au laboratoire ne signifie pas que cette
+étape de mise à jour de carte est réalisée. C'est une tâche restante prioritaire
+après la fiabilisation de l'acquisition.
+
+Nouvelle capture de superposition manuelle : les murs se recouvrent visuellement
+sur plusieurs zones, sans évaluation chiffrée de précision. Le bloc de 766 points
+est encore inclus dans Carte ; le bloc de 545 points est exclu. Exclure aussi
+le bloc 766 avant une carte de validation. Les poses corrigées sur cette capture
+ne sont pas assimilées à celles du JSON précédemment reçu.
+
+Premier rapport Word illustré produit : Rapport_ScanAtlas_Jour1_Avancement.docx,
+avec les cinq captures des nuages, grille, segments, carte vectorielle et
+superposition récente. Textes courts, paramètres visibles, solutions retenues,
+limites et suites à vérifier. Les captures anciennes restent identifiées comme
+telles ; les tests logiciels ne sont pas présentés comme une validation matérielle.
+Aucun changement de l'application ni du firmware dans cette étape.
+
+
+## Mise à jour de la grid map pour le TP — 2 novembre 2026
+
+Comparaison avec les cinq étapes du document de cours. Le noyau disposait déjà
+de l'état inconnu, de la conversion par pose, de Bresenham et des preuves
+libres/occupées. L'interface ne proposait qu'une reconstruction de tous les
+scans cochés, et le noyau ignorait les rayons hors des anciennes bornes.
+
+Ajouts : Grille.depuis_scan(scan, resolution, filtres) pour créer une carte
+à partir d'un scan et sa pose ; Grille.mettre_a_jour pour conserver et
+actualiser cette même carte avec agrandissement automatique. Trois boutons
+séparent création depuis la sélection, ajout incrémental et reconstruction.
+Validation des scans avant intégration et prévention du double compte dans
+l'interface. Les paramètres et poses restent explicites et les données brutes
+sont intactes. La référence lidar reste 270°.
+
+Difficultés traitées : conserver les indices monde pendant l'agrandissement
+vers les coordonnées négatives ; laisser inconnues les cellules nouvelles ;
+ne pas effacer une carte lorsqu'un nouveau scan est importé ou que sa pose
+non encore intégrée est corrigée ; invalider si la pose d'un scan déjà intégré
+change ; ne pas mélanger des filtres/résolutions différents dans une carte.
+La carte est limitée à quatre millions de cellules et un échec de croissance
+ne modifie pas les anciennes observations.
+
+Validation : 46 tests passent. Ils couvrent l'extension, la conservation
+des probabilités et du masque observé, les poses, l'impact prioritaire, les
+observations contradictoires, les mesures invalides, le double compte et
+les tours multiples. Essai sur les 11 scans angulairement plausibles du JSON :
+l'ajout incrémental et la reconstruction complète donnent exactement les
+mêmes valeurs et le même masque (331 × 363 cellules à 0,05 m). Les deux
+blocs multiples sont exclus. Ce contrôle ne prouve pas zéro perte de mesures.
+
+Limites : scan matching automatique non implémenté ; pas de vieillissement
+ni de lissage spatial ; grille calculée exportable en NPZ mais non conservée
+dans la session JSON. Le rapport Word sera complété avec une capture du
+nouveau parcours ; la documentation texte décrit dès maintenant les changements.

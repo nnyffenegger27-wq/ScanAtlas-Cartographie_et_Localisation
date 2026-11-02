@@ -300,13 +300,51 @@ class Grille:
         nx, ny = taille
         return cls(origine, resolution, np.zeros((ny, nx)), np.zeros((ny, nx), bool))
 
+    @classmethod
+    def depuis_scan(cls, scan, resolution=.05, **filtres):
+        """TP étape 3 : un scan avec sa pose produit une carte d'occupation."""
+        grille = cls.creer([scan], resolution, **filtres)
+        grille.mettre_a_jour(scan, **filtres)
+        return grille
+
+    def agrandir_pour(self, scan, mini=.05, maxi=12., intensite=0):
+        """Étend les bornes sans déplacer les anciennes cellules dans le monde.
+
+        La résolution reste fixe. Les nouvelles cases sont inconnues ; les
+        probabilités et le masque observé existants sont copiés à l'identique.
+        """
+        cible = self.creer([scan], self.resolution, mini, maxi, intensite)
+        origine = np.minimum(self.origine, cible.origine)
+        ancien_debut = np.rint((self.origine-origine)/self.resolution).astype(int)
+        cible_debut = np.rint((cible.origine-origine)/self.resolution).astype(int)
+        taille = np.maximum(ancien_debut + np.array(self.log_odds.shape[::-1]),
+                            cible_debut + np.array(cible.log_odds.shape[::-1]))
+        if np.prod(taille) > 4_000_000:
+            raise ValueError('Grille trop grande : reconstruis avec une résolution plus grande.')
+        nx, ny = taille
+        if np.array_equal(ancien_debut, [0, 0]) and (ny, nx) == self.log_odds.shape:
+            return
+        occupation = np.zeros((ny, nx))
+        observe = np.zeros((ny, nx), bool)
+        x, y = ancien_debut
+        hauteur, largeur = self.log_odds.shape
+        occupation[y:y+hauteur, x:x+largeur] = self.log_odds
+        observe[y:y+hauteur, x:x+largeur] = self.observe
+        self.origine, self.log_odds, self.observe = origine, occupation, observe
+
     def mettre_a_jour(self, scan, mini=.05, maxi=12., intensite=0):
         """Log-odds : libre -0.4, impact +0.85 ; au plus une preuve/cellule/scan.
 
-        L'impact gagne sur le libre au sein d'un scan. Un rayon hors grille
-        est ignoré ; l'interface reconstruit les bornes pour tous les scans.
+        TP étape 3 : met à jour cette même carte avec un nouveau scan + pose.
+        L'impact gagne sur le libre au sein d'un scan. Les bornes sont étendues
+        au besoin pour ne pas ignorer les rayons situés hors de l'ancienne carte.
         Les retours invalides/à portée max ne libèrent aucune cellule.
         """
+        if not 0 <= mini < maxi or not 0 <= intensite <= 255:
+            raise ValueError('Filtres invalides : 0 ≤ min < max et intensité entre 0 et 255.')
+        if not mesures_valides(scan, mini, maxi, intensite).any():
+            return
+        self.agrandir_pour(scan, mini, maxi, intensite)
         depart = np.floor((np.array(scan.pose[:2])-self.origine)/self.resolution).astype(int)
         ny, nx = self.log_odds.shape
         libre, occupe = set(), set()

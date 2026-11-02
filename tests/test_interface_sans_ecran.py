@@ -30,9 +30,12 @@ def interface_factice():
     for nom in ['nombre','filtres','options_segments','choisis','dessiner_nuages',
                 'fin_dessin','calculer_grille','calculer_segments','tracer_segments',
                 'calculer_vecteurs','sauver_grille','sauver_scan','sauver_vecteurs',
-                'sauver_session','ouvrir_session','annuler_geste']:
+                'sauver_session','ouvrir_session','annuler_geste','verifier_scans_grille',
+                'dessiner_grille','creer_grille_selection','ajouter_grille_selection']:
         setattr(a,nom,types.MethodType(getattr(Atelier,nom),a))
     a.manipulation=None
+    a.scans_grille=set()
+    a.parametres_grille=None
     a.scans=demonstration()
     a.inclus=[True,True]
     a.visibles=[True,True]

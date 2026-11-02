@@ -21,7 +21,7 @@ AIDE = '''PARCOURS CONSEILLÉ
 1. « Démonstration simulée » pour découvrir les vues sans matériel.
 2. Importer un CSV réel ou capturer l'USB. Les scans importés sont ajoutés.
 3. Sélectionner un scan ; régler sa pose par coordonnées ou modes souris Déplacer/Tourner.
-4. « Visible » masque un scan dans Nuages ; « Carte » choisit les scans à cartographier.
+4. Grille : créer depuis un scan, puis ajouter un autre ; ou reconstruire les scans cochés Carte.
 5. Exporter les scans réels et la session pour conserver le travail.
 
 CONVENTIONS
@@ -72,6 +72,7 @@ class Atelier(tk.Tk):
         self.minsize(1050, 720)
         self.scans, self.inclus, self.visibles = [], [], []
         self.grille, self.vecteurs = None, None
+        self.scans_grille, self.parametres_grille = set(), None
         self.segments = []
         self.manipulation = None
         self.messages, self.annuler = queue.Queue(), threading.Event()
@@ -148,8 +149,11 @@ class Atelier(tk.Tk):
             barre.pack(fill='x')
             if titre == 'Grille':
                 self.champ(barre, 'resolution', 'Résolution (m/cellule)', .05)
-                self.bouton(barre, 'Construire / actualiser avec les scans cochés', self.calculer_grille)
+                self.bouton(barre, 'Créer depuis le scan sélectionné', self.creer_grille_selection)
+                self.bouton(barre, 'Ajouter le scan sélectionné à la grille', self.ajouter_grille_selection)
+                self.bouton(barre, 'Reconstruire depuis les scans cochés Carte', self.calculer_grille)
                 self.bouton(barre, 'Exporter la grille (.npz)…', self.sauver_grille)
+                ttk.Label(barre, text='Créer remplace la grille. Ajouter conserve les observations et étend les bornes.').pack(anchor='w')
             elif titre == 'Segments':
                 for cle, label, v in [('saut','Rupture entre points (m)',.20), ('erreur','Erreur de droite max (m)',.04)]:
                     self.champ(barre, cle, label, v)
@@ -282,7 +286,7 @@ class Atelier(tk.Tk):
         self.scans.extend(scans)
         self.inclus.extend([True]*len(scans))
         self.visibles.extend([True]*len(scans))
-        self.invalider()
+        self.invalider(conserver_grille=True)
         self.actualiser(len(self.scans)-len(scans))
         self.statut.set(f'{len(scans)} scan(s) ajouté(s). Vérifie la source, les points et l’étendue angulaire.')
 
@@ -327,7 +331,8 @@ class Atelier(tk.Tk):
         self.dessiner_nuages(limites)
 
     def fin_geste(self):
-        self.invalider()
+        scan = self.scans[self.indice()]
+        self.invalider(conserver_grille=id(scan) not in self.scans_grille)
         self.statut.set('Pose modifiée à la souris. Recalcule les cartes, puis enregistre la session.')
 
     def appliquer_pose(self):
@@ -335,7 +340,7 @@ class Atelier(tk.Tk):
         s = self.scans[self.indice()]
         nouvelle_pose = [self.nombre(k) for k in ['x','y','orientation']]
         s.pose = nouvelle_pose
-        self.invalider()
+        self.invalider(conserver_grille=id(s) not in self.scans_grille)
         self.dessiner_nuages()
         self.statut.set('Pose appliquée. Recalcule les cartes pour utiliser cette nouvelle pose.')
 
@@ -345,9 +350,13 @@ class Atelier(tk.Tk):
         self.dessiner_nuages()
         self.statut.set('Filtres appliqués à l’affichage ; les données originales sont conservées.')
 
-    def invalider(self):
-        self.grille, self.vecteurs, self.segments = None, None, []
-        for t in ['Grille','Segments','Carte vectorielle']:
+    def invalider(self, conserver_grille=False):
+        self.vecteurs, self.segments = None, []
+        if not conserver_grille:
+            self.grille = None
+            self.scans_grille, self.parametres_grille = set(), None
+            self.effacer('Grille', 'À calculer avec les paramètres actuels')
+        for t in ['Segments','Carte vectorielle']:
             self.effacer(t, 'À calculer avec les paramètres actuels')
 
     def effacer(self, titre, message):
@@ -390,12 +399,60 @@ class Atelier(tk.Tk):
             ax.set_ylim(limites[1])
         self.fin_dessin('Nuages')
 
+    def verifier_scans_grille(self, scans):
+        for scan in scans:
+            d = diagnostic_scan(scan.mesures)
+            if not d['tour_plausible']:
+                raise ValueError(f"{scan.nom} : {d['etat']} ({d['etendue']:.1f}°). "
+                                 'Choisis un scan valide ou décoche ce bloc dans Carte.')
+            if not mesures_valides(scan, **self.filtres()).any():
+                raise ValueError(f'{scan.nom} : aucune mesure utilisable après filtrage.')
+
+    def creer_grille_selection(self):
+        self.annuler_geste()
+        scan = self.scans[self.indice()]
+        self.verifier_scans_grille([scan])
+        opts, resolution = self.filtres(), self.nombre('resolution')
+        grille = Grille.depuis_scan(scan, resolution, **opts)
+        self.grille = grille
+        self.scans_grille = {id(scan)}
+        self.parametres_grille = (resolution, opts)
+        self.dessiner_grille()
+        self.statut.set('Grille créée depuis le scan sélectionné et sa pose. Ajoute ensuite un autre scan.')
+
+    def ajouter_grille_selection(self):
+        self.annuler_geste()
+        if self.grille is None:
+            raise ValueError('Crée d’abord une grille depuis un scan ou reconstruis les scans cochés.')
+        opts, resolution = self.filtres(), self.nombre('resolution')
+        if self.parametres_grille != (resolution, opts):
+            raise ValueError('Résolution ou filtres modifiés : reconstruis la grille avant de continuer.')
+        scan = self.scans[self.indice()]
+        if id(scan) in self.scans_grille:
+            self.statut.set('Ce scan est déjà intégré : aucune observation comptée deux fois.')
+            return
+        self.verifier_scans_grille([scan])
+        self.grille.mettre_a_jour(scan, **opts)
+        self.scans_grille.add(id(scan))
+        self.dessiner_grille()
+        self.statut.set(f'Grille mise à jour : {len(self.scans_grille)} scans intégrés, anciennes observations conservées.')
+
     def calculer_grille(self):
+        self.annuler_geste()
         scans, opts = self.choisis(), self.filtres()
-        g = Grille.creer(scans, self.nombre('resolution'), **opts)
+        self.verifier_scans_grille(scans)
+        resolution = self.nombre('resolution')
+        g = Grille.creer(scans, resolution, **opts)
         for s in scans:
             g.mettre_a_jour(s, **opts)
         self.grille = g
+        self.scans_grille = {id(s) for s in scans}
+        self.parametres_grille = (resolution, opts)
+        self.dessiner_grille()
+        self.statut.set(f'Grille reconstruite depuis {len(scans)} scans ; résolution {g.resolution:g} m/cellule.')
+
+    def dessiner_grille(self):
+        g = self.grille
         ax = self.axes['Grille']
         ax.clear()
         p = g.probabilites()
@@ -406,7 +463,7 @@ class Atelier(tk.Tk):
         ax.imshow(image, origin='lower', extent=[x,x+nx*g.resolution,y,y+ny*g.resolution], interpolation='nearest')
         ax.set_title(f'Inconnu : bleu-gris · libre : blanc · occupé : noir | {nx} × {ny} cellules')
         self.fin_dessin('Grille')
-        self.statut.set(f'Grille calculée depuis {len(scans)} scans ; résolution {g.resolution:g} m/cellule.')
+
 
     def tracer_segments(self, titre, segments, fond=None):
         ax = self.axes[titre]
