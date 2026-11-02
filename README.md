@@ -120,3 +120,17 @@ elle suppose le lidar immobile pendant ses mesures. Les points invalides ou
 hors filtres restent exclus ; les données originales ne sont pas modifiées.
 Une cellule reçoit au plus une preuve par bloc, même si plusieurs tours la
 mesurent. Cette décision remplace les anciennes recommandations d'exclusion.
+
+
+## Segments de tous les scans et carte vectorielle
+
+Dans Segments, cliquer sur **Extraire les segments des scans cochés Carte**.
+L'extraction utilise chaque pose indépendamment, y compris pour un scan masqué
+mais coché Carte. Sélectionner un scan dans la liste ne limite plus l'extraction.
+Le bouton **Rétablir des seuils prudents** permet de repartir d'un réglage
+explicite sans réécrire les paramètres des anciennes sessions.
+
+La carte vectorielle fusionne sur les points d'origine avec contrôle de l'erreur
+de droite, puis traite prudemment les anciennes formes traversées par au moins
+trois nouveaux rayons de directions distinctes. Voir les méthodes, limites
+et trois essais dans [SEGMENTS_MULTISCANS_ET_VECTORIELLE.md](SEGMENTS_MULTISCANS_ET_VECTORIELLE.md).

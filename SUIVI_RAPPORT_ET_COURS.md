@@ -70,3 +70,14 @@ L'hypothèse d'une pose unique par bloc est explicitée. Le rapport Word a été
 corrigé pour supprimer la consigne d'exclusion et complété avec les captures
 de grille à 0,05 m et 0,10 m. Ces captures précèdent la réintégration des
 deux blocs et ne constituent pas une comparaison avec/sans ces acquisitions.
+
+
+## Segments et gestion des absences intégrés
+
+La limite « découpage disponible seulement au laboratoire » est maintenant
+historique : un raccourcissement prudent des anciens segments est intégré
+à la carte vectorielle, selon le choix utilisateur. Trois directions de rayons
+libres sont exigées, avec une marge près de l'impact. L'extraction Segments
+utilise désormais tous les scans cochés Carte. Les limites de pose, d'ordre
+d'intégration et de seuils restent explicites. Trois essais et 60 tests sont
+consignés dans SEGMENTS_MULTISCANS_ET_VECTORIELLE.md.

@@ -343,3 +343,41 @@ réintégration. Le Word est corrigé et complété par ces deux figures, avec
 comparaison visuelle de la résolution et sans prétendre mesurer la précision.
 Aucun changement des cases dans la session locale de l'utilisateur n'est
 possible ici : il doit recocher les blocs dans Carte après mise à jour.
+
+
+## Correction des segments et de la carte vectorielle — 2 novembre 2026
+
+Demande : extraire les segments de tous les scans cochés Carte et corriger
+la carte vectorielle. Les blocs de plusieurs tours restent conservés.
+Question posée sur les anciens segments traversés : l'utilisateur choisit
+de les raccourcir prudemment après plusieurs rayons concordants.
+
+L'extraction est désormais globale mais chaque scan reste séparé, avec sa pose
+et sa couleur. Une frontière de tour coupe le groupe de points sans supprimer
+les tours. Changer la sélection ne vide plus l'affichage des segments.
+La carte vectorielle utilisait déjà tous les scans cochés : sa fusion est
+corrigée par contrôle des droites supports et de l'erreur sur tous les points
+originaux, au lieu de réajuster uniquement les extrémités déjà moyennées.
+
+La gestion des absences, précédemment non intégrée, est maintenant appliquée
+pendant la construction successive : au moins trois directions de rayons
+valides distinctes, marge à l'impact, coupe médiane et conservation du côté
+le plus long. Les doublons de rayons d'un bloc multiple ne votent pas plusieurs
+fois dans le même bin angulaire. Les coupes et les fusions sont comptées.
+
+Difficultés : seuils très larges des captures (rupture 1 m, erreur 0,5 m,
+fusion 1 m), dérive des fusions en chaîne, extrémités faussement proches,
+répétitions de tours, confusion sélection/Carte, coût des intersections.
+Solutions et limites dans SEGMENTS_MULTISCANS_ET_VECTORIELLE.md. Un bouton
+rétablit des seuils prudents sans changer silencieusement les paramètres.
+
+60 tests passent. Trois réglages ont été calculés sur les 13 scans de l'ancien
+JSON, tous conservés : 138/63, 160/65 et 222/88 segments extraits/finaux.
+Ces nombres ne mesurent pas la précision ; les poses actuelles recalées
+à la souris ne sont pas disponibles dans ce fichier. Sur deux scans simulés
+à poses connues : aucune coupe. Un essai réel sur la dernière session est
+encore nécessaire pour confirmer le résultat visuel.
+
+Le rapport est corrigé pour distinguer l'ancienne extraction sélectionnée
+de l'extraction multiscans, et la fusion initiale de la nouvelle méthode.
+Les nouvelles captures sont conservées comme résultats avant correction.
