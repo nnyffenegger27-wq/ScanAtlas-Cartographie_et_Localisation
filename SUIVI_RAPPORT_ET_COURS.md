@@ -81,3 +81,7 @@ libres sont exigées, avec une marge près de l'impact. L'extraction Segments
 utilise désormais tous les scans cochés Carte. Les limites de pose, d'ordre
 d'intégration et de seuils restent explicites. Trois essais et 60 tests sont
 consignés dans SEGMENTS_MULTISCANS_ET_VECTORIELLE.md.
+
+## Pilotage Wi-Fi intégré
+
+Ajout au rapport du hotspot ESP32, de l'onglet de pilotage, du protocole de tours horodatés, des arrêts logiciels et de la fusion vectorielle incrémentale. La capture d'interface et le banc de 60 tours sont identifiés comme simulés. Les chiffres de compilation et les essais logiciels sont séparés des vérifications physiques encore nécessaires. Le mode direct n'implémente ni compensation du mouvement intra-tour, ni fermeture de boucle, ni navigation autonome. Sources et détails : PILOTAGE_WIFI.md.

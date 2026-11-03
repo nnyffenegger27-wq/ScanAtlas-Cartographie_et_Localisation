@@ -4,6 +4,11 @@ Application locale en français pour acquérir, comprendre et cartographier les 
 Elle fonctionne sans compte et sans serveur. Une connexion Internet sert uniquement
 à installer les bibliothèques Python la première fois.
 
+**Nouveau :** onglet **Robot Wi-Fi**, hotspot ESP32 et pilotage avec les flèches,
+avec carte vectorielle en direct. Il faut téléverser le nouveau firmware avant
+de connecter le PC au réseau **ScanAtlas**. Suivre [PILOTAGE_WIFI.md](PILOTAGE_WIFI.md)
+pour le flash, le mot de passe, les touches, les tests et les limites.
+
 ## Démarrer sur Windows
 
 1. Décompresse **tout** le dossier ZIP. Ne lance pas les fichiers depuis le ZIP.

@@ -22,6 +22,7 @@ from recalage_capture import recaler_capture, recaler_lot
 from localisation_globale import localisation_globale, METHODE_GLOBALE
 from assemblage_global import assembler_scans
 from interface_tp import InterfaceTP
+from interface_wifi import InterfaceWifi
 from localisation_tp import LOCALE as TP_LOCALE, MULTI as TP_MULTI
 
 AIDE = '''PARCOURS CONSEILLÉ
@@ -85,7 +86,7 @@ La démo est SIMULÉE et ne remplace jamais les scans réels demandés au TP.
 AIDE = AIDE.replace('270°', f'{ANGLE_REFERENCE_DEFAUT:g}°')
 
 
-class Atelier(InterfaceTP, tk.Tk):
+class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
     def __init__(self):
         super().__init__()
         self.title('LD06 Atelier · Acquisition et cartographie 2D')
@@ -163,9 +164,12 @@ class Atelier(InterfaceTP, tk.Tk):
         self.onglets = ttk.Notebook(droite)
         self.onglets.pack(fill='both', expand=True)
         self.axes, self.canvas = {}, {}
-        for titre in ['Nuages', 'Grille', 'Segments', 'Carte vectorielle', 'Localisation', 'TP Localisation', 'Acquisition USB']:
+        for titre in ['Nuages', 'Grille', 'Segments', 'Carte vectorielle', 'Localisation', 'TP Localisation', 'Acquisition USB', 'Robot Wi-Fi']:
             cadre = ttk.Frame(self.onglets, padding=8)
             self.onglets.add(cadre, text=titre)
+            if titre == 'Robot Wi-Fi':
+                self.interface_wifi(cadre)
+                continue
             if titre == 'Acquisition USB':
                 self.interface_usb(cadre)
                 continue
@@ -1003,6 +1007,8 @@ class Atelier(InterfaceTP, tk.Tk):
         self.statut.set(f'{len(ports)} port(s) détecté(s). Tu peux aussi saisir COM3, COM4… manuellement.')
 
     def lancer_capture(self):
+        if getattr(self, 'wifi_robot', None) is not None:
+            raise ValueError('Déconnecte le robot Wi-Fi avant une acquisition USB.')
         if self.travail:
             raise ValueError('Un calcul ou une capture est déjà en cours.')
         port = self.port.get().strip()
@@ -1204,9 +1210,11 @@ class Atelier(InterfaceTP, tk.Tk):
         t.configure(yscrollcommand=scroll.set)
 
     def fermer(self):
+        self.wifi_arreter()
         if self.scans and not messagebox.askyesno('Fermer', 'Fermer l’application ? Pense à enregistrer ta session pour conserver les scans et leurs poses.'):
             return
         self.annuler.set()
+        self.wifi_deconnecter()
         self.destroy()
 
 
