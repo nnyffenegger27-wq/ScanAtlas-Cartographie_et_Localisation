@@ -16,6 +16,7 @@ from cartographie import (Scan, Grille, lire_csv, exporter_scan, demonstration,
                          angle_segments, proches, fusionner, intersection, decouper, EPS, extraire_multiscans)
 from cartographie import ANGLE_REFERENCE_DEFAUT, diagnostic_scan
 from manipulation import ManipulationScan
+from localisation import icp_scan, points_filtres, transformer
 
 AIDE = '''PARCOURS CONSEILLÉ
 1. « Démonstration simulée » pour découvrir les vues sans matériel.
@@ -46,20 +47,25 @@ SEGMENTS ET CARTE VECTORIELLE
 Les discontinuités séparent les groupes de points. Un ajustement orthogonal
 est découpé lorsque son erreur dépasse le seuil. Les groupes courts sont rejetés.
 La carte accumule et fusionne les segments proches (angle ET distance).
-Le laboratoire compare deux segments extraits du scan sélectionné.
-Le découpage est explicite dans ce laboratoire ; il n'est pas automatiquement
-appliqué aux murs d'une carte (ce qui pourrait retirer de vrais murs).
+Le laboratoire compare deux segments extraits. La carte raccourcit prudemment
+les anciens segments contredits par au moins trois directions de rayons libres.
+
+LOCALISATION
+Choisir un scan de référence fixe et un scan mobile dans Localisation.
+La pose actuelle du mobile sert de point de départ (réglable dans le panneau gauche).
+ICP associe les points proches et estime une correction rigide, de façon itérative.
+Les filtres communs sont utilisés. Comparer l'aperçu avant/après puis Appliquer.
+Une convergence locale n'est pas une garantie de position correcte.
 
 LIMITES
 Lidar immobile pendant un scan ; environnement supposé fixe et plan.
-Pas de SLAM ni de calcul automatique des poses. Vitres, mouvements et bruit
+Pas encore de SLAM ; recalage automatique local entre scans uniquement. Vitres, mouvements et bruit
 peuvent créer des erreurs. Des scans CSV fragmentaires peuvent être importés :
 le nombre de points et l'étendue angulaire sont affichés pour contrôle.
 Les retours nuls, trop faibles ou à portée maximale sont ignorés, sans libérer
 les cellules du rayon. Les paramètres de segmentation demandent un réglage.
 La carte vectorielle est une première méthode heuristique, pas une topologie parfaite.
-Les deux documents de construction de cartes du cours n'ont pas été fournis :
-ces méthodes doivent être comparées à ceux-ci.
+La localisation sur grille et sur carte vectorielle reste à développer pour le jour 2.
 La démo est SIMULÉE et ne remplace jamais les scans réels demandés au TP.
 '''
 
@@ -75,6 +81,8 @@ class Atelier(tk.Tk):
         self.scans_grille, self.parametres_grille = set(), None
         self.segments = []
         self.manipulation = None
+        self.resultat_localisation = None
+        self.scans_localisation = []
         self.messages, self.annuler = queue.Queue(), threading.Event()
         self.travail = False
         self.vars = {}
@@ -139,7 +147,7 @@ class Atelier(tk.Tk):
         self.onglets = ttk.Notebook(droite)
         self.onglets.pack(fill='both', expand=True)
         self.axes, self.canvas = {}, {}
-        for titre in ['Nuages', 'Grille', 'Segments', 'Carte vectorielle', 'Acquisition USB']:
+        for titre in ['Nuages', 'Grille', 'Segments', 'Carte vectorielle', 'Localisation', 'Acquisition USB']:
             cadre = ttk.Frame(self.onglets, padding=8)
             self.onglets.add(cadre, text=titre)
             if titre == 'Acquisition USB':
@@ -147,7 +155,9 @@ class Atelier(tk.Tk):
                 continue
             barre = ttk.Frame(cadre)
             barre.pack(fill='x')
-            if titre == 'Grille':
+            if titre == 'Localisation':
+                self.interface_localisation(barre)
+            elif titre == 'Grille':
                 self.champ(barre, 'resolution', 'Résolution (m/cellule)', .05)
                 self.bouton(barre, 'Créer depuis le scan sélectionné', self.creer_grille_selection)
                 self.bouton(barre, 'Ajouter le scan sélectionné à la grille', self.ajouter_grille_selection)
@@ -253,6 +263,7 @@ class Atelier(tk.Tk):
         else:
             self.info.configure(text='Aucun scan sélectionné')
         self.dessiner_nuages()
+        self.actualiser_choix_localisation()
 
     def selection(self, event=None):
         self.annuler_geste()
@@ -350,6 +361,9 @@ class Atelier(tk.Tk):
         self.statut.set('Filtres appliqués à l’affichage ; les données originales sont conservées.')
 
     def invalider(self, conserver_grille=False):
+        self.resultat_localisation = None
+        if 'Localisation' in self.axes:
+            self.effacer('Localisation', 'Choisir deux scans et lancer le recalage ICP')
         self.vecteurs, self.segments = None, []
         if not conserver_grille:
             self.grille = None
@@ -613,12 +627,162 @@ class Atelier(tk.Tk):
         if not (0 <= nouveaux['mini'] < nouveaux['maxi'] and 0 <= nouveaux['intensite'] <= 255 and
                 all(nouveaux[k]>0 for k in ['resolution','saut','erreur']) and 0<=nouveaux['angle_max']<=90 and nouveaux['distance_max']>=0):
             raise ValueError('Paramètres de session hors limites.')
+        for k, defaut in [('icp_distance', .5), ('icp_iterations', 80)]:
+            if k in self.vars:
+                v = float(str(parametres.get(k, defaut)).replace(',', '.'))
+                if not np.isfinite(v) or v <= 0 or (k == 'icp_iterations' and (v != int(v) or v > 300)):
+                    raise ValueError('Paramètres ICP de session invalides.')
+                nouveaux[k] = v
         self.scans,self.inclus,self.visibles=scans,inclus,visibles
         for k,v in nouveaux.items():
             self.vars[k].set(str(v))
         self.invalider()
         self.actualiser()
         self.statut.set('Session ouverte. Recalcule les cartes avec les boutons dédiés.')
+
+    def interface_localisation(self, cadre):
+        ttk.Label(cadre, text='Superposition automatique entre scans · ICP point à point').pack(anchor='w')
+        ligne = ttk.Frame(cadre)
+        ligne.pack(fill='x', pady=3)
+        self.choix_reference = ttk.Combobox(ligne, state='readonly', width=30)
+        self.choix_mobile = ttk.Combobox(ligne, state='readonly', width=30)
+        for label, choix in [('Référence fixe', self.choix_reference), ('Scan à déplacer', self.choix_mobile)]:
+            ttk.Label(ligne, text=label).pack(side='left', padx=3)
+            choix.pack(side='left', fill='x', expand=True)
+            choix.bind('<<ComboboxSelected>>', lambda e: self.proteger(self.apercu_localisation))
+        self.champ(cadre, 'icp_distance', 'Distance maximale d’appariement (m)', .5)
+        self.champ(cadre, 'icp_iterations', 'Nombre maximal d’itérations', 80)
+        ttk.Label(cadre, text='Départ = pose actuelle du mobile. Rapproche-le d’abord dans Nuages si nécessaire.\nFiltres communs utilisés ; Visible et Carte ne limitent pas les deux choix explicites.').pack(anchor='w')
+        actions = ttk.Frame(cadre)
+        actions.pack(fill='x')
+        for texte, action in [('Voir avant', self.apercu_localisation), ('Localiser (ICP)', self.lancer_localisation),
+                              ('Appliquer la pose trouvée', self.appliquer_localisation), ('Annuler le calcul', self.annuler_calcul)]:
+            ttk.Button(actions, text=texte, command=lambda a=action: self.proteger(a)).pack(side='left', padx=2, pady=4)
+        self.info_localisation = ttk.Label(cadre, text='La référence reste fixe. Les scans doivent voir une zone commune.', wraplength=850)
+        self.info_localisation.pack(anchor='w')
+
+    def annuler_calcul(self):
+        self.annuler.set()
+
+    def actualiser_choix_localisation(self):
+        if not hasattr(self, 'choix_reference'):
+            return
+        anciens = getattr(self, 'scans_localisation', [])
+        choix = [self.choix_reference, self.choix_mobile]
+        selections = [anciens[c.current()] if 0 <= c.current() < len(anciens) else None for c in choix]
+        self.scans_localisation = list(self.scans)
+        labels = [f'{i+1} · {s.nom}' for i, s in enumerate(self.scans)]
+        for n, (c, selection) in enumerate(zip(choix, selections)):
+            c['values'] = labels
+            if labels:
+                indice = next((i for i, s in enumerate(self.scans) if s is selection), min(n, len(labels)-1))
+                c.current(indice)
+            else:
+                c.set('')
+
+    def paire_localisation(self):
+        indices = [self.choix_reference.current(), self.choix_mobile.current()]
+        if any(i < 0 or i >= len(self.scans_localisation) for i in indices):
+            raise ValueError('Importer au moins deux scans, puis choisir référence et mobile.')
+        reference, mobile = [self.scans_localisation[i] for i in indices]
+        if reference is mobile:
+            raise ValueError('La référence et le mobile doivent être deux scans différents.')
+        return reference, mobile
+
+    def apercu_localisation(self):
+        reference, mobile = self.paire_localisation()
+        filtres = self.filtres()
+        self.resultat_localisation = None
+        self.dessiner_localisation(points_filtres(reference, filtres),
+            points_filtres(mobile, filtres, locaux=True), mobile.pose)
+        self.info_localisation.configure(text='Avant recalage. Le mobile utilise sa pose actuelle ; aucune mesure n’est modifiée.')
+
+    def dessiner_localisation(self, reference, locaux, avant, apres=None):
+        ax = self.axes['Localisation']
+        ax.clear()
+        ax.scatter(reference[:, 0], reference[:, 1], s=7, c='#465b70', label='Référence fixe')
+        points = transformer(locaux, avant)
+        ax.scatter(points[:, 0], points[:, 1], s=8, c='#d88422', alpha=.5, label='Mobile avant')
+        if apres is not None:
+            points = transformer(locaux, apres)
+            ax.scatter(points[:, 0], points[:, 1], s=8, c='#138961', label='Mobile après (aperçu)')
+            ax.plot(*apres[:2], marker='x', color='#138961')
+        ax.set_title('ICP entre scans — aperçu avant application')
+        ax.legend(fontsize=8)
+        self.fin_dessin('Localisation')
+
+    def contexte_localisation_valide(self, contexte):
+        reference, mobile, pose_r, pose_m, mesures_r, mesures_m, filtres = contexte
+        try:
+            paire = self.paire_localisation()
+            return (paire[0] is reference and paire[1] is mobile and
+                    any(s is reference for s in self.scans) and any(s is mobile for s in self.scans) and
+                    np.array_equal(reference.pose, pose_r) and np.array_equal(mobile.pose, pose_m) and
+                    np.array_equal(reference.mesures, mesures_r) and np.array_equal(mobile.mesures, mesures_m) and
+                    self.filtres() == filtres)
+        except ValueError:
+            return False
+
+    def lancer_localisation(self):
+        if self.travail:
+            raise ValueError('Un calcul ou une capture est déjà en cours.')
+        self.annuler_geste()
+        reference, mobile = self.paire_localisation()
+        filtres = self.filtres()
+        distance, iterations = self.nombre('icp_distance'), self.nombre('icp_iterations')
+        if distance <= 0 or iterations != int(iterations) or not 1 <= iterations <= 300:
+            raise ValueError('Distance positive et nombre entier d’itérations entre 1 et 300 requis.')
+        ref = Scan(reference.nom, reference.mesures.copy(), list(reference.pose), reference.source, reference.angle_reference)
+        mob = Scan(mobile.nom, mobile.mesures.copy(), list(mobile.pose), mobile.source, mobile.angle_reference)
+        contexte = (reference, mobile, ref.pose, mob.pose, ref.mesures, mob.mesures, filtres)
+        self.resultat_localisation = None
+        self.travail = True
+        self.annuler.clear()
+        self.info_localisation.configure(text='Calcul ICP en cours…')
+        self.statut.set('Recalage en cours ; la référence et le mobile restent inchangés.')
+        def travail():
+            try:
+                resultat = icp_scan(mob, ref, **filtres, distance_max=distance,
+                                    iterations_max=int(iterations), annuler=self.annuler)
+                self.messages.put(('localisation', (contexte, resultat, ref, mob)))
+            except Exception as exc:
+                self.messages.put(('erreur', str(exc)))
+            finally:
+                self.messages.put(('fini', None))
+        threading.Thread(target=travail, daemon=True).start()
+
+    def recevoir_localisation(self, data):
+        contexte, resultat, reference, mobile = data
+        if not self.contexte_localisation_valide(contexte):
+            self.info_localisation.configure(text='Résultat écarté : scans, choix, poses ou filtres modifiés pendant le calcul. Relance ICP.')
+            return
+        self.resultat_localisation = (contexte, resultat)
+        self.dessiner_localisation(points_filtres(reference, contexte[-1]),
+            points_filtres(mobile, contexte[-1], locaux=True), resultat.pose_initiale, resultat.pose)
+        texte = (f'x = {resultat.pose[0]:.4f} m · y = {resultat.pose[1]:.4f} m · θ = {resultat.pose[2]:.3f}°\n'
+                 f'RMSE des correspondances : {resultat.rmse_initiale:.4f} → {resultat.rmse:.4f} m · '
+                 f'recouvrement : {resultat.recouvrement:.0%} · {resultat.iterations} itérations · {resultat.duree:.3f} s\n'
+                 f'{resultat.message} Le RMSE n’est pas l’erreur de pose réelle.')
+        self.info_localisation.configure(text=texte)
+        self.statut.set('Aperçu prêt. Vérifie la superposition avant d’appliquer la pose.' if resultat.applicable else resultat.message)
+
+    def appliquer_localisation(self):
+        if self.resultat_localisation is None:
+            raise ValueError('Lance d’abord un recalage ICP.')
+        contexte, resultat = self.resultat_localisation
+        if not self.contexte_localisation_valide(contexte):
+            self.resultat_localisation = None
+            raise ValueError('Scans, poses ou filtres modifiés : relance le recalage.')
+        if not resultat.applicable:
+            raise ValueError('Ce recalage n’est pas applicable. '+resultat.message)
+        mobile = contexte[1]
+        mobile.pose = list(resultat.pose)
+        self.invalider(conserver_grille=id(mobile) not in self.scans_grille)
+        self.actualiser(next(i for i, s in enumerate(self.scans) if s is mobile))
+        self.info_localisation.configure(text='Pose appliquée au mobile. Référence inchangée. Enregistre la session ; recalcule les cartes concernées.')
+        self.dessiner_localisation(points_filtres(contexte[0], contexte[-1]),
+            points_filtres(mobile, contexte[-1], locaux=True), resultat.pose_initiale, resultat.pose)
+        self.statut.set('Pose ICP appliquée. Les mesures brutes sont conservées.')
 
     def interface_usb(self, cadre):
         ttk.Label(cadre,text='Capturer des scans réels depuis l’ESP32',style='Titre.TLabel').pack(anchor='w',pady=12)
@@ -646,7 +810,7 @@ class Atelier(tk.Tk):
 
     def lancer_capture(self):
         if self.travail:
-            raise ValueError('Une capture est déjà en cours.')
+            raise ValueError('Un calcul ou une capture est déjà en cours.')
         port = self.port.get().strip()
         baud, quantite = self.nombre('baud'), self.nombre('quantite')
         if not port or baud != int(baud) or baud<=0 or quantite != int(quantite) or not 1<=quantite<=20:
@@ -677,8 +841,12 @@ class Atelier(tk.Tk):
                     else:
                         self.statut.set('Capture annulée.')
                 elif type_=='erreur':
-                    messagebox.showerror('Acquisition USB',data)
+                    messagebox.showerror('Calcul ou acquisition',data)
                     self.statut.set(data)
+                    if hasattr(self, 'info_localisation'):
+                        self.info_localisation.configure(text=data)
+                elif type_=='localisation':
+                    self.recevoir_localisation(data)
                 elif type_=='fini':
                     self.travail=False
         except queue.Empty:
