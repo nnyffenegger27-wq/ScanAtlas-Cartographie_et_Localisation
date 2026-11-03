@@ -75,6 +75,8 @@ class CarteDirecte:
         self.annuler = threading.Event()
         self.reference_locale = None
         self.historique_poses = []
+        self.dernier_essai = 0.
+        self.dernier_refus = ""
 
     @property
     def segments(self):
@@ -83,29 +85,34 @@ class CarteDirecte:
     def traiter(self, trame):
         debut = perf_counter()
         scan = trame.scan()
-        score = 0.
+        score = float('nan')
+        recuperation = self.perdu or self.reprise
+        explicite = self.reprise
         accepte = False
         message = ''
         rmse, methode = float('nan'), 'Ancrage'
         try:
+            if self.perdu and not explicite and debut-self.dernier_essai < .5:
+                return EtatDirect(scan, False, 'Nouvel essai en attente : '+self.dernier_refus,
+                    score, perf_counter()-debut, self.points.copy(), self.segments,
+                    np.asarray(self.trajectoire), len(self.cles), tuple(self.cles), rmse, 'Attente')
+            self.dernier_essai = debut
             pts = points_filtres(scan, self.filtres, locaux=True)
             if len(pts) < 30 or np.linalg.norm(np.ptp(pts, axis=0)) < 1.:
-                raise ValueError('Pas assez de géométrie après filtrage ; robot arrêté.')
+                raise ValueError('Pas assez de géométrie après filtrage ; carte en pause.')
             if self.fin_us is None:
                 scan.pose = [0., 0., 0.]
                 message = 'Premier scan : origine fixe de la carte.'
                 accepte = True
                 score = 100.
-            elif self.perdu:
-                raise ValueError('Suivi perdu : arrêter, replacer près de la dernière pose puis Reprendre ici.')
             else:
-                dt = .1 if self.reprise else (trame.fin_us-self.fin_us)/1e6
+                dt = .1 if recuperation else (trame.fin_us-self.fin_us)/1e6
                 if not 0 < dt <= 1.5:
-                    raise ValueError('Scans trop espacés : suivi suspendu, robot arrêté.')
+                    raise ValueError('Scans trop espacés : carte en pause, nouvel essai automatique.')
                 # Index et normales réutilisés entre scans clés ; aucun recalcul intégral par tour.
                 reference_suivi = self.reference_locale
                 initiale = self.pose.copy()
-                if not self.reprise and dt<=.6 and len(self.historique_poses)>=2:
+                if not recuperation and dt<=.6 and len(self.historique_poses)>=2:
                     (t0,p0),(t1,p1) = self.historique_poses[-2:]
                     if t1>t0:initiale=predire(p0,p1,(trame.fin_us-t1)/(t1-t0))
                 resultat = icp_droites(pts,reference_suivi,initiale,self.annuler)
@@ -127,10 +134,12 @@ class CarteDirecte:
                 ep, ea = erreur_pose(resultat.pose, self.pose)
                 # Déplacement physiquement plausible au PWM limité, avec marge de bruit.
                 plausible = ep <= .20+1.2*dt and ea <= 10.+150.*dt
+                if recuperation:
+                    plausible = ep <= (1.2 if explicite else .25) and ea <= (35. if explicite else 8.)
                 accepte = bool(resultat.applicable and resultat.accord_fin >= .75 and
                                resultat.rmse <= .10 and plausible and not self.annuler.is_set())
                 if not accepte:
-                    raise ValueError(f'Recalage refusé ({score:.0f} % à 12 cm) ; arrêter et reprendre le suivi.')
+                    raise ValueError(f'Recalage refusé : {score:.0f} % à 12 cm, RMSE {rmse:.3f} m, déplacement {ep:.2f} m / {ea:.1f}°. Carte conservée ; nouvel essai automatique.')
                 scan.pose = list(resultat.pose)
                 message = f'Suivi accepté : {score:.0f} % à 12 cm ; RMSE {resultat.rmse:.3f} m.'
             if self.annuler.is_set():
@@ -152,6 +161,10 @@ class CarteDirecte:
                 self.cles.append(scan)
                 self.pose_cle, self.fin_cle = np.array(scan.pose), trame.fin_us
             self.pose, self.fin_us = np.array(scan.pose), trame.fin_us
+            if recuperation:
+                self.historique_poses = []
+            self.perdu = False
+            self.dernier_refus = ""
             self.historique_poses.append((trame.fin_us,self.pose.copy()))
             self.historique_poses = self.historique_poses[-2:]
             self.reprise = False
@@ -160,7 +173,8 @@ class CarteDirecte:
         except (ValueError, RuntimeError) as exc:
             accepte = False
             self.perdu = True
-            message = str(exc)
+            self.reprise = False
+            message = self.dernier_refus = str(exc)
         return EtatDirect(scan, accepte, message, score, perf_counter()-debut,
                           self.points.copy(), self.segments, np.asarray(self.trajectoire), len(self.cles), tuple(self.cles),rmse,methode)
 
@@ -193,3 +207,4 @@ class CarteDirecte:
         if len(carte) > 2000:
             raise ValueError('Limite de 2000 segments : enregistrer la carte.')
         return carte
+

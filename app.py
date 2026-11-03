@@ -166,7 +166,7 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
         self.axes, self.canvas = {}, {}
         for titre in ['Nuages', 'Grille', 'Segments', 'Carte vectorielle', 'TP Localisation', 'Acquisition USB', 'Robot Wi-Fi']:
             cadre = ttk.Frame(self.onglets, padding=8)
-            self.onglets.add(cadre, text='Localisation' if titre=='TP Localisation' else titre)
+            self.onglets.add(cadre, text={'TP Localisation':'Localisation','Acquisition USB':'Acquisition'}.get(titre,titre))
             if titre == 'Robot Wi-Fi':
                 self.interface_wifi(cadre)
                 continue
@@ -983,6 +983,12 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
             self.vars[cle]=tk.StringVar(value=str(valeur))
         ttk.Label(cadre,text='Capturer des scans réels depuis l’ESP32',style='Titre.TLabel').pack(anchor='w',pady=12)
         ttk.Label(cadre,text='Le programme ESP32 doit utiliser printScanCSV(Serial) uniquement.\nFerme le moniteur série Arduino et Teleplot avant de connecter le port.',wraplength=700).pack(anchor='w',pady=10)
+        self.capture_source = tk.StringVar(value='USB')
+        self.capture_hote = tk.StringVar(value='192.168.4.1')
+        ttk.Label(cadre,text='Source : USB (firmware CSV historique) ou Wi-Fi (firmware ScanAtlas_WiFi)').pack(anchor='w')
+        ttk.Combobox(cadre,textvariable=self.capture_source,values=['USB','Wi-Fi'],state='readonly').pack(fill='x')
+        ttk.Label(cadre,text='Adresse Wi-Fi (ignorée en USB)').pack(anchor='w')
+        ttk.Entry(cadre,textvariable=self.capture_hote).pack(fill='x')
         self.port = tk.StringVar()
         self.ports = ttk.Combobox(cadre,textvariable=self.port)
         self.ports.pack(fill='x')
@@ -1013,14 +1019,22 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
         self.statut.set(f'{len(ports)} port(s) détecté(s). Tu peux aussi saisir COM3, COM4… manuellement.')
 
     def lancer_capture(self):
-        if getattr(self, 'wifi_robot', None) is not None:
-            raise ValueError('Déconnecte le robot Wi-Fi avant une acquisition USB.')
         if self.travail:
             raise ValueError('Un calcul ou une capture est déjà en cours.')
+        source = self.capture_source.get() if hasattr(self,'capture_source') else 'USB'
+        hote = self.capture_hote.get().strip() if source == 'Wi-Fi' else ''
         port = self.port.get().strip()
-        baud, quantite = self.nombre('baud'), self.nombre('quantite')
-        if not port or baud != int(baud) or baud<=0 or quantite != int(quantite) or not 1<=quantite<=20:
-            raise ValueError('Indique un port, un baud entier positif et 1 à 20 scans.')
+        baud = self.nombre('baud') if source == 'USB' else 115200
+        quantite = self.nombre('quantite')
+        if quantite != int(quantite) or not 1<=quantite<=20:
+            raise ValueError('Indique 1 à 20 scans.')
+        if source == 'USB' and (not port or baud != int(baud) or baud<=0):
+            raise ValueError('Indique un port et un baud entier positif.')
+        if source == 'Wi-Fi' and not hote:
+            raise ValueError('Indique une adresse Wi-Fi.')
+        if getattr(self, 'wifi_robot', None) is not None:
+            self.wifi_deconnecter()  # Conserve la carte et les scans de session.
+
         self.annuler_geste()
         automatique = self.vars['auto_icp'].get() == '1'
         reference = self.scans[-1] if self.scans else None
@@ -1045,8 +1059,12 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
             if automatique else 'Auto désactivé · capture sans localisation.'))
         def travail():
             try:
-                from acquisition import capturer
-                scans=capturer(port,int(baud),int(quantite),self.annuler,lambda s:self.messages.put(('capture_statut',s)))
+                from acquisition import capturer, capturer_wifi
+                progression = lambda s:self.messages.put(('capture_statut',s))
+                if source == 'Wi-Fi':
+                    scans=capturer_wifi(hote,int(quantite),self.annuler,progression)
+                else:
+                    scans=capturer(port,int(baud),int(quantite),self.annuler,progression)
                 if automatique and scans:
                     self.messages.put(('capture_statut', f'Capture terminée : {len(scans)} scan(s) reçus. Localisation automatique en cours…'))
                     try:
@@ -1226,3 +1244,4 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
 
 if __name__ == '__main__':
     Atelier().mainloop()
+

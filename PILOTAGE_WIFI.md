@@ -40,7 +40,7 @@ sur GPIO32 reproduit le test fourni ; ce n'est pas une régulation PWM du lidar.
    `lancer_windows.bat` (ou `python app.py`).
 3. Dans **Robot Wi-Fi**, laisser `192.168.4.1`, puis **Connecter**.
    Le premier tour valide fixe l'origine de la nouvelle carte.
-4. Cocher **Activer le clavier**. Cliquer dans la bande bleue de pilotage.
+4. Cocher **Pilotage manuel au clavier**. Cliquer dans la bande bleue de pilotage.
 5. Maintenir une touche : ↑ avance, ↓ recule, ← tourne à gauche,
    → tourne à droite ; A / D déplacent latéralement le châssis Mecanum.
    Une seule direction à la fois ; plusieurs touches donnent STOP.
@@ -97,9 +97,7 @@ pas des scans clés.
 Les ressources sont bornées : derniers scans réseau/calcul uniquement,
 40 000 points voxelisés à 5 cm, 2 000 scans clés, 2 000 segments et 160 appuis
 par segment fusionné. Une limite atteinte suspend l'insertion avec message.
-Un échec conserve la dernière carte, désactive les moteurs et exige une reprise
-explicite. **Reprendre ici après arrêt** suppose le robot près de la dernière
-pose validée ; réactiver le clavier après validation du scan.
+Un échec conserve la dernière carte et suspend son enrichissement. Le pilotage manuel reste disponible avec connexion et lidar récents. Une reprise automatique est essayée près de la dernière pose (25 cm / 8°), au maximum deux fois par seconde. **Reprendre le suivi** autorise un essai explicite jusqu’à 1,2 m / 35°, avec les mêmes contrôles géométriques. Voir [Acquisition et dépannage](ACQUISITION_ET_DEPANNAGE.md).
 
 **Ajouter les scans clés à la session** permet de conserver les mesures et les
 poses dans la session JSON habituelle, puis de reconstruire une grille ou une
@@ -194,3 +192,4 @@ Les mesures originales ne sont pas supprimées. Aucun nouveau firmware à flashe
 
 La comparaison chiffrée avec la première version et les limites sont décrites
 dans [SUIVI_CONTINU.md](SUIVI_CONTINU.md).
+

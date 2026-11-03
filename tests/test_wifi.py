@@ -129,10 +129,11 @@ class SuiviDirect(unittest.TestCase):
 
 
 class FauxRobot:
-    def __init__(self, vieux=False, retard_ack=False):
+    def __init__(self, vieux=False, retard_ack=False, force_stop=False):
         self.udp=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);self.udp.bind(('127.0.0.1',0));self.udp.settimeout(.05)
         self.tcp=socket.socket();self.tcp.bind(('127.0.0.1',0));self.tcp.listen();self.tcp.settimeout(.1)
         self.fin=threading.Event();self.commandes=[];self.flux=True;self.vieux=vieux
+        self.force_stop=force_stop;self.degrade=False
         self.retard_ack=retard_ack;self.ack_precedent=''
         self.threads=[threading.Thread(target=self.commandes_loop,daemon=True),threading.Thread(target=self.scans_loop,daemon=True)]
         for t in self.threads:t.start()
@@ -145,6 +146,7 @@ class FauxRobot:
             if p[0]=='HELLO':rep=f'READY {p[1]}\n'
             else:
                 self.commandes.append((time.monotonic(),p[3]));rep=' '.join(p[:4])+'\n'
+                if self.force_stop:rep=' '.join(p[:3])+ ' STOP\n'
                 if self.retard_ack:rep,self.ack_precedent=self.ack_precedent,rep
             if rep:self.udp.sendto(rep.encode(),addr)
 
@@ -160,6 +162,7 @@ class FauxRobot:
             while not self.fin.wait(.05):
                 if not self.flux:continue
                 i+=1;t=trame_pose([0,0,0],1 if self.vieux else i)
+                if self.degrade:t.mesures[:,1]=0
                 raw=encoder_trame(t.sequence,t.fin_us,t.duree_us,t.mesures)
                 client.sendall(raw[:17]);client.sendall(raw[17:])
         except OSError:pass
@@ -211,3 +214,4 @@ class ReseauReelBoucleLocale(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+

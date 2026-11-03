@@ -260,3 +260,8 @@ n’est nécessaire pour cette mise à jour de l’application PC.
 
 Le minimum du TP reste visible dans un unique onglet **Localisation**.
 Résultats, limites et mesures avant/après : [SUIVI_CONTINU.md](SUIVI_CONTINU.md).
+
+
+## Acquisition et pilotage manuel
+
+L’onglet Acquisition propose USB (CSV historique) et Wi-Fi (scans bruts). Le pilotage manuel ne dépend plus du succès de la localisation. Voir [les instructions et limites matérielles](ACQUISITION_ET_DEPANNAGE.md). Le firmware reste inchangé ; USB et Wi-Fi nécessitent encore leurs programmes respectifs.

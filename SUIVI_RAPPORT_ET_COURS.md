@@ -89,3 +89,18 @@ Ajout au rapport du hotspot ESP32, de l'onglet de pilotage, du protocole de tour
 ## Interface unifiée et suivi analytique
 
 Le rapport est complété par l'onglet unique Localisation conforme aux trois références du TP, les curseurs et le tableau de bord Wi-Fi. Le suivi point-vers-droite, sa prédiction SE(2), le cache local et les limites sont décrits. Une comparaison chiffrée avant/après utilise exactement les mêmes 60 tours simulés ; elle est séparée des essais radio et moteurs. Sources et reproduction : SUIVI_CONTINU.md et comparer_suivi.py.
+
+
+## 3 novembre 2026 — Reprise du suivi et acquisition USB ou Wi-Fi
+
+Retour utilisateur : les touches changent bien l’indication, mais le robot ne bouge pas ; l’exemple moteur fourni ne fonctionne pas non plus sur le robot essayé. Un essai sur un autre robot est prévu. Le suivi peut se suspendre même à l’arrêt, clavier décoché. Aucun essai physique supplémentaire n’a été réalisé ici.
+
+Cause logicielle identifiée : après un premier recalage refusé, le drapeau perdu empêchait toute nouvelle tentative. Correction : nouvelle tentative au maximum deux fois par seconde, près de la dernière pose (25 cm / 8°), sans insertion de scans refusés. Une reprise explicite autorise 1,2 m / 35° et resynchronise le temps après reconnexion. Les seuils de concordance et de géométrie ne sont pas relâchés. La cause du premier refus réel reste à identifier.
+
+Le clavier manuel dépend de la connexion et de la fraîcheur du lidar, plus du succès du recalage. Les arrêts au relâchement, changement d’onglet, perte de focus et perte de transport sont conservés. Le tableau distingue commande PC et acquittement effectif ESP32. L’attente de reprise affiche -- ; le motif précédent reste visible. Les refus répétés ne déclenchent plus de dessin continu de la carte figée.
+
+Acquisition propose USB et Wi-Fi, 1 à 20 scans bruts, avec localisation automatique facultative déjà existante. La capture Wi-Fi envoie seulement STOP. Les imports, exports, sessions et trois références de localisation du TP sont conservés. Firmware inchangé : USB nécessite le programme CSV historique, Wi-Fi le programme ScanAtlas_WiFi. La sortie USB à la demande dans le même firmware reste à intégrer.
+
+Validation : 148 tests découverts ; après restauration du fichier d’exemple session_demo.json absent de la copie de travail, les 147 tests sans écran passent (dont le test initialement bloqué, revérifié avec son groupe de cinq tests). Le test Tk a ensuite réussi sur écran virtuel : pilotage pendant refus de suivi, récupération automatique, relâchement, focus, changement d’onglet et conservation du zoom. Les 148 tests ont donc été exécutés avec succès. Les quatre nouveaux tests couvrent récupération automatique sans contamination, reprise après redémarrage d’horloge, capture brute Wi-Fi sans géométrie et acquittement STOP distinct d’un FORWARD envoyé. Le simulateur réseau ne valide pas le mouvement physique.
+
+Difficulté de reprise : les modifications non publiées de la session interrompue n’étaient plus présentes localement. Reconstruction depuis le commit publié a1c13d8, sans écraser les dossiers moteurs ni les données utilisateur. Les instructions sont dans ACQUISITION_ET_DEPANNAGE.md.

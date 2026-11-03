@@ -41,8 +41,8 @@ parallèle au mur. La concordance affichée reste un **pourcentage d’accord
 géométrique**, jamais une probabilité de pose exacte.
 
 Le premier scan reste à l’origine et n’est pas déplacé. Les mesures originales
-ne sont pas modifiées. Une pose refusée n’est pas insérée en carte et suspend
-le pilotage ; la reprise doit être demandée explicitement. Le suivi ne devient
+ne sont pas modifiées. Une pose refusée suspend seulement l’insertion en carte.
+Le pilotage manuel reste disponible si le flux lidar est récent ; le suivi réessaie automatiquement près de la dernière pose. Le suivi ne devient
 pas une localisation globale après un déplacement arbitraire du robot.
 
 ## Interface
@@ -120,3 +120,4 @@ autonome. Les essais réels du Wi-Fi et des moteurs restent séparés de ce banc
 - [PCL et estimation des normales](https://pointclouds.org/documentation/tutorials/normal_estimation.html) : normales par covariance et valeurs propres ; application ici à des voisinages 2D avec NumPy.
 - [Cartographer](https://google-cartographer-ros.readthedocs.io/en/latest/algo_walkthrough.html) : séparation du suivi local, des scans clés et de la carte.
 - [SciPy cKDTree](https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.cKDTree.html) : index des voisins ; NumPy assure les calculs de covariance et les systèmes linéaires.
+

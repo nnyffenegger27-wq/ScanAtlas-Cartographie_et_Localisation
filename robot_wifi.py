@@ -122,6 +122,14 @@ class RobotWifi:
         self.sockets = []
         self.threads = []
         self.recus = 0
+        self.envoyee = "STOP"
+        self.effective = "EN ATTENTE"
+        self.date_ack = 0.
+
+    def diagnostic_commande(self):
+        with self.lock:
+            return dict(envoyee=self.envoyee,
+                        effective=self.effective if time.monotonic()-self.date_ack < .6 else 'EN ATTENTE')
 
     def demarrer(self):
         if self.threads:
@@ -158,6 +166,8 @@ class RobotWifi:
                         cmd = 'STOP'
                     seq += 1
                     sock.send(f'SA1 {self.session} {seq} {cmd} {pwm}\n'.encode('ascii'))
+                    with self.lock:
+                        self.envoyee = cmd
                     envois[seq] = t
                     envois = {n:date for n,date in envois.items() if t-date < .5}
                 try:
@@ -174,6 +184,8 @@ class RobotWifi:
                             time.monotonic()-envois[numero] < .5):
                             acquitte = numero
                             ack = time.monotonic()
+                            with self.lock:
+                                self.effective, self.date_ack = reponse[3], ack
                     elif reponse and reponse[0] == 'BUSY':
                         raise ConnectionError('Robot déjà contrôlé par une autre session.')
                 except socket.timeout:
@@ -238,3 +250,4 @@ class RobotWifi:
         self.arret.set()
         # Ne pas attendre les threads sur le thread Tk ; leurs sockets ont un timeout.
         self.connecte.clear()
+

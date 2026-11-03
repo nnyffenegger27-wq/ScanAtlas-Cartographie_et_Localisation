@@ -373,3 +373,8 @@ La carte vectorielle fusionne sur les points d'origine avec contrôle de l'erreu
 de droite, puis traite prudemment les anciennes formes traversées par au moins
 trois nouveaux rayons de directions distinctes. Voir les méthodes, limites
 et trois essais dans [SEGMENTS_MULTISCANS_ET_VECTORIELLE.md](SEGMENTS_MULTISCANS_ET_VECTORIELLE.md).
+
+
+## Acquisition et pilotage manuel
+
+L’onglet Acquisition propose USB (CSV historique) et Wi-Fi (scans bruts). Le pilotage manuel ne dépend plus du succès de la localisation. Voir [les instructions et limites matérielles](ACQUISITION_ET_DEPANNAGE.md). Le firmware reste inchangé ; USB et Wi-Fi nécessitent encore leurs programmes respectifs.

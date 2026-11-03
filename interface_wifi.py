@@ -80,7 +80,7 @@ class InterfaceWifi:
             ttk.Label(carte,textvariable=self.wifi_metriques[cle],style='Metric.TLabel').pack(anchor='w',pady=(3,0))
         commandes = ttk.Frame(cadre)
         commandes.pack(fill='x', pady=(0,5))
-        ttk.Checkbutton(commandes, text='Activer le clavier', variable=self.wifi_actif,
+        ttk.Checkbutton(commandes, text='Pilotage manuel au clavier', variable=self.wifi_actif,
                         command=self.wifi_activer).pack(side='left')
         ttk.Label(commandes, text='Puissance PWM').pack(side='left', padx=(16,5))
         vitesse=ttk.Frame(commandes,width=150);vitesse.pack(side='left',padx=4)
@@ -169,8 +169,6 @@ class InterfaceWifi:
                     robot.arret.set()
                     break
                 etat.scan.nom = f'Wi-Fi {robot.session[:8]} / {trame.sequence}'
-                if not etat.accepte:
-                    robot.commander('STOP')
                 dernier(resultats, etat)
         self.wifi_thread = threading.Thread(target=calculer, daemon=True)
         self.wifi_thread.start()
@@ -197,10 +195,9 @@ class InterfaceWifi:
         self.wifi_clavier.vider()
         if self.wifi_actif.get():
             if (self.wifi_robot is None or not self.wifi_robot.connecte.is_set() or
-                self.wifi_etat is None or not self.wifi_etat.accepte or
-                time.monotonic()-self.wifi_dernier_resultat > .6):
+                time.monotonic()-self.wifi_robot.dernier_scan > .6):
                 self.wifi_arreter()
-                self.wifi_info.set('Attendre un scan localisé avant d’activer le clavier.')
+                self.wifi_info.set('Attendre la connexion et le flux lidar avant d’activer le clavier.')
             else:
                 self.wifi_zone.focus_set()
 
@@ -292,25 +289,24 @@ class InterfaceWifi:
                 except queue.Empty:
                     etat = None
                 if etat is not None:
+                    precedent = self.wifi_etat
                     self.wifi_etat = etat
                     self.wifi_dernier_resultat = time.monotonic()
-                    if not etat.accepte:
-                        self.wifi_arreter()
                     self.wifi_info.set(f'{etat.message} {etat.cles} scans clés · {len(etat.segments)} segments · calcul {1000*etat.duree:.0f} ms · {robot.recus} tours reçus.')
                     pose=etat.trajectoire[-1] if len(etat.trajectoire) else np.zeros(3)
                     self.wifi_metriques['pose'].set(f'{pose[0]:.2f} / {pose[1]:.2f}')
                     self.wifi_metriques['angle'].set(f'{pose[2]:.1f}°')
-                    self.wifi_metriques['concordance'].set(f'{etat.concordance:.0f} %')
+                    self.wifi_metriques['concordance'].set(f'{etat.concordance:.0f} %' if np.isfinite(etat.concordance) else '--')
                     self.wifi_metriques['calcul'].set(f'{etat.duree*1000:.0f} ms')
                     self.wifi_metriques['carte'].set(f'{len(etat.segments)} segments')
-                    self.wifi_badge.configure(text='SUIVI ACTIF' if etat.accepte else 'SUIVI SUSPENDU',foreground=ACCENT if etat.accepte else '#be3d4c')
-                    if ((time.monotonic()-self.wifi_dernier_dessin >= .25 or not etat.accepte) and
+                    self.wifi_badge.configure(text='SUIVI ACTIF' if etat.accepte else 'CARTE EN PAUSE · PILOTAGE MANUEL DISPONIBLE',foreground=ACCENT if etat.accepte else '#be3d4c')
+                    if ((precedent is None or precedent.accepte != etat.accepte or (etat.accepte and time.monotonic()-self.wifi_dernier_dessin >= .25)) and
                         str(self.onglets.select())==str(self.wifi_cadre)):
                         self.wifi_dessiner(etat)
                         self.wifi_dernier_dessin = time.monotonic()
                 actif = (self.wifi_actif.get() and self.focus_get() == self.wifi_zone and
                          str(self.onglets.select()) == str(self.wifi_cadre) and
-                         time.monotonic()-self.wifi_dernier_resultat < .6)
+                         robot.connecte.is_set() and time.monotonic()-robot.dernier_scan < .6)
                 if self.wifi_actif.get() and not actif:
                     self.wifi_arreter()
                 try:
@@ -319,7 +315,8 @@ class InterfaceWifi:
                         raise ValueError('PWM hors limite')
                     cmd = self.wifi_clavier.commande() if actif else 'STOP'
                     robot.commander(cmd, pwm)
-                    self.wifi_commande.set(cmd)
+                    diagnostic = robot.diagnostic_commande()
+                    self.wifi_commande.set(f"PC : {diagnostic['envoyee']} | ESP32 : {diagnostic['effective']}")
                 except (ValueError, tk.TclError):
                     self.wifi_arreter()
         self.after(75, self.wifi_poll)
@@ -372,3 +369,4 @@ class InterfaceWifi:
 
     def wifi_actualiser_vue(self):
         if self.wifi_etat is not None:self.wifi_dessiner(self.wifi_etat)
+

@@ -93,3 +93,42 @@ def capturer(port, baud, quantite, annuler, progression, delai=40):
                     if len(scans) >= quantite:
                         break
     return scans
+
+
+
+def capturer_wifi(hote, quantite, annuler, progression, delai=40,
+                  port_commande=4210, port_scans=4211):
+    """Capture brute sans recalage, uniquement commandes STOP ; mesures préservées."""
+    import queue
+    from robot_wifi import RobotWifi
+    if not 1 <= quantite <= 20:
+        raise ValueError('Choisir entre 1 et 20 scans.')
+    robot = RobotWifi(hote, port_commande, port_scans)
+    scans = []
+    if annuler.wait(.4):  # Expiration du bail de l'ancienne connexion.
+        return scans
+    debut = time.monotonic()
+    try:
+        robot.demarrer()
+        while len(scans) < quantite:
+            if annuler.is_set():
+                return []
+            if robot.arret.is_set():
+                messages = list(robot.etats.queue)
+                raise ConnectionError(messages[-1] if messages else 'Connexion Wi-Fi interrompue.')
+            if time.monotonic()-debut > delai:
+                raise TimeoutError(f'{len(scans)}/{quantite} scans reçus ; vérifier le Wi-Fi.')
+            try:
+                trame = robot.scans.get(timeout=.1)
+            except queue.Empty:
+                continue
+            scan = trame.scan()
+            scan.source = 'Acquisition Wi-Fi réelle — scan brut'
+            scans.append(scan)
+            progression(f'{len(scans)}/{quantite} scans Wi-Fi reçus')
+        return scans
+    finally:
+        robot.fermer()
+        for thread in robot.threads:
+            thread.join(2.5)
+        time.sleep(.35)

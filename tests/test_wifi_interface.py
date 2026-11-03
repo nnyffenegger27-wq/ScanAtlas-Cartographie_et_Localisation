@@ -27,6 +27,8 @@ class InterfaceWifiReelle(unittest.TestCase):
             titres=[app.onglets.tab(t,'text') for t in app.onglets.tabs()]
             self.assertEqual(titres.count('Localisation'),1)
             self.assertNotIn('TP Localisation',titres)
+            self.assertIn('Acquisition',titres)
+            self.assertEqual(app.capture_source.get(),'USB')
             self.assertIn('tp_reference',app.vars)
             app.wifi_curseur_pwm.set(49)
             self.assertEqual(app.wifi_pwm.get(),49)
@@ -34,6 +36,14 @@ class InterfaceWifiReelle(unittest.TestCase):
                 app.onglets.select(app.wifi_cadre);app.update();app.wifi_connecter()
                 attendre(lambda:app.wifi_etat is not None and app.wifi_etat.accepte)
                 self.assertIn('%',app.wifi_metriques['concordance'].get())
+                fake.degrade=True
+                attendre(lambda:not app.wifi_etat.accepte)
+                arme();app.wifi_zone.event_generate('<KeyPress-Up>')
+                attendre(lambda:fake.commandes and fake.commandes[-1][1]=='FORWARD')
+                app.wifi_zone.event_generate('<KeyRelease-Up>')
+                attendre(lambda:fake.commandes[-1][1]=='STOP')
+                fake.degrade=False
+                attendre(lambda:app.wifi_etat.accepte)
                 app.wifi_axes.set_xlim(-1,1);app.wifi_axes.set_ylim(-1,1)
                 app.wifi_dessiner(app.wifi_etat)
                 self.assertEqual(app.wifi_axes.get_xlim(),(-1,1))  # Le zoom n'est plus réinitialisé à chaque tour.
@@ -62,3 +72,4 @@ class InterfaceWifiReelle(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+
