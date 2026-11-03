@@ -27,6 +27,7 @@ class ResultatICP:
     candidats: int = 1
     accord_fin: float = 0.
     marge_ambiguite: float = float("inf")
+    contradictions: float = 0.
 
 
 def score_pose(points, reference, pose, distance_max):
@@ -206,6 +207,7 @@ class ReferencePoints:
     """Sous-carte déjà filtrée, dans le repère global ; aucune pose vraie utilisée."""
     points: np.ndarray
     nom: str = 'Sous-carte'
+    sources: tuple = ()
 
 
 def sous_carte(scans, filtres, resolution=.05, maximum=2400):
@@ -217,12 +219,12 @@ def sous_carte(scans, filtres, resolution=.05, maximum=2400):
     _, indices = np.unique(np.floor(points/resolution).astype(np.int64), axis=0, return_inverse=True)
     comptes = np.bincount(indices)
     centres = np.column_stack([np.bincount(indices, weights=points[:, k])/comptes for k in range(2)])
-    if len(centres) > maximum:
+    if maximum is not None and len(centres) > maximum:
         centres = centres[np.linspace(0, len(centres)-1, maximum, dtype=int)]
-    return ReferencePoints(centres, f'Sous-carte de {len(scans)} scans')
+    return ReferencePoints(centres, f'Sous-carte de {len(scans)} scans', tuple(scans))
 
 
-def valider_solution(resultat, source, cible, distance_max):
+def valider_solution(resultat, source, cible, distance_max, concordance_min=.65):
     """Accord fin indépendant du rayon large de recherche ; observabilité locale.
 
     65 % des impacts doivent être à <= 12 cm (ou demi-rayon si plus petit).
@@ -235,8 +237,8 @@ def valider_solution(resultat, source, cible, distance_max):
     bons = d <= seuil
     resultat.accord_fin = float(bons.mean())
     raison = None
-    if bons.sum() < 12 or resultat.accord_fin < .65:
-        raison = f'Accord fin insuffisant : {resultat.accord_fin:.0%} à moins de {seuil:.2f} m (65 % et 12 points requis).'
+    if bons.sum() < 12 or resultat.accord_fin < concordance_min:
+        raison = f'Accord fin insuffisant : {resultat.accord_fin:.0%} à moins de {seuil:.2f} m ({concordance_min:.0%} et 12 points requis).'
     else:
         # Normales locales, sans relier des points éloignés par-dessus un trou.
         q = cible[np.unique(idx[bons])]

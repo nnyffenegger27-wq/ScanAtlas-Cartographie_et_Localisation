@@ -218,3 +218,7 @@ de recalage conservent également les scans déjà reçus.
 ### Recalage fiable et lots de scans
 
 Localisation propose **Superposer le lot coché Carte**, dans l’ordre d’acquisition : première pose fixe, sous-carte des cinq derniers scans acceptés, poses refusées signalées, restauration possible du dernier lot. Acquisition USB utilise également une sous-carte des dernières références acceptées. Recherche large vérifie l’accord fin, la géométrie et les solutions concurrentes avant application. Lire [FIABILITE_LOCALISATION.md](FIABILITE_LOCALISATION.md) pour les critères, les limites et les évaluations chiffrées (simulation et MapTool, sans nouvelle validation matérielle).
+
+### Mode global 360° et groupes en attente — version actuelle
+
+Le mode par défaut est maintenant **Carte cumulée · recherche globale 360°** : premier scan fixe, recherche sur toute la carte connue, aucune fenêtre obligatoire de déplacement ou d’orientation. Dans Localisation, **Assembler tous les scans** recale la collection et garde les groupes non raccordés séparément. Acquisition USB utilise la même carte cumulée et peut reprendre après un scan refusé. La concordance est affichée avec le motif de refus éventuel. Lire [LOCALISATION_GLOBALE.md](LOCALISATION_GLOBALE.md) pour le fonctionnement, les tests et les limites. Les sections antérieures décrivent les étapes précédentes.

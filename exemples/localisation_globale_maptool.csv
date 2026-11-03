@@ -1,0 +1,15 @@
+scan,erreur_position_m,erreur_angle_deg,temps_s,accepte,succes,faux_accepte,concordance,contradictions,message
+2,0.00017368004315932573,0.08138968814108694,6.226204861000042,True,True,False,0.8666666666666667,0.0,Raccordement accepté : concordance 86.7%.
+3,0.9023764276292493,178.65377446503416,7.160419870999704,False,False,False,0.5644444444444444,0.10888888888888888,Concordance 56.4% ; Contradiction avec les zones libres connues : 10.9% des impacts (maximum 8 %).
+4,2.726615689965665,178.07862545016093,5.085384249000072,False,False,False,0.74,0.05555555555555555,"Concordance 74.0%, mais plusieurs positions ou orientations se ressemblent : localisation ambiguë."
+5,2.197458595006855,86.5462547489707,6.216388489999645,False,False,False,0.6622222222222223,0.015555555555555555,"Concordance 66.2%, mais plusieurs positions ou orientations se ressemblent : localisation ambiguë."
+6,2.0241260605564775,179.68909195563936,3.526755292999951,False,False,False,0.6511111111111111,0.1511111111111111,Concordance 65.1% ; Contradiction avec les zones libres connues : 15.1% des impacts (maximum 8 %).
+7,0.0003352604484568532,0.009994012017614295,7.638296355999955,True,True,False,0.8533333333333334,0.0,Raccordement accepté : concordance 85.3%.
+8,1.440334352084547,173.19360878802195,3.7056689040000492,False,False,False,0.58,0.13333333333333333,Concordance 58.0% ; Contradiction avec les zones libres connues : 13.3% des impacts (maximum 8 %).
+9,1.6218931538825752,63.84024488407596,3.786055648999991,False,False,False,0.5155555555555555,0.18,Concordance 51.6% ; Contradiction avec les zones libres connues : 18.0% des impacts (maximum 8 %).
+10,2.006235427519833,91.97840598212055,9.112451019999753,False,False,False,0.6088888888888889,0.08444444444444445,Concordance 60.9% ; Contradiction avec les zones libres connues : 8.4% des impacts (maximum 8 %).
+11,2.494328039896281,156.29655807720133,8.744955890000256,False,False,False,0.6777777777777778,0.14,Concordance 67.8% ; Contradiction avec les zones libres connues : 14.0% des impacts (maximum 8 %).
+12,0.01800786535306961,0.13775467351163684,7.4981079190001765,True,True,False,0.7355555555555555,0.013333333333333334,Raccordement accepté : concordance 73.6%.
+13,0.061227746932508244,1.2651989130805248,9.534284233000108,False,True,False,0.5733333333333334,0.0044444444444444444,Concordance 57.3% ; Accord fin insuffisant : 57% à moins de 0.12 m (65% et 12 points requis).
+14,0.02011335210282318,0.3086118717261854,6.471319526000116,True,True,False,0.7377777777777778,0.051111111111111114,Raccordement accepté : concordance 73.8%.
+15,0.0006152533723400772,0.01567587397332204,7.839912458000072,True,True,False,0.9133333333333333,0.006666666666666667,Raccordement accepté : concordance 91.3%.

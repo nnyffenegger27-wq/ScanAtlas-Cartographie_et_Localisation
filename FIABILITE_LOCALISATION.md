@@ -48,3 +48,7 @@ Tests supplémentaires : salle carrée aux orientations équivalentes refusée, 
 ## Limites et suite
 
 Une sous-carte locale évite d’accumuler tous les défauts d’une très grande carte, mais n’élimine pas la dérive. Ce n’est pas une optimisation globale des poses ni une fermeture de boucle. En présence de symétries ou de peu de recouvrement, ajouter une mesure d’odométrie, une orientation IMU ou une pose initiale plus proche reste utile. Ne pas forcer la superposition d’une vue qui ne couvre pas la même zone. Les localisations sur grille et sur segments demandées par le TP restent des travaux distincts.
+
+## Évolution suivante
+
+Ce document décrit la version à sous-carte de cinq scans. Le mode par défaut actuel, la recherche globale sur 360° et la gestion des groupes sont décrits dans [LOCALISATION_GLOBALE.md](LOCALISATION_GLOBALE.md). Les anciens modes restent disponibles pour comparaison.
