@@ -9,6 +9,11 @@ avec carte vectorielle en direct. Il faut téléverser le nouveau firmware avant
 de connecter le PC au réseau **ScanAtlas**. Suivre [PILOTAGE_WIFI.md](PILOTAGE_WIFI.md)
 pour le flash, le mot de passe, les touches, les tests et les limites.
 
+**Interface simplifiée :** un seul onglet **Localisation** pour la grille,
+la carte vectorielle et le scan de référence du TP. Robot Wi-Fi conserve le
+suivi en continu. Les chapitres anciens ci-dessous décrivent les étapes
+précédentes ; les usages actuels sont dans TP_JOUR2_RESULTATS.md et SUIVI_CONTINU.md.
+
 ## Démarrer sur Windows
 
 1. Décompresse **tout** le dossier ZIP. Ne lance pas les fichiers depuis le ZIP.

@@ -12,7 +12,7 @@ from localisation_tp import (ReferenceGrille,ReferenceVectorielle,ReferenceScan,
 
 class InterfaceTP:
     def interface_tp(self,cadre):
-        ttk.Label(cadre,text='TP Jour 2 — trois types de référence').pack(anchor='w')
+        ttk.Label(cadre,text='Localisation sur les trois références du TP',style='SousTitre.TLabel').pack(anchor='w',pady=(2,8))
         self.vars['tp_reference']=tk.StringVar(value='Grille')
         self.vars['tp_methode']=tk.StringVar(value=MULTI)
         for label,cle,choix in [('Type de référence','tp_reference',['Grille','Carte vectorielle','Scan']),
@@ -25,8 +25,7 @@ class InterfaceTP:
         self.choix_reference_tp=ttk.Combobox(ligne,state='readonly',width=44)
         self.choix_reference_tp.pack(side='right')
         ttk.Label(cadre,text='Mobile = scan sélectionné à gauche. Construis la grille ou la carte vectorielle sans ce mobile.\n'
-            'Ces méthodes TP partent de sa pose actuelle. Multi-résolution : voisinage ±1 m / ±30°, puis affinement.\n'
-            'Pour un déplacement arbitraire : le mode global 360° reste dans Localisation.').pack(anchor='w')
+            'Ces méthodes partent de sa pose actuelle. Multi-résolution : voisinage ±1 m / ±30°, puis affinement.').pack(anchor='w')
         actions=ttk.Frame(cadre);actions.pack(fill='x')
         for texte,action in [('Localiser sur cette référence',self.lancer_localisation_tp),
                              ('Appliquer la pose',self.appliquer_localisation_tp),('Annuler',self.annuler_calcul)]:

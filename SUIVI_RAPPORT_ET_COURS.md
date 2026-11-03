@@ -85,3 +85,7 @@ consignés dans SEGMENTS_MULTISCANS_ET_VECTORIELLE.md.
 ## Pilotage Wi-Fi intégré
 
 Ajout au rapport du hotspot ESP32, de l'onglet de pilotage, du protocole de tours horodatés, des arrêts logiciels et de la fusion vectorielle incrémentale. La capture d'interface et le banc de 60 tours sont identifiés comme simulés. Les chiffres de compilation et les essais logiciels sont séparés des vérifications physiques encore nécessaires. Le mode direct n'implémente ni compensation du mouvement intra-tour, ni fermeture de boucle, ni navigation autonome. Sources et détails : PILOTAGE_WIFI.md.
+
+## Interface unifiée et suivi analytique
+
+Le rapport est complété par l'onglet unique Localisation conforme aux trois références du TP, les curseurs et le tableau de bord Wi-Fi. Le suivi point-vers-droite, sa prédiction SE(2), le cache local et les limites sont décrits. Une comparaison chiffrée avant/après utilise exactement les mêmes 60 tours simulés ; elle est séparée des essais radio et moteurs. Sources et reproduction : SUIVI_CONTINU.md et comparer_suivi.py.

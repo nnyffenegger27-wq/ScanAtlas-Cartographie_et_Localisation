@@ -63,14 +63,19 @@ Une reconnexion conserve la carte et demande un recalage près de sa dernière
 pose ; **Nouvelle carte** remplace explicitement cette référence et prend les
 nouveaux filtres. Laisser finir un calcul après Déconnecter avant de reconnecter.
 
-Le suivi compare chaque tour à une sous-carte de points déjà validés (rayon
-15 m). Il utilise les voisins indexés `cKDTree` et les moindres carrés robustes
-du TP. Un affinement local rapide est essayé en premier ; le secours
-multi-résolution est réservé à un échec ou à une reprise. Il reste local
-(±1 m / ±30° autour de la dernière pose), sans réglage supplémentaire du pilote.
-La rotation peut s'accumuler sur 360° au fil des tours ; un déplacement soudain
-hors de ce voisinage demande un arrêt et une relocalisation séparée. Le mode
-global de l'onglet Localisation reste disponible pour les scans enregistrés.
+Le suivi compare chaque tour à une sous-carte issue des **huit derniers scans
+clés acceptés**. Une prédiction SE(2) extrapole les deux dernières poses lidar
+valides en tenant compte du temps. Aucune odométrie n’est déduite des touches.
+Un ICP robuste point-vers-droite utilise des normales locales par PCA, un
+Jacobien analytique et un système 3 × 3. L’index et les normales sont conservés
+entre les scans clés. La recherche multi-résolution est un secours, validé
+ensuite par le même contrôle de géométrie point-vers-droite.
+
+La rotation peut s’accumuler sur 360° au fil des tours. Un déplacement soudain
+hors du voisinage de suivi demande un arrêt et une reprise près de la dernière
+pose acceptée. L’onglet unique **Localisation** sert aux trois références du TP ;
+il n’y a plus un second panneau de recalage manuel. Les routines globales
+historiques restent disponibles dans les scripts et l’acquisition USB.
 
 Insertion seulement si : solveur validé, géométrie contrainte, au moins **75 %
 des points distincts filtrés à moins de 12 cm** de la référence, RMSE ≤ 10 cm
@@ -145,7 +150,7 @@ préservation de l'origine et absence d'insertion sur échec.
 `python evaluer_wifi.py` reproduit 60 tours d'une salle synthétique, occultations
 par murs et obstacle, 450 points/tour, bruit gaussien σ = 3 mm, graine 2026.
 Trajet simultané x = 0,012i m, y = 0,004i m, angle = 0,6i°, intervalle 100 ms.
-Résultat de cette exécution : **60/60 acceptés**, erreur maximale de position
+Résultat de la première version Wi-Fi : **60/60 acceptés**, erreur maximale de position
 **5,03 mm**, erreur angulaire maximale **0,400°**, calcul médian **52,2 ms**,
 P95 **119,6 ms**, **7 scans clés et 5 segments finaux**. CSV :
 `exemples/evaluation_wifi_simulation.csv`. Ces chiffres dépendent de cette
@@ -172,3 +177,20 @@ l'outil vectoriel du TP peut être reconstruit depuis les scans clés enregistr�
 - Test LD06 du dépôt et [Robot-Maker-SAS/LD06](https://github.com/Robot-Maker-SAS/LD06) : format des paquets, CRC8 et conversion CW vers CCW. Le parseur Wi-Fi est réécrit pour éviter les envois série bloquants.
 - [Cartographer](https://google-cartographer-ros.readthedocs.io/en/latest/algo_walkthrough.html) : inspiration pour séparer suivi local, cartes accumulées et sélection des scans clés. Ce programme ne réimplémente pas Cartographer complet.
 - [SciPy least_squares](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html) et [cKDTree](https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.cKDTree.html) : primitives du solveur robuste et de l'index spatial.
+
+## Interface et suivi actualisés
+
+Les indicateurs de pose, orientation, concordance, durée de calcul et nombre
+de segments sont regroupés en haut de Robot Wi-Fi. Le curseur de puissance
+conserve la même plage PWM. Les cases Points de carte, Scan courant et Segments
+ne modifient que l’affichage ; Suivre le robot déplace la caméra sans changer
+les poses. Centrer la carte rétablit une vue d’ensemble. Le zoom est conservé
+entre les tours, avec des objets graphiques réutilisés.
+
+Les curseurs de filtrage complètent la saisie numérique dans le panneau gauche.
+Appliquer les filtres garde son rôle habituel ; en mode direct, les filtres
+restent figés jusqu’à Nouvelle carte pour éviter de mélanger les références.
+Les mesures originales ne sont pas supprimées. Aucun nouveau firmware à flasher.
+
+La comparaison chiffrée avec la première version et les limites sont décrites
+dans [SUIVI_CONTINU.md](SUIVI_CONTINU.md).

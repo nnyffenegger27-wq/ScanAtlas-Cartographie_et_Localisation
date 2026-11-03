@@ -2,7 +2,7 @@
 
 ## Ce qui est implémenté
 
-Les trois références demandées sont maintenant disponibles dans l’onglet **TP Localisation**. Pour chacune, deux stratégies fonctionnent : affinement local robuste et recherche multi-résolution suivie du même affinement. Il ne s’agit pas de présenter trois fois un ICP contre les mêmes points.
+Les trois références demandées sont maintenant disponibles dans l’onglet **Localisation**. Pour chacune, deux stratégies fonctionnent : affinement local robuste et recherche multi-résolution suivie du même affinement. Il ne s’agit pas de présenter trois fois un ICP contre les mêmes points.
 
 | Référence | Données réellement utilisées | Distance minimisée |
 | --- | --- | --- |
@@ -29,7 +29,7 @@ Après mise à jour, relancer **installer_windows.bat** : SciPy est une nouvelle
 
 1. Importer les scans ou charger la démonstration.
 2. Pour une carte de référence, cocher uniquement les scans fixes dans Carte, en excluant le futur mobile. Construire la grille dans Grille et la carte de segments dans Carte vectorielle.
-3. Sélectionner le scan mobile à gauche puis ouvrir TP Localisation. Pour le mode Scan, choisir un autre scan comme référence fixe dans la liste dédiée.
+3. Sélectionner le scan mobile à gauche puis ouvrir Localisation. Pour le mode Scan, choisir un autre scan comme référence fixe dans la liste dédiée.
 4. Choisir le type et la stratégie, puis Localiser sur cette référence. Examiner la superposition, la concordance, le temps et le message. Appliquer seulement si le résultat convient.
 5. Utiliser le bouton d’évaluation pour exporter les résultats détaillés et la synthèse sur les mêmes scans simulés. Cette évaluation ne change pas la session utilisateur.
 

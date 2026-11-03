@@ -16,13 +16,16 @@ Python 3.10 ou plus récent. Sous Windows : `installer_windows.bat`, puis
 
 ## Jour 2
 
-L'onglet **Localisation** propose **Recherche large + ICP** (±1 m / ±30° par
-défaut, réglables) et **ICP local** pour recaler un mobile sur un scan fixe. Les filtres communs sont utilisés. Vérifier l'aperçu avant
-d'appliquer la pose, puis enregistrer la session. Guide, méthode et limites dans
-[LOCALISATION_JOUR2.md](LOCALISATION_JOUR2.md). L'évaluation reproductible
-`python evaluer_localisation.py` exporte les erreurs vraies et les temps.
-L'onglet **TP Localisation** ajoute aussi les références grille et carte
-vectorielle ; résultats dans [TP_JOUR2_RESULTATS.md](TP_JOUR2_RESULTATS.md).
+Un seul onglet **Localisation** réunit les trois références demandées :
+**grille d’occupation**, **carte vectorielle** et **scan de référence**.
+Le mobile est sélectionné dans la liste des scans. La référence doit être
+construite sans lui. Deux stratégies sont comparées : affinement local robuste
+et multi-résolution suivie du même affinement. L’évaluation exporte les 42 essais,
+les erreurs, durées et taux de réussite. Guide : [TP_JOUR2_RESULTATS.md](TP_JOUR2_RESULTATS.md).
+
+L’ancien second panneau de recalage n’est plus affiché. Les algorithmes
+historiques restent disponibles dans les scripts et pour l’acquisition USB,
+sans ajouter de deuxième onglet. Le suivi continu est intégré à **Robot Wi-Fi**.
 
 ## Repère lidar actuel
 
@@ -221,7 +224,7 @@ de recalage conservent également les scans déjà reçus.
 
 Localisation propose **Superposer le lot coché Carte**, dans l’ordre d’acquisition : première pose fixe, sous-carte des cinq derniers scans acceptés, poses refusées signalées, restauration possible du dernier lot. Acquisition USB utilise également une sous-carte des dernières références acceptées. Recherche large vérifie l’accord fin, la géométrie et les solutions concurrentes avant application. Lire [FIABILITE_LOCALISATION.md](FIABILITE_LOCALISATION.md) pour les critères, les limites et les évaluations chiffrées (simulation et MapTool, sans nouvelle validation matérielle).
 
-### Mode global 360° et groupes en attente — version actuelle
+### Étape antérieure du mode global 360° et des groupes en attente
 
 Le mode par défaut est maintenant **Carte cumulée · recherche globale 360°** : premier scan fixe, recherche sur toute la carte connue, aucune fenêtre obligatoire de déplacement ou d’orientation. Dans Localisation, **Assembler tous les scans** recale la collection et garde les groupes non raccordés séparément. Acquisition USB utilise la même carte cumulée et peut reprendre après un scan refusé. La concordance est affichée avec le motif de refus éventuel. Lire [LOCALISATION_GLOBALE.md](LOCALISATION_GLOBALE.md) pour le fonctionnement, les tests et les limites. Les sections antérieures décrivent les étapes précédentes.
 
@@ -241,6 +244,19 @@ relocalisation globale en arrière-plan et autonomie.
 
 ### TP Jour 2 — les trois références et leur évaluation
 
-Un nouvel onglet **TP Localisation** propose la grille d’occupation, la carte vectorielle et un scan de référence. Deux stratégies par type : affinement local robuste, ou multi-résolution puis affinement. La carte doit être construite sans le scan mobile ; l’application contrôle cette exclusion. Le bouton d’évaluation exporte 42 essais simulés sur les mêmes scans et les mêmes poses initiales, avec erreurs vraies, temps, taux de réussite et faux acceptés. Lire [TP_JOUR2_RESULTATS.md](TP_JOUR2_RESULTATS.md).
+L’onglet unique **Localisation** propose la grille d’occupation, la carte vectorielle et un scan de référence. Deux stratégies par type : affinement local robuste, ou multi-résolution puis affinement. La carte doit être construite sans le scan mobile ; l’application contrôle cette exclusion. Le bouton d’évaluation exporte 42 essais simulés sur les mêmes scans et les mêmes poses initiales, avec erreurs vraies, temps, taux de réussite et faux acceptés. Lire [TP_JOUR2_RESULTATS.md](TP_JOUR2_RESULTATS.md).
 
-**Après mise à jour, relancer installer_windows.bat** pour installer SciPy, puis redémarrer l’application. Les nouvelles méthodes TP supposent une pose approchée ; le mode global 360° reste disponible séparément. Les essais réels avec incertitudes mesurées restent à réaliser.
+**Après mise à jour, relancer installer_windows.bat** pour installer SciPy, puis redémarrer l’application. Les méthodes TP supposent une pose approchée ; les routines globales historiques restent dans les scripts et l’acquisition USB. Les essais réels avec incertitudes mesurées restent à réaliser.
+
+## Suivi continu et interface simplifiée
+
+Le suivi Wi-Fi utilise une prédiction de mouvement issue des deux dernières
+poses lidar acceptées, puis un ICP robuste point-vers-droite avec Jacobien
+analytique. L’index et les normales de la sous-carte des huit derniers scans
+clés sont réutilisés. Le zoom est conservé et les couches sont affichables
+séparément. Des curseurs complètent les champs numériques pour les filtres
+et la puissance PWM. Aucun changement de firmware ni de protocole Wi-Fi
+n’est nécessaire pour cette mise à jour de l’application PC.
+
+Le minimum du TP reste visible dans un unique onglet **Localisation**.
+Résultats, limites et mesures avant/après : [SUIVI_CONTINU.md](SUIVI_CONTINU.md).

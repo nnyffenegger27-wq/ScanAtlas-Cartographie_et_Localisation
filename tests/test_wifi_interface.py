@@ -24,9 +24,19 @@ class InterfaceWifiReelle(unittest.TestCase):
         def arme():
             app.wifi_actif.set(True);app.wifi_activer();app.wifi_zone.focus_force();app.update()
         try:
+            titres=[app.onglets.tab(t,'text') for t in app.onglets.tabs()]
+            self.assertEqual(titres.count('Localisation'),1)
+            self.assertNotIn('TP Localisation',titres)
+            self.assertIn('tp_reference',app.vars)
+            app.wifi_curseur_pwm.set(49)
+            self.assertEqual(app.wifi_pwm.get(),49)
             with patch('interface_wifi.RobotWifi',side_effect=creer):
                 app.onglets.select(app.wifi_cadre);app.update();app.wifi_connecter()
                 attendre(lambda:app.wifi_etat is not None and app.wifi_etat.accepte)
+                self.assertIn('%',app.wifi_metriques['concordance'].get())
+                app.wifi_axes.set_xlim(-1,1);app.wifi_axes.set_ylim(-1,1)
+                app.wifi_dessiner(app.wifi_etat)
+                self.assertEqual(app.wifi_axes.get_xlim(),(-1,1))  # Le zoom n'est plus réinitialisé à chaque tour.
                 arme();app.wifi_zone.event_generate('<KeyPress-Up>')
                 attendre(lambda:any(c=='FORWARD' for _,c in fake.commandes))
                 app.wifi_zone.event_generate('<KeyRelease-Up>')
@@ -41,6 +51,7 @@ class InterfaceWifiReelle(unittest.TestCase):
                 app.onglets.select(0);app.update()
                 attendre(lambda:fake.commandes[-1][1]=='STOP')
                 app.onglets.select(app.wifi_cadre);app.update()
+                app.wifi_centrer();app.update()
                 if os.environ.get('SCANATLAS_SCREENSHOT'):
                     from PIL import ImageGrab
                     ImageGrab.grab(xdisplay=os.environ['DISPLAY']).save(os.environ['SCANATLAS_SCREENSHOT'])

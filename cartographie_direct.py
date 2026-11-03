@@ -12,6 +12,7 @@ from cartographie import (extraire_segments, ajuster_segment, proches, longueur,
                          Scan, mesures_valides)
 from localisation import points_filtres, transformer, erreur_pose
 from localisation_tp import localiser_sur_reference, LOCALE, MULTI
+from suivi_lidar import ReferenceSuivi, icp_droites, predire
 
 
 def reduire(points, pas=.05, maximum=40000):
@@ -54,6 +55,8 @@ class EtatDirect:
     trajectoire: np.ndarray
     cles: int
     scans_cles: tuple
+    rmse: float = float('nan')
+    methode: str = 'Ancrage'
 
 
 class CarteDirecte:
@@ -70,6 +73,8 @@ class CarteDirecte:
         self.perdu = False
         self.reprise = False
         self.annuler = threading.Event()
+        self.reference_locale = None
+        self.historique_poses = []
 
     @property
     def segments(self):
@@ -81,6 +86,7 @@ class CarteDirecte:
         score = 0.
         accepte = False
         message = ''
+        rmse, methode = float('nan'), 'Ancrage'
         try:
             pts = points_filtres(scan, self.filtres, locaux=True)
             if len(pts) < 30 or np.linalg.norm(np.ptp(pts, axis=0)) < 1.:
@@ -96,14 +102,27 @@ class CarteDirecte:
                 dt = .1 if self.reprise else (trame.fin_us-self.fin_us)/1e6
                 if not 0 < dt <= 1.5:
                     raise ValueError('Scans trop espacés : suivi suspendu, robot arrêté.')
-                local = self.points[np.linalg.norm(self.points-self.pose[:2], axis=1) < 15.]
-                reference = ReferenceDirect(local)
-                resultat = localiser_sur_reference(scan, reference, methode=MULTI if self.reprise else LOCALE,
-                    pose_initiale=self.pose, annuler=self.annuler, **self.filtres)
+                # Index et normales réutilisés entre scans clés ; aucun recalcul intégral par tour.
+                reference_suivi = self.reference_locale
+                initiale = self.pose.copy()
+                if not self.reprise and dt<=.6 and len(self.historique_poses)>=2:
+                    (t0,p0),(t1,p1) = self.historique_poses[-2:]
+                    if t1>t0:initiale=predire(p0,p1,(trame.fin_us-t1)/(t1-t0))
+                resultat = icp_droites(pts,reference_suivi,initiale,self.annuler)
+                if not resultat.applicable and not np.allclose(initiale,self.pose) and not self.annuler.is_set():
+                    resultat = icp_droites(pts,reference_suivi,self.pose,self.annuler)
                 # Secours borné au voisinage du suivi, jamais recherche globale à chaque tour.
                 if not resultat.applicable and not self.annuler.is_set():
+                    reference = ReferenceDirect(reference_suivi.fond)
                     resultat = localiser_sur_reference(scan, reference, methode=MULTI,
                         pose_initiale=self.pose, annuler=self.annuler, **self.filtres)
+                    if resultat.applicable:
+                        # La recherche grossière ne doit pas contourner le contrôle
+                        # d'observabilité du suivi, notamment devant un mur unique.
+                        affine = icp_droites(pts,reference_suivi,resultat.pose,self.annuler)
+                        affine.methode = 'Secours multi-résolution + point-vers-droite'
+                        resultat = affine
+                methode, rmse = resultat.methode, resultat.rmse
                 score = 100*resultat.accord_fin
                 ep, ea = erreur_pose(resultat.pose, self.pose)
                 # Déplacement physiquement plausible au PWM limité, avec marge de bruit.
@@ -123,11 +142,18 @@ class CarteDirecte:
                     raise ValueError('Limite de 2000 scans clés : enregistrer la carte.')
                 nouveaux_points = reduire(np.vstack([self.points, transformer(pts, scan.pose)]))
                 nouveaux_appuis = self._ajouter_segments(scan)
+                # Seuls les huit derniers scans clés validés servent au suivi local.
+                recents = (self.cles+[scan])[-8:]
+                local = reduire(np.vstack([points_filtres(s,self.filtres) for s in recents]))
+                nouvelle_reference = ReferenceSuivi(local)
                 # Publication atomique : aucun état partiellement inséré sur une erreur.
                 self.points, self.appuis = nouveaux_points, nouveaux_appuis
+                self.reference_locale = nouvelle_reference
                 self.cles.append(scan)
                 self.pose_cle, self.fin_cle = np.array(scan.pose), trame.fin_us
             self.pose, self.fin_us = np.array(scan.pose), trame.fin_us
+            self.historique_poses.append((trame.fin_us,self.pose.copy()))
+            self.historique_poses = self.historique_poses[-2:]
             self.reprise = False
             self.trajectoire.append(self.pose.copy())
             self.trajectoire = self.trajectoire[-4000:]
@@ -136,12 +162,13 @@ class CarteDirecte:
             self.perdu = True
             message = str(exc)
         return EtatDirect(scan, accepte, message, score, perf_counter()-debut,
-                          self.points.copy(), self.segments, np.asarray(self.trajectoire), len(self.cles), tuple(self.cles))
+                          self.points.copy(), self.segments, np.asarray(self.trajectoire), len(self.cles), tuple(self.cles),rmse,methode)
 
     def reprendre(self):
         """Autorisation explicite près de la dernière pose validée ; carte conservée."""
         self.perdu = False
         self.reprise = True
+        self.historique_poses = []
 
     def _ajouter_segments(self, scan):
         carte = [(s.copy(), p.copy()) for s, p in self.appuis]

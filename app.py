@@ -23,6 +23,7 @@ from localisation_globale import localisation_globale, METHODE_GLOBALE
 from assemblage_global import assembler_scans
 from interface_tp import InterfaceTP
 from interface_wifi import InterfaceWifi
+from apparence import appliquer_theme, curseur, PLAGES
 from localisation_tp import LOCALE as TP_LOCALE, MULTI as TP_MULTI
 
 AIDE = '''PARCOURS CONSEILLÉ
@@ -34,8 +35,8 @@ AIDE = '''PARCOURS CONSEILLÉ
 
 CONVENTIONS
 Distances internes et poses en mètres ; angles en degrés antihoraires.
-Pour les nouveaux imports/USB : angle utilisé = angle mesuré - 270°.
-La référence 270° est fixe : seul le réglage de pose du robot est affiché.
+Pour les imports/USB : référence lidar fixe à 0°, selon le réglage actuel du projet.
+Seul le réglage de pose du robot est affiché.
 Elle est aussi appliquée aux scans réels des anciennes sessions.
 Le CSV ESP32 a 6 colonnes : indice, angle°, distance mm, intensité, x mm, y mm.
 Nous recalculons x = r cos(angle), y = r sin(angle) : les colonnes x/y ESP32
@@ -62,23 +63,25 @@ Le laboratoire compare deux segments extraits. La carte raccourcit prudemment
 les anciens segments contredits par au moins trois directions de rayons libres.
 
 LOCALISATION
-Choisir un scan de référence fixe et un scan mobile dans Localisation.
+Un seul onglet Localisation réunit les trois références du TP : grille,
+carte vectorielle et scan fixe. Le mobile est le scan sélectionné à gauche.
+Construire la grille ou la carte vectorielle sans y inclure ce mobile.
 La pose actuelle du mobile sert de point de départ (réglable dans le panneau gauche).
-Le mode Recherche large + ICP teste d'abord plusieurs translations et rotations
-dans les fenêtres indiquées, puis affine plusieurs candidats par ICP.
-ICP local reste disponible pour comparer. Les fenêtres entourent la pose du mobile.
+La multi-résolution explore un voisinage de 1 m et 30° puis affine la pose.
+L'affinement local robuste sert de deuxième méthode de comparaison.
 Les filtres communs sont utilisés. Comparer l'aperçu avant/après puis Appliquer.
 Une convergence locale n'est pas une garantie de position correcte.
 
 LIMITES
 Lidar immobile pendant un scan ; environnement supposé fixe et plan.
-Pas encore de SLAM ; recalage automatique local entre scans uniquement. Vitres, mouvements et bruit
+Robot Wi-Fi ajoute un suivi local continu et une carte vectorielle incrémentale.
+Pas encore de fermeture de boucle ni de navigation autonome. Vitres, mouvements et bruit
 peuvent créer des erreurs. Des scans CSV fragmentaires peuvent être importés :
 le nombre de points et l'étendue angulaire sont affichés pour contrôle.
 Les retours nuls, trop faibles ou à portée maximale sont ignorés, sans libérer
 les cellules du rayon. Les paramètres de segmentation demandent un réglage.
 La carte vectorielle est une première méthode heuristique, pas une topologie parfaite.
-L’onglet TP Localisation compare grille, carte vectorielle et scan, avec export des erreurs vraies en simulation.
+L'onglet Localisation exporte les erreurs vraies sur les mêmes scans simulés.
 La démo est SIMULÉE et ne remplace jamais les scans réels demandés au TP.
 '''
 
@@ -90,7 +93,7 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
     def __init__(self):
         super().__init__()
         self.title('LD06 Atelier · Acquisition et cartographie 2D')
-        self.geometry('1320x850')
+        self.geometry('1440x940')
         self.minsize(1050, 720)
         self.scans, self.inclus, self.visibles = [], [], []
         self.grille, self.vecteurs = None, None
@@ -104,19 +107,16 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
         self.travail = False
         self.vars = {}
         self.statut = tk.StringVar(value='Commence par la démonstration ou importe un scan CSV réel.')
-        style = ttk.Style(self)
-        style.theme_use('clam')
-        style.configure('TButton', padding=5)
-        style.configure('Titre.TLabel', font=('Segoe UI', 17, 'bold'))
+        appliquer_theme(self)
         entete = ttk.Frame(self, padding=(16, 10))
         entete.pack(fill='x')
-        ttk.Label(entete, text='LD06 Atelier', style='Titre.TLabel').pack(side='left')
-        ttk.Label(entete, text='   Mesurer → afficher → cartographier', foreground='#536276').pack(side='left')
+        ttk.Label(entete, text='ScanAtlas', style='Titre.TLabel').pack(side='left')
+        ttk.Label(entete, text='   LD06 · Cartographie et localisation', style='SousTitre.TLabel').pack(side='left')
         ttk.Button(entete, text='Comprendre l’application', command=self.aide).pack(side='right')
         corps = ttk.Panedwindow(self, orient='horizontal')
         corps.pack(fill='both', expand=True, padx=12)
         panneau = ttk.Frame(corps, width=360)
-        defilement = tk.Canvas(panneau, width=345, highlightthickness=0)
+        defilement = tk.Canvas(panneau, width=305, highlightthickness=0,background='#f2f5fa')
         ascenseur = ttk.Scrollbar(panneau, orient='vertical', command=defilement.yview)
         defilement.configure(yscrollcommand=ascenseur.set)
         ascenseur.pack(side='right', fill='y')
@@ -164,9 +164,9 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
         self.onglets = ttk.Notebook(droite)
         self.onglets.pack(fill='both', expand=True)
         self.axes, self.canvas = {}, {}
-        for titre in ['Nuages', 'Grille', 'Segments', 'Carte vectorielle', 'Localisation', 'TP Localisation', 'Acquisition USB', 'Robot Wi-Fi']:
+        for titre in ['Nuages', 'Grille', 'Segments', 'Carte vectorielle', 'TP Localisation', 'Acquisition USB', 'Robot Wi-Fi']:
             cadre = ttk.Frame(self.onglets, padding=8)
-            self.onglets.add(cadre, text=titre)
+            self.onglets.add(cadre, text='Localisation' if titre=='TP Localisation' else titre)
             if titre == 'Robot Wi-Fi':
                 self.interface_wifi(cadre)
                 continue
@@ -177,8 +177,6 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
             barre.pack(fill='x')
             if titre == 'TP Localisation':
                 self.interface_tp(barre)
-            elif titre == 'Localisation':
-                self.interface_localisation(barre)
             elif titre == 'Grille':
                 self.champ(barre, 'resolution', 'Résolution (m/cellule)', .05)
                 self.bouton(barre, 'Créer depuis le scan sélectionné', self.creer_grille_selection)
@@ -227,11 +225,15 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
         return b
 
     def champ(self, parent, cle, titre, valeur):
-        ligne = ttk.Frame(parent)
+        ensemble=ttk.Frame(parent)
+        ensemble.pack(fill='x',pady=2)
+        ligne = ttk.Frame(ensemble)
         ligne.pack(fill='x', pady=2)
         ttk.Label(ligne, text=titre).pack(side='left')
         self.vars[cle] = tk.StringVar(value=str(valeur))
         ttk.Entry(ligne, textvariable=self.vars[cle], width=12).pack(side='right')
+        if cle in PLAGES:
+            curseur(ensemble,self.vars[cle],*PLAGES[cle])
 
     def nombre(self, cle):
         try:
@@ -975,6 +977,10 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
         self.statut.set('Pose ICP appliquée. Les mesures brutes sont conservées.')
 
     def interface_usb(self, cadre):
+        # Réglages historiques conservés pour les sessions ; plus de second onglet de localisation.
+        for cle,valeur in dict(icp_methode=METHODE_GLOBALE,icp_distance=.5,icp_iterations=80,
+                               icp_fenetre_xy=1.,icp_fenetre_angle=30.).items():
+            self.vars[cle]=tk.StringVar(value=str(valeur))
         ttk.Label(cadre,text='Capturer des scans réels depuis l’ESP32',style='Titre.TLabel').pack(anchor='w',pady=12)
         ttk.Label(cadre,text='Le programme ESP32 doit utiliser printScanCSV(Serial) uniquement.\nFerme le moniteur série Arduino et Teleplot avant de connecter le port.',wraplength=700).pack(anchor='w',pady=10)
         self.port = tk.StringVar()
