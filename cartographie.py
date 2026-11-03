@@ -9,7 +9,7 @@ import csv
 import numpy as np
 
 EPS = 1e-8  # Tolérance géométrique en mètres ; angles comparés en radians.
-ANGLE_REFERENCE_DEFAUT = 270.  # Ancien angle 270° = axe x positif du robot.
+ANGLE_REFERENCE_DEFAUT = 0.  # finalement 0 c'est bien.
 
 
 @dataclass
