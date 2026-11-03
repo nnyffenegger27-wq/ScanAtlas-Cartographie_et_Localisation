@@ -214,3 +214,7 @@ automatique** donne le motif ; le scan reste disponible pour correction.
 Le premier scan d’une session vide affiche explicitement qu’il devient la
 référence et qu’aucune localisation n’est à effectuer. Les exceptions du module
 de recalage conservent également les scans déjà reçus.
+
+### Recalage fiable et lots de scans
+
+Localisation propose **Superposer le lot coché Carte**, dans l’ordre d’acquisition : première pose fixe, sous-carte des cinq derniers scans acceptés, poses refusées signalées, restauration possible du dernier lot. Acquisition USB utilise également une sous-carte des dernières références acceptées. Recherche large vérifie l’accord fin, la géométrie et les solutions concurrentes avant application. Lire [FIABILITE_LOCALISATION.md](FIABILITE_LOCALISATION.md) pour les critères, les limites et les évaluations chiffrées (simulation et MapTool, sans nouvelle validation matérielle).

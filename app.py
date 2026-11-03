@@ -18,7 +18,7 @@ from cartographie import (Scan, Grille, lire_csv, exporter_scan, demonstration,
 from cartographie import ANGLE_REFERENCE_DEFAUT, diagnostic_scan
 from manipulation import ManipulationScan
 from localisation import icp_scan, recherche_icp, points_filtres, transformer
-from recalage_capture import recaler_capture
+from recalage_capture import recaler_capture, recaler_lot
 
 AIDE = '''PARCOURS CONSEILLÉ
 1. « Démonstration simulée » pour découvrir les vues sans matériel.
@@ -704,12 +704,18 @@ class Atelier(tk.Tk):
         self.champ(cadre, 'icp_fenetre_angle', 'Recherche large : ± orientation (°)', 30.)
         self.champ(cadre, 'icp_distance', 'Distance maximale d’appariement ICP (m)', .5)
         self.champ(cadre, 'icp_iterations', 'Nombre maximal d’itérations', 80)
-        ttk.Label(cadre, text='Départ = pose actuelle du mobile. Les fenêtres entourent cette pose ; elles ne sont pas une précision garantie.\nFiltres communs utilisés ; Visible et Carte ne limitent pas les deux choix explicites.').pack(anchor='w')
+        ttk.Label(cadre, text='Départ = pose actuelle du mobile. Les fenêtres entourent cette pose ; elles ne sont pas une précision garantie.\nFiltres communs utilisés ; ICP local sert de comparaison et peut accepter une fausse convergence.\nVisible et Carte ne limitent pas les deux choix explicites.').pack(anchor='w')
         actions = ttk.Frame(cadre)
         actions.pack(fill='x')
         for texte, action in [('Voir avant', self.apercu_localisation), ('Localiser', self.lancer_localisation),
                               ('Appliquer la pose trouvée', self.appliquer_localisation), ('Annuler le calcul', self.annuler_calcul)]:
             ttk.Button(actions, text=texte, command=lambda a=action: self.proteger(a)).pack(side='left', padx=2, pady=4)
+        ttk.Button(cadre, text='Superposer le lot coché Carte (ordre de la liste)',
+                   command=lambda: self.proteger(self.lancer_lot)).pack(fill='x', pady=4)
+        ttk.Button(cadre, text='Annuler les poses du dernier lot appliqué',
+                   command=lambda: self.proteger(self.annuler_lot)).pack(fill='x')
+        ttk.Label(cadre, text='Lot : premier scan fixe ; référence = les 5 derniers scans acceptés. '
+            'Respecte l’ordre d’acquisition. Échecs conservés, décochés Carte et signalés.').pack(anchor='w')
         self.info_localisation = ttk.Label(cadre, text='La référence reste fixe. Les scans doivent voir une zone commune.', wraplength=850)
         self.info_localisation.pack(anchor='w')
 
@@ -791,6 +797,71 @@ class Atelier(tk.Tk):
         options.update(distance_max=distance, iterations_max=int(iterations))
         return methode, options
 
+    def lancer_lot(self):
+        if self.travail: raise ValueError('Un calcul ou une capture est déjà en cours.')
+        self.annuler_geste()
+        scans = self.choisis()
+        if len(scans) < 2: raise ValueError('Coche au moins deux scans dans Carte.')
+        methode, options = self.parametres_recalage()
+        filtres = self.filtres()
+        copies = deepcopy(scans)
+        contexte = (scans, copies, filtres)
+        self.travail = True
+        self.annuler.clear()
+        self.info_localisation.configure(text='Recalage du lot en cours ; poses inchangées pendant le calcul…')
+        def travail():
+            try:
+                lot = recaler_lot(copies, methode=methode, annuler=self.annuler,
+                    progression=lambda texte: self.messages.put(('statut', texte)), **filtres, **options)
+                self.messages.put(('lot', (contexte, lot)))
+            except Exception as exc:
+                self.messages.put(('erreur', str(exc)))
+            finally: self.messages.put(('fini', None))
+        threading.Thread(target=travail, daemon=True).start()
+
+    def recevoir_lot(self, data):
+        (scans, copies, filtres), lot = data
+        try:
+            valide = not self.annuler.is_set() and self.filtres() == filtres
+        except ValueError:
+            valide = False
+        actuels = [s for s, oui in zip(self.scans, self.inclus) if oui]
+        valide = valide and len(actuels) == len(scans) and all(a is b for a, b in zip(actuels, scans))
+        for s, c in zip(scans, copies):
+            valide = valide and np.array_equal(s.pose, c.pose) and np.array_equal(s.mesures, c.mesures) and (
+                s.angle_reference == c.angle_reference and s.intensite_disponible == c.intensite_disponible)
+        if not valide:
+            self.info_localisation.configure(text='Lot annulé ou contexte modifié : aucune pose appliquée.')
+            return
+        self.sauvegarde_lot = [(s, deepcopy(s.pose), deepcopy(s.suivi_recalage), self.inclus[next(i for i, x in enumerate(self.scans) if x is s)]) for s in scans]
+        for original, nouveau in zip(scans, lot):
+            original.pose = list(nouveau.pose)
+            original.suivi_recalage = deepcopy(nouveau.suivi_recalage)
+            if not nouveau.suivi_recalage['valide']:
+                self.inclus[next(i for i, x in enumerate(self.scans) if x is original)] = False
+        self.invalider()
+        self.actualiser()
+        echecs = [(i+1, s.suivi_recalage['message']) for i, s in enumerate(lot) if not s.suivi_recalage['valide']]
+        texte = f'Lot : {len(lot)-1-len(echecs)} scans recalés, {len(echecs)} échecs, première pose fixe. Vérifie les murs puis enregistre la session.'
+        self.info_localisation.configure(text=texte)
+        self.statut.set(texte)
+        if echecs:
+            messagebox.showwarning('Lot : localisations non appliquées', '\n'.join(f'Scan {i} : {m}' for i, m in echecs), parent=self)
+
+    def annuler_lot(self):
+        if self.travail: raise ValueError('Attends la fin du calcul.')
+        sauvegarde = getattr(self, 'sauvegarde_lot', None)
+        if not sauvegarde: raise ValueError('Aucun lot appliqué à annuler.')
+        for scan, pose, suivi, inclus in sauvegarde:
+            if any(s is scan for s in self.scans):
+                scan.pose = list(pose)
+                scan.suivi_recalage = deepcopy(suivi)
+                self.inclus[next(i for i, x in enumerate(self.scans) if x is scan)] = inclus
+        self.sauvegarde_lot = None
+        self.invalider()
+        self.actualiser()
+        self.info_localisation.configure(text='Poses antérieures au dernier lot restaurées.')
+
     def lancer_localisation(self):
         if self.travail:
             raise ValueError('Un calcul ou une capture est déjà en cours.')
@@ -862,11 +933,11 @@ class Atelier(tk.Tk):
         self.champ(cadre,'baud','Baud ESP32 → PC (Serial.begin)',115200)
         self.champ(cadre,'quantite','Nombre de scans à capturer (1 à 20)',1)
         self.vars['auto_icp'] = tk.StringVar(value='0')
-        ttk.Checkbutton(cadre, text='Recaler automatiquement chaque nouveau scan sur le précédent (ICP)',
+        ttk.Checkbutton(cadre, text='Recaler automatiquement sur les derniers scans acceptés (ICP)',
                         variable=self.vars['auto_icp'], onvalue='1', offvalue='0',
                         command=lambda: self.info_capture.configure(text='Recalage automatique activé : les poses acceptées seront appliquées.'
                             if self.vars['auto_icp'].get() == '1' else 'Recalage automatique désactivé.')).pack(anchor='w', pady=6)
-        ttk.Label(cadre, text='Après réception : localise et déplace le nouveau scan sur le dernier scan déjà chargé.\nMéthode, fenêtres, filtres et critères identiques au bouton Localiser.\nSans scan précédent : le premier sert de référence, sans déplacement.\nEn cas d’échec, un message explique le motif ; les mesures sont conservées.', wraplength=740).pack(anchor='w')
+        ttk.Label(cadre, text='Après réception : localise le nouveau scan sur les 5 derniers scans acceptés.\nRecherche large conseillée ; départ = dernière pose acceptée. Contrôle fin avant application.\nSans scan précédent : le premier sert de référence, sans déplacement.\nEn cas d’échec, un message explique le motif ; les mesures sont conservées.', wraplength=740).pack(anchor='w')
         self.info_capture = ttk.Label(cadre, text='Recalage automatique désactivé par défaut.', wraplength=740)
         self.info_capture.pack(anchor='w', pady=4)
         self.bouton(cadre,'Capturer',self.lancer_capture)
@@ -895,6 +966,9 @@ class Atelier(tk.Tk):
         automatique = self.vars['auto_icp'].get() == '1'
         reference = self.scans[-1] if self.scans else None
         copie = deepcopy(reference)
+        historique = deepcopy([s for s in self.scans[:-1] if s.suivi_recalage and s.suivi_recalage.get("valide")][-4:])
+        if copie is not None: historique.append(copie)
+        self.contexte_capture_historique = [(s, deepcopy(s)) for s in self.scans]
         methode, options, filtres = None, {}, {}
         if automatique:
             if reference is not None and reference.suivi_recalage and not reference.suivi_recalage['valide']:
@@ -915,7 +989,7 @@ class Atelier(tk.Tk):
                     self.messages.put(('capture_statut', f'Capture terminée : {len(scans)} scan(s) reçus. Localisation automatique en cours…'))
                     try:
                         scans = recaler_capture(scans, copie, methode=methode, annuler=self.annuler,
-                            progression=lambda s:self.messages.put(('capture_statut',s)), **filtres, **options)
+                            progression=lambda s:self.messages.put(('capture_statut',s)), historique=historique, **filtres, **options)
                     except Exception as exc:
                         for s in scans:
                             s.suivi_recalage = dict(valide=False, etat='erreur', message='Échec de localisation automatique : '+str(exc))
@@ -936,6 +1010,13 @@ class Atelier(tk.Tk):
                 (reference is None or (np.array_equal(reference.pose, copie.pose) and
                  np.array_equal(reference.mesures, copie.mesures) and
                  reference.angle_reference == copie.angle_reference)))
+            for original, ancien in getattr(self, 'contexte_capture_historique', []):
+                contexte_valide = contexte_valide and any(s is original for s in self.scans) and (
+                    np.array_equal(original.pose, ancien.pose) and
+                    np.array_equal(original.mesures, ancien.mesures) and
+                    original.angle_reference == ancien.angle_reference and
+                    original.intensite_disponible == ancien.intensite_disponible and
+                    original.suivi_recalage == ancien.suivi_recalage)
         except ValueError:
             contexte_valide = False
         if not contexte_valide:
@@ -996,6 +1077,8 @@ class Atelier(tk.Tk):
                     self.statut.set(data)
                     if hasattr(self, 'info_localisation'):
                         self.info_localisation.configure(text=data)
+                elif type_=='lot':
+                    self.recevoir_lot(data)
                 elif type_=='localisation':
                     self.recevoir_localisation(data)
                 elif type_=='capture_recalee':

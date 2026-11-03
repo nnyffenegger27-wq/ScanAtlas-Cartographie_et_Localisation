@@ -25,6 +25,8 @@ class ResultatICP:
     message: str
     methode: str = 'ICP local'
     candidats: int = 1
+    accord_fin: float = 0.
+    marge_ambiguite: float = float("inf")
 
 
 def score_pose(points, reference, pose, distance_max):
@@ -146,8 +148,18 @@ def recherche_icp(mobile, reference, pose_initiale=None, mini=.05, maxi=12., int
                 resultats.append((score_pose(source, cible, r.pose, limite), r))
         if annuler is not None and annuler.is_set(): raise InterruptedError('Recherche annulée.')
         if resultats:
-            _, resultat = min(resultats, key=lambda v: v[0])
+            resultats.sort(key=lambda v: v[0])
+            meilleur_score, resultat = resultats[0]
             resultat.message = 'Recherche large puis convergence ICP locale. Vérifie la superposition avant application.'
+            valider_solution(resultat, source, cible, distance_max)
+            for score, autre in resultats[1:]:
+                ep, ea = erreur_pose(autre.pose, resultat.pose)
+                if ep > .20 or ea > 5.:
+                    resultat.marge_ambiguite = float(score-meilleur_score)
+                    if score-meilleur_score < max(.0004, .08*meilleur_score):
+                        resultat.applicable = False
+                        resultat.message = 'Recalage ambigu : plusieurs poses différentes ont un score voisin. Rapproche la pose initiale ou ajoute une autre vue.'
+                    break
         else:
             resultat = ResultatICP(initiale.tolist(), initiale.tolist(), float('inf'), float('inf'), 0., 0, 0, 0., False, False,
                                   'Aucun recalage convergé dans la fenêtre. Vérifie le recouvrement et la pose initiale.')
@@ -178,6 +190,8 @@ def erreur_pose(estimee, vraie):
 
 
 def points_filtres(scan, filtres, locaux=False, maximum=1200):
+    if isinstance(scan, ReferencePoints):
+        return scan.points
     neutre = Scan(scan.nom, scan.mesures, [0., 0., 0.], scan.source, scan.angle_reference, scan.intensite_disponible) if locaux else scan
     pts = neutre.points()[mesures_valides(scan, **filtres)]
     # Suppression des doublons exacts : un bloc de plusieurs tours est accepté.
@@ -185,6 +199,68 @@ def points_filtres(scan, filtres, locaux=False, maximum=1200):
     if len(pts) > maximum:
         pts = pts[np.linspace(0, len(pts)-1, maximum, dtype=int)]
     return pts
+
+
+@dataclass
+class ReferencePoints:
+    """Sous-carte déjà filtrée, dans le repère global ; aucune pose vraie utilisée."""
+    points: np.ndarray
+    nom: str = 'Sous-carte'
+
+
+def sous_carte(scans, filtres, resolution=.05, maximum=2400):
+    """Moyenne par cellule : les observations répétées ne dominent pas le score."""
+    nuages = [points_filtres(s, filtres, maximum=2400) for s in scans]
+    if not nuages or not any(len(p) for p in nuages):
+        raise ValueError('Sous-carte vide après filtrage.')
+    points = np.concatenate(nuages)
+    _, indices = np.unique(np.floor(points/resolution).astype(np.int64), axis=0, return_inverse=True)
+    comptes = np.bincount(indices)
+    centres = np.column_stack([np.bincount(indices, weights=points[:, k])/comptes for k in range(2)])
+    if len(centres) > maximum:
+        centres = centres[np.linspace(0, len(centres)-1, maximum, dtype=int)]
+    return ReferencePoints(centres, f'Sous-carte de {len(scans)} scans')
+
+
+def valider_solution(resultat, source, cible, distance_max):
+    """Accord fin indépendant du rayon large de recherche ; observabilité locale.
+
+    65 % des impacts doivent être à <= 12 cm (ou demi-rayon si plus petit).
+    Les normales estimées sur 7 voisins doivent contraindre les deux translations.
+    Ce sont des critères numériques, pas une garantie d'erreur absolue.
+    """
+    p = transformer(source, resultat.pose)
+    idx, d = plus_proches(p, cible)
+    seuil = min(.12, distance_max*.5)
+    bons = d <= seuil
+    resultat.accord_fin = float(bons.mean())
+    raison = None
+    if bons.sum() < 12 or resultat.accord_fin < .65:
+        raison = f'Accord fin insuffisant : {resultat.accord_fin:.0%} à moins de {seuil:.2f} m (65 % et 12 points requis).'
+    else:
+        # Normales locales, sans relier des points éloignés par-dessus un trou.
+        q = cible[np.unique(idx[bons])]
+        normales = []
+        for point in q[::max(1, len(q)//240)]:
+            distances = np.sum((cible-point)**2, axis=1)
+            voisins = np.argsort(distances)[:7]
+            voisins = voisins[distances[voisins] <= .35**2]
+            if len(voisins) < 4: continue
+            v = cible[voisins]; v = v-v.mean(axis=0)
+            valeurs, axes = np.linalg.eigh(v.T@v)
+            if valeurs[1] > 1e-8 and valeurs[0] < .15*valeurs[1]:
+                normales.append(axes[:, 0])
+        if len(normales) < 6:
+            raison = 'Géométrie insuffisante pour vérifier la pose : trop peu de surfaces linéaires.'
+        else:
+            n = np.asarray(normales)
+            valeurs = np.linalg.eigvalsh(n.T@n/len(n))
+            if valeurs[0] < .025:
+                raison = 'Géométrie ambiguë : surfaces presque parallèles, glissement possible le long des murs.'
+    if raison:
+        resultat.applicable = False
+        resultat.message = raison
+    return resultat
 
 
 def plus_proches(points, reference):

@@ -1,0 +1,85 @@
+scan,methode,dx,dy,da,erreur_position_m,erreur_angle_deg,temps_s,accepte,succes,faux_accepte,accord_fin,message
+2,ICP local,0.5,0.3,15.0,0.00017368004315932573,0.08138968814108694,0.420468071999494,True,True,False,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+2,Recherche large + ICP,0.5,0.3,15.0,0.00017368004315932573,0.08138968814108694,3.0968510789989523,True,True,False,0.8666666666666667,Recherche large puis convergence ICP locale. Vérifie la superposition avant application.
+2,ICP local,-0.5,0.4,-20.0,0.8058743699530357,32.464977358399636,0.19452204099980008,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+2,Recherche large + ICP,-0.5,0.4,-20.0,0.00017368004315932573,0.08138968814108694,2.2889759879999474,True,True,False,0.8666666666666667,Recherche large puis convergence ICP locale. Vérifie la superposition avant application.
+2,ICP local,0.8,-0.6,25.0,0.9999999999999998,25.0,0.017803609000111464,False,False,False,0.0,Recouvrement insuffisant : rapproche les scans ou ajuste la distance d’appariement.
+2,Recherche large + ICP,0.8,-0.6,25.0,0.00017368004315932573,0.08138968814108694,2.9740690199996607,True,True,False,0.8666666666666667,Recherche large puis convergence ICP locale. Vérifie la superposition avant application.
+3,ICP local,0.5,0.3,15.0,0.5002401464393975,35.698791591132874,0.1154169000001275,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+3,Recherche large + ICP,0.5,0.3,15.0,0.335373055565729,7.605650191988872,1.077068820999557,False,False,False,0.40444444444444444,Accord fin insuffisant : 40% à moins de 0.12 m (65 % et 12 points requis).
+3,ICP local,-0.5,0.4,-20.0,0.9057687797086207,28.236122303299197,0.3725565459990321,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+3,Recherche large + ICP,-0.5,0.4,-20.0,0.3768967451280234,6.56394551286337,1.6165554349990998,False,False,False,0.5111111111111111,Recalage ambigu : plusieurs poses différentes ont un score voisin. Rapproche la pose initiale ou ajoute une autre vue.
+3,ICP local,0.8,-0.6,25.0,0.9115601477191398,51.571167119399774,0.2345998620003229,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+3,Recherche large + ICP,0.8,-0.6,25.0,1.1795950189015907,0.20343027313916195,2.5307389030003833,False,False,False,0.4822222222222222,Accord fin insuffisant : 48% à moins de 0.12 m (65 % et 12 points requis).
+4,ICP local,0.5,0.3,15.0,0.27934192914234696,84.91104933386623,0.1791414529998292,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+4,Recherche large + ICP,0.5,0.3,15.0,0.5498129431764088,6.813166035328322,2.4900919450010406,False,False,False,0.5644444444444444,Accord fin insuffisant : 56% à moins de 0.12 m (65 % et 12 points requis).
+4,ICP local,-0.5,0.4,-20.0,0.5656607065938212,1.9183349568156132,0.1509877639982733,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+4,Recherche large + ICP,-0.5,0.4,-20.0,0.5528382148461022,25.345769637522324,1.779917623000074,False,False,False,0.5,Accord fin insuffisant : 50% à moins de 0.12 m (65 % et 12 points requis).
+4,ICP local,0.8,-0.6,25.0,0.5496240801632669,6.366541931218535,0.1957213949990546,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+4,Recherche large + ICP,0.8,-0.6,25.0,1.0,25.0,2.4664232399991306,False,False,False,0.0,Aucun recalage convergé dans la fenêtre. Vérifie le recouvrement et la pose initiale.
+5,ICP local,0.5,0.3,15.0,0.58309518948453,15.0,0.019057806001001154,False,False,False,0.0,Recouvrement insuffisant : rapproche les scans ou ajuste la distance d’appariement.
+5,Recherche large + ICP,0.5,0.3,15.0,0.58309518948453,15.0,1.8246268900002178,False,False,False,0.0,Aucun recalage convergé dans la fenêtre. Vérifie le recouvrement et la pose initiale.
+5,ICP local,-0.5,0.4,-20.0,0.8592776118414851,72.29227269706547,0.2239278180004476,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+5,Recherche large + ICP,-0.5,0.4,-20.0,1.5199639579721729,34.556300540512154,2.091589482000927,False,False,False,0.33555555555555555,Accord fin insuffisant : 34% à moins de 0.12 m (65 % et 12 points requis).
+5,ICP local,0.8,-0.6,25.0,1.0,25.0,0.01801580600113084,False,False,False,0.0,Recouvrement insuffisant : rapproche les scans ou ajuste la distance d’appariement.
+5,Recherche large + ICP,0.8,-0.6,25.0,1.0,25.0,3.3457051050008886,False,False,False,0.0,Aucun recalage convergé dans la fenêtre. Vérifie le recouvrement et la pose initiale.
+6,ICP local,0.5,0.3,15.0,0.58309518948453,15.0,0.02088721299878671,False,False,False,0.0,Recouvrement insuffisant : rapproche les scans ou ajuste la distance d’appariement.
+6,Recherche large + ICP,0.5,0.3,15.0,0.506432568803533,19.26057652910555,1.3975198799998907,False,False,False,0.25333333333333335,Accord fin insuffisant : 25% à moins de 0.12 m (65 % et 12 points requis).
+6,ICP local,-0.5,0.4,-20.0,0.7245067571637047,12.463994799384068,0.20744740000009187,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+6,Recherche large + ICP,-0.5,0.4,-20.0,0.8742335341478616,21.4341962032658,1.5422221459994034,False,False,False,0.36,Recalage ambigu : plusieurs poses différentes ont un score voisin. Rapproche la pose initiale ou ajoute une autre vue.
+6,ICP local,0.8,-0.6,25.0,1.855301197088384,20.88202601840058,0.2709451740010991,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+6,Recherche large + ICP,0.8,-0.6,25.0,0.1519830525291312,5.394095931700832,1.4284022219999315,False,False,False,0.32222222222222224,Recalage ambigu : plusieurs poses différentes ont un score voisin. Rapproche la pose initiale ou ajoute une autre vue.
+7,ICP local,0.5,0.3,15.0,0.00035539209455052225,0.0016808539332657801,0.4068277329988632,True,True,False,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+7,Recherche large + ICP,0.5,0.3,15.0,0.00032443289915486177,0.012943294942516559,2.2381549180008733,True,True,False,0.8533333333333334,Recherche large puis convergence ICP locale. Vérifie la superposition avant application.
+7,ICP local,-0.5,0.4,-20.0,0.6847419431723515,58.58230351463891,0.5562875659998099,False,False,False,0.0,Limite d’itérations atteinte : rapproche la pose initiale ou augmente la limite.
+7,Recherche large + ICP,-0.5,0.4,-20.0,0.00032443289915486177,0.012943294942516559,2.3078693549996387,True,True,False,0.8533333333333334,Recherche large puis convergence ICP locale. Vérifie la superposition avant application.
+7,ICP local,0.8,-0.6,25.0,0.0009784531634143734,0.15066120219256618,0.48026629199921445,False,True,False,0.0,Limite d’itérations atteinte : rapproche la pose initiale ou augmente la limite.
+7,Recherche large + ICP,0.8,-0.6,25.0,0.0003352604484569092,0.009994012017614295,2.331082103999506,True,True,False,0.8533333333333334,Recherche large puis convergence ICP locale. Vérifie la superposition avant application.
+8,ICP local,0.5,0.3,15.0,0.6020135702107942,9.353576281611538,0.19899262400031148,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+8,Recherche large + ICP,0.5,0.3,15.0,0.604891016979973,9.506631923740287,1.4251579880001373,False,False,False,0.56,Accord fin insuffisant : 56% à moins de 0.12 m (65 % et 12 points requis).
+8,ICP local,-0.5,0.4,-20.0,0.43068049543599063,25.888715327677744,0.12830173499969533,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+8,Recherche large + ICP,-0.5,0.4,-20.0,0.43068049543599063,25.888715327677744,1.4949046699985047,False,False,False,0.08888888888888889,Accord fin insuffisant : 9% à moins de 0.12 m (65 % et 12 points requis).
+8,ICP local,0.8,-0.6,25.0,1.1907633470203436,0.3264985941260079,0.378707886000484,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+8,Recherche large + ICP,0.8,-0.6,25.0,1.1665576027234996,3.566300970824301,1.9110926790017402,False,False,False,0.5288888888888889,Accord fin insuffisant : 53% à moins de 0.12 m (65 % et 12 points requis).
+9,ICP local,0.5,0.3,15.0,0.5830951894845302,15.0,0.01774674800071807,False,False,False,0.0,Recouvrement insuffisant : rapproche les scans ou ajuste la distance d’appariement.
+9,Recherche large + ICP,0.5,0.3,15.0,0.5830951894845302,15.0,1.2987782820000575,False,False,False,0.0,Aucun recalage convergé dans la fenêtre. Vérifie le recouvrement et la pose initiale.
+9,ICP local,-0.5,0.4,-20.0,1.2010968188913405,11.519835911836367,0.11507308599902899,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+9,Recherche large + ICP,-0.5,0.4,-20.0,1.2549376835510162,7.699954977610673,1.7343190499996126,False,False,False,0.32666666666666666,Recalage ambigu : plusieurs poses différentes ont un score voisin. Rapproche la pose initiale ou ajoute une autre vue.
+9,ICP local,0.8,-0.6,25.0,1.0,25.0,0.016779015999418334,False,False,False,0.0,Recouvrement insuffisant : rapproche les scans ou ajuste la distance d’appariement.
+9,Recherche large + ICP,0.8,-0.6,25.0,1.0,25.0,1.2658996070003923,False,False,False,0.0,Aucun recalage convergé dans la fenêtre. Vérifie le recouvrement et la pose initiale.
+10,ICP local,0.5,0.3,15.0,0.58309518948453,15.0,0.01663545500014152,False,False,False,0.0,Recouvrement insuffisant : rapproche les scans ou ajuste la distance d’appariement.
+10,Recherche large + ICP,0.5,0.3,15.0,0.3545015836304081,9.88473960891011,1.6465132880002784,False,False,False,0.31777777777777777,Recalage ambigu : plusieurs poses différentes ont un score voisin. Rapproche la pose initiale ou ajoute une autre vue.
+10,ICP local,-0.5,0.4,-20.0,0.5973928308930548,17.492743789657027,0.14684889300042414,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+10,Recherche large + ICP,-0.5,0.4,-20.0,0.804138922895931,9.410154399164071,1.5660135480011377,False,False,False,0.3488888888888889,Recalage ambigu : plusieurs poses différentes ont un score voisin. Rapproche la pose initiale ou ajoute une autre vue.
+10,ICP local,0.8,-0.6,25.0,1.0,25.0,0.01671697300116648,False,False,False,0.0,Recouvrement insuffisant : rapproche les scans ou ajuste la distance d’appariement.
+10,Recherche large + ICP,0.8,-0.6,25.0,0.1195162042019851,5.145265935420497,1.4054368069992051,False,False,False,0.3844444444444444,Accord fin insuffisant : 38% à moins de 0.12 m (65 % et 12 points requis).
+11,ICP local,0.5,0.3,15.0,0.6123579134720437,13.85344181730585,0.07177974899968831,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+11,Recherche large + ICP,0.5,0.3,15.0,0.24305232706355173,13.825072282164797,1.2762719570000627,False,False,False,0.5355555555555556,Recalage ambigu : plusieurs poses différentes ont un score voisin. Rapproche la pose initiale ou ajoute une autre vue.
+11,ICP local,-0.5,0.4,-20.0,0.05866479258707939,2.9937475779874205,0.2130318300005456,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+11,Recherche large + ICP,-0.5,0.4,-20.0,0.05866479258707939,2.9937475779874205,1.8384398720008903,False,False,False,0.5666666666666667,Accord fin insuffisant : 57% à moins de 0.12 m (65 % et 12 points requis).
+11,ICP local,0.8,-0.6,25.0,0.7281614165620308,26.3324906297091,0.13371148599981098,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+11,Recherche large + ICP,0.8,-0.6,25.0,0.24305232706355173,13.825072282164797,1.7322652689999813,False,False,False,0.5355555555555556,Accord fin insuffisant : 54% à moins de 0.12 m (65 % et 12 points requis).
+12,ICP local,0.5,0.3,15.0,0.46423331522246275,25.256815590595835,0.19888598599936813,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+12,Recherche large + ICP,0.5,0.3,15.0,0.018007865353069592,0.13775467351163684,1.7791543759994966,True,True,False,0.7355555555555555,Recherche large puis convergence ICP locale. Vérifie la superposition avant application.
+12,ICP local,-0.5,0.4,-20.0,0.018007865353068937,0.13775467351163684,0.4674593529998674,True,True,False,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+12,Recherche large + ICP,-0.5,0.4,-20.0,0.018007865353069596,0.13775467351163684,2.179408895999586,True,True,False,0.7355555555555555,Recherche large puis convergence ICP locale. Vérifie la superposition avant application.
+12,ICP local,0.8,-0.6,25.0,1.1401454118308316,31.256977872014517,0.1429342209994502,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+12,Recherche large + ICP,0.8,-0.6,25.0,0.018007865353069596,0.13775467351163684,1.69842274399889,True,True,False,0.7355555555555555,Recherche large puis convergence ICP locale. Vérifie la superposition avant application.
+13,ICP local,0.5,0.3,15.0,0.5069756991058074,30.993786600308397,0.09925132900025346,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+13,Recherche large + ICP,0.5,0.3,15.0,0.06122774693250802,1.2651989130805532,1.425020669999867,False,True,False,0.5733333333333334,Accord fin insuffisant : 57% à moins de 0.12 m (65 % et 12 points requis).
+13,ICP local,-0.5,0.4,-20.0,0.8536577646384544,29.747564557796352,0.23359663400151476,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+13,Recherche large + ICP,-0.5,0.4,-20.0,0.06122774693250802,1.2651989130805532,1.5547986179990403,False,True,False,0.5733333333333334,Accord fin insuffisant : 57% à moins de 0.12 m (65 % et 12 points requis).
+13,ICP local,0.8,-0.6,25.0,0.9316702321973831,58.19071790443232,0.21499382599904493,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+13,Recherche large + ICP,0.8,-0.6,25.0,1.07878785091595,1.6544567956625542,1.4677410979984415,False,False,False,0.44666666666666666,Recalage ambigu : plusieurs poses différentes ont un score voisin. Rapproche la pose initiale ou ajoute une autre vue.
+14,ICP local,0.5,0.3,15.0,0.7273684272263183,26.697516200230496,0.15358878500046558,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+14,Recherche large + ICP,0.5,0.3,15.0,0.019985233560030565,0.3236657049141911,1.8814390159986942,True,True,False,0.7377777777777778,Recherche large puis convergence ICP locale. Vérifie la superposition avant application.
+14,ICP local,-0.5,0.4,-20.0,0.8623715925986248,10.679240213776183,0.47126220199970703,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+14,Recherche large + ICP,-0.5,0.4,-20.0,0.019985233560030565,0.3236657049141911,2.335656999001003,True,True,False,0.7377777777777778,Recherche large puis convergence ICP locale. Vérifie la superposition avant application.
+14,ICP local,0.8,-0.6,25.0,1.3047503454243916,49.250547953412905,0.16679611899962765,True,False,True,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+14,Recherche large + ICP,0.8,-0.6,25.0,0.019985233560030565,0.3236657049141911,2.093924562999746,True,True,False,0.7377777777777778,Recherche large puis convergence ICP locale. Vérifie la superposition avant application.
+15,ICP local,0.5,0.3,15.0,0.0006152533723401511,0.01567587397329362,0.3698599199997261,True,True,False,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+15,Recherche large + ICP,0.5,0.3,15.0,0.0006152533723400772,0.01567587397332204,1.8583284079995792,True,True,False,0.9133333333333333,Recherche large puis convergence ICP locale. Vérifie la superposition avant application.
+15,ICP local,-0.5,0.4,-20.0,0.0005835880888519311,0.02247197278126123,0.328305958000783,True,True,False,0.0,Convergence locale. Vérifie les murs et ouvertures avant d’appliquer.
+15,Recherche large + ICP,-0.5,0.4,-20.0,0.0006152533723401511,0.01567587397329362,1.8541236749988457,True,True,False,0.9133333333333333,Recherche large puis convergence ICP locale. Vérifie la superposition avant application.
+15,ICP local,0.8,-0.6,25.0,0.0006152533723410441,0.01567587397332204,0.5198524580009689,False,True,False,0.0,Limite d’itérations atteinte : rapproche la pose initiale ou augmente la limite.
+15,Recherche large + ICP,0.8,-0.6,25.0,0.0006152533723400772,0.01567587397332204,1.914185298999655,True,True,False,0.9133333333333333,Recherche large puis convergence ICP locale. Vérifie la superposition avant application.

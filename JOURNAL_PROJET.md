@@ -501,3 +501,13 @@ Le dépôt avait évolué avant cette correction : ANGLE_REFERENCE_DEFAUT = 0°,
 modification utilisateur conservée. Les tests d’import/session suivent désormais
 la constante configurée ; la géométrie d’une référence explicite à 270° reste
 testée séparément. Pas de changement de filtrage ni d’algorithme multi-références.
+
+## 3 novembre 2026 — Fiabilité et superposition d’un lot
+
+Retour utilisateur : le recalage automatique reste peu fiable, besoin de superposer beaucoup de scans et remise en question du précédent scan seul. Ajout d’une sous-carte glissante de cinq références acceptées, moyennées par cellule de 5 cm ; contrôle d’accord fin à 65 %, contrôle des normales des surfaces et refus des solutions concurrentes dans la recherche large. Acquisition conserve une ancre précédente et des références antérieures portant un statut accepté ; elle ne fusionne pas aveuglément tous les imports.
+
+Ajout du recalage des scans cochés Carte dans l’ordre de la liste : premier scan fixe, suivants localisés progressivement, échecs non propagés dans la référence, mesures conservées, échecs décochés Carte et signalés. Annuler le calcul écarte les poses ; annuler le dernier lot appliqué restaure poses, statuts et états Carte. Protection contre les changements de données, poses ou filtres pendant les calculs.
+
+Difficultés : convergence ICP fausse malgré un score acceptable, vues ne partageant pas les mêmes obstacles, glissement le long de murs parallèles, ambiguïté d’une salle carrée, densité excessive des points répétés, ordre ZIP non chronologique. Les contrôles limitent les faux positifs mais augmentent les refus. Seuil d’accord fin réglé sur le même jeu MapTool : ne pas confondre calibration et validation indépendante. Dérive et fermeture de boucle non résolues.
+
+Évaluation documentée dans FIABILITE_LOCALISATION.md : 42 essais MapTool, ICP local 5 corrects acceptés / 26 faux acceptés / 11 refus ; recherche large contrôlée 15 / 0 / 27. Trajectoire simulée bruitée : 7 recalages sur 7 après l’ancre, erreur maximale 1,18 cm et 0,222°. Les en-têtes MapTool et les poses vraies simulées ne servent qu’à l’évaluation. Aucun nouvel essai matériel réalisé. Rapport Word complété avec ces résultats et leurs limites.
