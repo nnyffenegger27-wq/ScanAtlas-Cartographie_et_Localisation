@@ -168,3 +168,36 @@ Validation de l’archive ScanJules fournie : 15 scans de 450 points, 6750 point
 au total, bornes globales proches de [0,2] × [0,3] m à l’arrondi près. Les
 coordonnées relatives sont vérifiées puis recalculées depuis angle et portée.
 82 tests passent, dont ZIP, pose non nulle, intensité absente et sessions.
+
+
+## Recalage automatique après acquisition USB
+
+Dans **Acquisition USB**, cocher **Recaler automatiquement chaque nouveau scan
+sur le précédent (ICP)**, puis Capturer. Option désactivée initialement. La
+méthode, les fenêtres et la distance d’appariement viennent de Localisation ;
+les filtres communs sont utilisés sans les modifier. Le dernier scan de la
+liste est la référence, même s’il est masqué ou décoché Carte. Aucun scan chargé :
+le premier scan reçu ancre le repère à sa pose (zéro pour une nouvelle capture).
+Le départ du suivant est la pose de son prédécesseur, pas zéro.
+
+La série est d’abord lue et le port fermé, puis le lot est recalé dans le thread
+pour ne pas bloquer la réception série par ICP. Dans un lot de plusieurs scans,
+chaque scan accepté devient la référence du suivant. En pratique, capturer un
+scan à chaque arrêt du robot, puis le déplacer avant la capture suivante.
+Les poses acceptées sont appliquées automatiquement, sans le bouton Appliquer.
+
+Acceptation automatique : convergence du solveur, ≥60 % de correspondances
+sous la distance d’appariement et RMSE de ces correspondances ≤0,10 m. Ces
+critères ne garantissent pas une erreur de pose réelle inférieure à 10 cm.
+Sur échec, exception ou annulation du recalage, les données sont conservées ;
+la pose du scan concerné n’est pas remplacée, la chaîne est interrompue et les
+scans non recalés sont décochés Carte. Ils restent visibles, avec le motif dans
+leur fiche. Corriger manuellement ou dans Localisation, puis recocher Carte.
+Le dernier scan non validé bloque le démarrage d’un nouvel auto-recalage jusqu’à
+correction explicite de sa pose.
+
+Si référence ou filtres changent pendant la capture, les poses calculées sont
+écartées et les nouveaux scans sont conservés à zéro, décochés Carte. L’option
+et les bilans par scan sont sauvegardés dans les sessions. Il ne s’agit pas
+encore d’un SLAM avec fermeture de boucle ; les erreurs successives peuvent
+s’accumuler. Les cartes se construisent avec leurs boutons habituels.

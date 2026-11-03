@@ -23,6 +23,7 @@ class Scan:
     angle_reference: float = 0.  # Géométrie neutre ; imports/USB utilisent 270°.
     intensite_disponible: bool = True
     pose_connue: list | None = None  # Métadonnée MapTool, jamais utilisée par ICP.
+    suivi_recalage: dict | None = None  # Résultat de l'option automatique USB.
 
     def points(self):
         """Polaire -> repère lidar -> rotation et translation dans la carte."""

@@ -80,6 +80,7 @@ class MapTool(unittest.TestCase):
         a.scans = lire_csv('test.csv', CONTENU)
         a.inclus = a.visibles = [True]
         a.scans[0].pose = [1., 2., 30.]
+        a.scans[0].suivi_recalage = dict(valide=True, etat='ancrage', message='premier')
         with tempfile.TemporaryDirectory() as dossier:
             p = Path(dossier)/'session.json'
             with patch('app.filedialog.asksaveasfilename', return_value=str(p)):
@@ -92,6 +93,7 @@ class MapTool(unittest.TestCase):
             self.assertEqual(s.pose_connue, [2., -3., 90.])
             self.assertEqual(s.angle_reference, 0.)
             self.assertFalse(s.intensite_disponible)
+            self.assertEqual(s.suivi_recalage, dict(valide=True, etat='ancrage', message='premier'))
 
 
 if __name__ == '__main__': unittest.main()
