@@ -15,8 +15,8 @@ Python 3.10 ou plus récent. Sous Windows : `installer_windows.bat`, puis
 
 ## Jour 2
 
-L'onglet **Localisation** recale un mobile sur un scan fixe à partir d'une pose
-initiale proche. Les filtres communs sont utilisés. Vérifier l'aperçu avant
+L'onglet **Localisation** propose **Recherche large + ICP** (±1 m / ±30° par
+défaut, réglables) et **ICP local** pour recaler un mobile sur un scan fixe. Les filtres communs sont utilisés. Vérifier l'aperçu avant
 d'appliquer la pose, puis enregistrer la session. Guide, méthode et limites dans
 [LOCALISATION_JOUR2.md](LOCALISATION_JOUR2.md). L'évaluation reproductible
 `python evaluer_localisation.py` exporte les erreurs vraies et les temps.

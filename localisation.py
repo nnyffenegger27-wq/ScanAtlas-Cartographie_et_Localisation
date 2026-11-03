@@ -23,6 +23,144 @@ class ResultatICP:
     converge: bool
     applicable: bool
     message: str
+    methode: str = 'ICP local'
+    candidats: int = 1
+
+
+def score_pose(points, reference, pose, distance_max):
+    """Coût sur TOUS les points, avec pénalité bornée pour les non-appariés."""
+    _, d = plus_proches(transformer(points, pose), reference)
+    return float(np.mean(np.minimum(d, distance_max)**2))
+
+
+def champ_distances(reference, limite, resolution=.05):
+    """Distances bornées aux impacts, raster 5 cm ; utilisé seulement pour chercher.
+
+    Chaque impact met à jour son voisinage. Une cellule hors champ vaut limite.
+    La validation finale revient aux distances exactes et aux points complets.
+    """
+    origine = np.floor((reference.min(axis=0)-limite)/resolution)*resolution
+    dimensions = np.ceil((reference.max(axis=0)+limite-origine)/resolution).astype(int)+1
+    if np.prod(dimensions.astype(float)) > 4_000_000:
+        raise ValueError('Zone de recherche trop étendue pour le champ de distances.')
+    nx, ny = dimensions
+    champ = np.full((ny, nx), limite**2)
+    rayon = int(np.ceil(limite/resolution))+1
+    for p in reference:
+        ix, iy = np.floor((p-origine)/resolution).astype(int)
+        x0, x1 = max(0, ix-rayon), min(nx, ix+rayon+1)
+        y0, y1 = max(0, iy-rayon), min(ny, iy+rayon+1)
+        x = origine[0]+np.arange(x0, x1)*resolution
+        y = origine[1]+np.arange(y0, y1)*resolution
+        np.minimum(champ[y0:y1, x0:x1], (x[None]-p[0])**2+(y[:, None]-p[1])**2,
+                   out=champ[y0:y1, x0:x1])
+    return origine, resolution, champ
+
+
+def recherche_icp(mobile, reference, pose_initiale=None, mini=.05, maxi=12., intensite=0,
+                  distance_max=.5, iterations_max=80, fenetre_xy=1., fenetre_angle=30.,
+                  annuler=None, progression=None):
+    """Recherche bornée grossière/fine, puis ICP sur plusieurs départs distincts.
+
+    Fenêtres autour de la pose initiale, axes globaux et angle autour du lidar.
+    Pas initial 25 cm et 5° (translation élargie sur grandes fenêtres pour borner
+    le travail), deux affinements /2, huit départs ICP plus le départ initial.
+    Score borné incluant les non-appariés ; aucun usage d'une pose vraie.
+    """
+    debut = perf_counter()
+    valeurs = np.asarray([mini, maxi, intensite, distance_max, iterations_max, fenetre_xy, fenetre_angle], float)
+    initiale = np.asarray(mobile.pose if pose_initiale is None else pose_initiale, float)
+    if (mobile is reference or initiale.shape != (3,) or not np.isfinite(initiale).all() or
+            not np.isfinite(valeurs).all() or not 0 <= mini < maxi or not 0 <= intensite <= 255 or
+            distance_max <= 0 or iterations_max != int(iterations_max) or not 1 <= iterations_max <= 300 or
+            not 0 < fenetre_xy <= 3 or not 0 < fenetre_angle <= 90):
+        raise ValueError('Recherche : deux scans, pose finie, filtres valides, fenêtre >0 jusqu’à 3 m et 90°, et 1 à 300 itérations.')
+    filtres = dict(mini=mini, maxi=maxi, intensite=intensite)
+    source = points_filtres(mobile, filtres, locaux=True)
+    cible = points_filtres(reference, filtres)
+    if min(len(source), len(cible)) < 6 or not np.isfinite(cible).all():
+        raise ValueError('Au moins six points distincts par scan et une pose de référence finie sont nécessaires.')
+    # 300 points couvrant le mobile pour la recherche, cible jusqu'à 1200.
+    petits = source[np.linspace(0, len(source)-1, min(300, len(source)), dtype=int)]
+    limite = min(distance_max, 1.)
+    origine, resolution, champ = champ_distances(cible, limite)
+    bas, haut = initiale-[fenetre_xy, fenetre_xy, fenetre_angle], initiale+[fenetre_xy, fenetre_xy, fenetre_angle]
+    nxy, na = int(np.ceil(2*fenetre_xy/.25)), int(np.ceil(2*fenetre_angle/5))
+    # Borne le travail grossier sur les fenêtres maximales.
+    while (nxy+1)**2*(na+1) > 6000:
+        nxy = max(2, nxy-2)
+    pas = np.array([2*fenetre_xy/nxy, 2*fenetre_xy/nxy, 2*fenetre_angle/na])
+    candidats, total = [], 0
+
+    def evaluer(pose):
+        nonlocal total
+        if annuler is not None and annuler.is_set():
+            raise InterruptedError('Recherche annulée.')
+        p = transformer(petits, pose)
+        ij = np.rint((p-origine)/resolution).astype(int)
+        ok = (ij[:, 0] >= 0) & (ij[:, 0] < champ.shape[1]) & (ij[:, 1] >= 0) & (ij[:, 1] < champ.shape[0])
+        d = np.full(len(p), limite**2)
+        d[ok] = champ[ij[ok, 1], ij[ok, 0]]
+        total += 1
+        return float(d.mean()), np.asarray(pose).copy()
+
+    def diversifier(liste, distance, angle, nombre=8):
+        retenus = []
+        for score, pose in sorted(liste, key=lambda c: c[0]):
+            if all(np.linalg.norm(pose[:2]-p[:2]) >= distance or abs(pose[2]-p[2]) >= angle for _, p in retenus):
+                retenus.append((score, pose))
+                if len(retenus) >= nombre: break
+        return retenus
+
+    try:
+        if progression: progression('Recherche large en translation et rotation…')
+        candidats.append(evaluer(initiale))
+        for a in np.linspace(bas[2], haut[2], na+1):
+            for x in np.linspace(bas[0], haut[0], nxy+1):
+                for y in np.linspace(bas[1], haut[1], nxy+1):
+                    candidats.append(evaluer([x, y, a]))
+        graines = diversifier(candidats, .3, 8.)
+        for _ in range(2):
+            candidats = list(graines)
+            for _, pose in graines:
+                for dx in [-pas[0]/2, 0, pas[0]/2]:
+                    for dy in [-pas[1]/2, 0, pas[1]/2]:
+                        for da in [-pas[2]/2, 0, pas[2]/2]:
+                            p = pose+[dx, dy, da]
+                            if np.all(p >= bas-1e-8) and np.all(p <= haut+1e-8):
+                                candidats.append(evaluer(p))
+            pas /= 2
+            graines = diversifier(candidats, max(.12, pas[0]), max(3., pas[2]))
+        # Inclure le départ initial afin de conserver les cas déjà faciles.
+        graines = graines+[(0., initiale)]
+        resultats = []
+        for i, (_, pose) in enumerate(graines):
+            if annuler is not None and annuler.is_set(): raise InterruptedError('Recherche annulée.')
+            if progression: progression(f'Affinement ICP {i+1}/{len(graines)}…')
+            r = icp_scan(mobile, reference, pose_initiale=pose, **filtres,
+                         distance_max=distance_max, iterations_max=iterations_max, annuler=annuler)
+            # L'affinement ne doit pas sortir de la fenêtre annoncée.
+            angle = initiale[2]+(r.pose[2]-initiale[2]+180) % 360-180
+            p = np.array([r.pose[0], r.pose[1], angle])
+            if r.applicable and np.all(p >= bas-1e-8) and np.all(p <= haut+1e-8):
+                resultats.append((score_pose(source, cible, r.pose, limite), r))
+        if annuler is not None and annuler.is_set(): raise InterruptedError('Recherche annulée.')
+        if resultats:
+            _, resultat = min(resultats, key=lambda v: v[0])
+            resultat.message = 'Recherche large puis convergence ICP locale. Vérifie la superposition avant application.'
+        else:
+            resultat = ResultatICP(initiale.tolist(), initiale.tolist(), float('inf'), float('inf'), 0., 0, 0, 0., False, False,
+                                  'Aucun recalage convergé dans la fenêtre. Vérifie le recouvrement et la pose initiale.')
+    except InterruptedError:
+        resultat = ResultatICP(initiale.tolist(), initiale.tolist(), float('inf'), float('inf'), 0., 0, 0, 0., False, False, 'Recherche annulée.')
+    _, distances = plus_proches(transformer(source, initiale), cible)
+    valides = distances <= distance_max
+    resultat.rmse_initiale = float(np.sqrt(np.mean(distances[valides]**2))) if valides.any() else float('inf')
+    resultat.pose_initiale = initiale.tolist()
+    resultat.duree = perf_counter()-debut
+    resultat.methode = 'Recherche large + ICP'
+    resultat.candidats = total
+    return resultat
 
 
 def rotation(angle):

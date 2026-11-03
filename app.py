@@ -16,7 +16,7 @@ from cartographie import (Scan, Grille, lire_csv, exporter_scan, demonstration,
                          angle_segments, proches, fusionner, intersection, decouper, EPS, extraire_multiscans)
 from cartographie import ANGLE_REFERENCE_DEFAUT, diagnostic_scan
 from manipulation import ManipulationScan
-from localisation import icp_scan, points_filtres, transformer
+from localisation import icp_scan, recherche_icp, points_filtres, transformer
 
 AIDE = '''PARCOURS CONSEILLÉ
 1. « Démonstration simulée » pour découvrir les vues sans matériel.
@@ -53,7 +53,9 @@ les anciens segments contredits par au moins trois directions de rayons libres.
 LOCALISATION
 Choisir un scan de référence fixe et un scan mobile dans Localisation.
 La pose actuelle du mobile sert de point de départ (réglable dans le panneau gauche).
-ICP associe les points proches et estime une correction rigide, de façon itérative.
+Le mode Recherche large + ICP teste d'abord plusieurs translations et rotations
+dans les fenêtres indiquées, puis affine plusieurs candidats par ICP.
+ICP local reste disponible pour comparer. Les fenêtres entourent la pose du mobile.
 Les filtres communs sont utilisés. Comparer l'aperçu avant/après puis Appliquer.
 Une convergence locale n'est pas une garantie de position correcte.
 
@@ -627,21 +629,28 @@ class Atelier(tk.Tk):
         if not (0 <= nouveaux['mini'] < nouveaux['maxi'] and 0 <= nouveaux['intensite'] <= 255 and
                 all(nouveaux[k]>0 for k in ['resolution','saut','erreur']) and 0<=nouveaux['angle_max']<=90 and nouveaux['distance_max']>=0):
             raise ValueError('Paramètres de session hors limites.')
-        for k, defaut in [('icp_distance', .5), ('icp_iterations', 80)]:
+        for k, defaut in [('icp_distance', .5), ('icp_iterations', 80), ('icp_fenetre_xy', 1.), ('icp_fenetre_angle', 30.)]:
             if k in self.vars:
                 v = float(str(parametres.get(k, defaut)).replace(',', '.'))
                 if not np.isfinite(v) or v <= 0 or (k == 'icp_iterations' and (v != int(v) or v > 300)):
                     raise ValueError('Paramètres ICP de session invalides.')
+                if (k == 'icp_fenetre_xy' and v > 3) or (k == 'icp_fenetre_angle' and v > 90):
+                    raise ValueError('Fenêtre de recherche limitée à 3 m et 90°.')
                 nouveaux[k] = v
+        methode = parametres.get('icp_methode', 'Recherche large + ICP')
+        if methode not in ('ICP local', 'Recherche large + ICP'):
+            raise ValueError('Méthode de localisation inconnue dans la session.')
         self.scans,self.inclus,self.visibles=scans,inclus,visibles
         for k,v in nouveaux.items():
             self.vars[k].set(str(v))
+        if 'icp_methode' in self.vars:
+            self.vars['icp_methode'].set(methode)
         self.invalider()
         self.actualiser()
         self.statut.set('Session ouverte. Recalcule les cartes avec les boutons dédiés.')
 
     def interface_localisation(self, cadre):
-        ttk.Label(cadre, text='Superposition automatique entre scans · ICP point à point').pack(anchor='w')
+        ttk.Label(cadre, text='Superposition automatique entre scans').pack(anchor='w')
         ligne = ttk.Frame(cadre)
         ligne.pack(fill='x', pady=3)
         self.choix_reference = ttk.Combobox(ligne, state='readonly', width=30)
@@ -650,12 +659,20 @@ class Atelier(tk.Tk):
             ttk.Label(ligne, text=label).pack(side='left', padx=3)
             choix.pack(side='left', fill='x', expand=True)
             choix.bind('<<ComboboxSelected>>', lambda e: self.proteger(self.apercu_localisation))
-        self.champ(cadre, 'icp_distance', 'Distance maximale d’appariement (m)', .5)
+        methodes = ttk.Frame(cadre)
+        methodes.pack(fill='x', pady=3)
+        ttk.Label(methodes, text='Méthode').pack(side='left')
+        self.vars['icp_methode'] = tk.StringVar(value='Recherche large + ICP')
+        ttk.Combobox(methodes, textvariable=self.vars['icp_methode'], state='readonly',
+                     values=['Recherche large + ICP', 'ICP local'], width=30).pack(side='right')
+        self.champ(cadre, 'icp_fenetre_xy', 'Recherche large : ± déplacement en x et y (m)', 1.)
+        self.champ(cadre, 'icp_fenetre_angle', 'Recherche large : ± orientation (°)', 30.)
+        self.champ(cadre, 'icp_distance', 'Distance maximale d’appariement ICP (m)', .5)
         self.champ(cadre, 'icp_iterations', 'Nombre maximal d’itérations', 80)
-        ttk.Label(cadre, text='Départ = pose actuelle du mobile. Rapproche-le d’abord dans Nuages si nécessaire.\nFiltres communs utilisés ; Visible et Carte ne limitent pas les deux choix explicites.').pack(anchor='w')
+        ttk.Label(cadre, text='Départ = pose actuelle du mobile. Les fenêtres entourent cette pose ; elles ne sont pas une précision garantie.\nFiltres communs utilisés ; Visible et Carte ne limitent pas les deux choix explicites.').pack(anchor='w')
         actions = ttk.Frame(cadre)
         actions.pack(fill='x')
-        for texte, action in [('Voir avant', self.apercu_localisation), ('Localiser (ICP)', self.lancer_localisation),
+        for texte, action in [('Voir avant', self.apercu_localisation), ('Localiser', self.lancer_localisation),
                               ('Appliquer la pose trouvée', self.appliquer_localisation), ('Annuler le calcul', self.annuler_calcul)]:
             ttk.Button(actions, text=texte, command=lambda a=action: self.proteger(a)).pack(side='left', padx=2, pady=4)
         self.info_localisation = ttk.Label(cadre, text='La référence reste fixe. Les scans doivent voir une zone commune.', wraplength=850)
@@ -732,18 +749,29 @@ class Atelier(tk.Tk):
         distance, iterations = self.nombre('icp_distance'), self.nombre('icp_iterations')
         if distance <= 0 or iterations != int(iterations) or not 1 <= iterations <= 300:
             raise ValueError('Distance positive et nombre entier d’itérations entre 1 et 300 requis.')
+        methode = self.vars['icp_methode'].get()
+        options = {}
+        if methode == 'Recherche large + ICP':
+            xy, angle = self.nombre('icp_fenetre_xy'), self.nombre('icp_fenetre_angle')
+            if not 0 < xy <= 3 or not 0 < angle <= 90:
+                raise ValueError('Les fenêtres doivent être positives, jusqu’à 3 m et 90°.')
+            options = dict(fenetre_xy=xy, fenetre_angle=angle,
+                           progression=lambda s: self.messages.put(('statut', s)))
+        elif methode != 'ICP local':
+            raise ValueError('Méthode de localisation inconnue.')
         ref = Scan(reference.nom, reference.mesures.copy(), list(reference.pose), reference.source, reference.angle_reference)
         mob = Scan(mobile.nom, mobile.mesures.copy(), list(mobile.pose), mobile.source, mobile.angle_reference)
         contexte = (reference, mobile, ref.pose, mob.pose, ref.mesures, mob.mesures, filtres)
         self.resultat_localisation = None
         self.travail = True
         self.annuler.clear()
-        self.info_localisation.configure(text='Calcul ICP en cours…')
+        self.info_localisation.configure(text=f'{methode} en cours…')
         self.statut.set('Recalage en cours ; la référence et le mobile restent inchangés.')
         def travail():
             try:
-                resultat = icp_scan(mob, ref, **filtres, distance_max=distance,
-                                    iterations_max=int(iterations), annuler=self.annuler)
+                calcul = recherche_icp if methode == 'Recherche large + ICP' else icp_scan
+                resultat = calcul(mob, ref, **filtres, distance_max=distance,
+                                  iterations_max=int(iterations), annuler=self.annuler, **options)
                 self.messages.put(('localisation', (contexte, resultat, ref, mob)))
             except Exception as exc:
                 self.messages.put(('erreur', str(exc)))
@@ -759,7 +787,8 @@ class Atelier(tk.Tk):
         self.resultat_localisation = (contexte, resultat)
         self.dessiner_localisation(points_filtres(reference, contexte[-1]),
             points_filtres(mobile, contexte[-1], locaux=True), resultat.pose_initiale, resultat.pose)
-        texte = (f'x = {resultat.pose[0]:.4f} m · y = {resultat.pose[1]:.4f} m · θ = {resultat.pose[2]:.3f}°\n'
+        texte = (f'{resultat.methode} · {resultat.candidats} poses testées · '
+                 f'x = {resultat.pose[0]:.4f} m · y = {resultat.pose[1]:.4f} m · θ = {resultat.pose[2]:.3f}°\n'
                  f'RMSE des correspondances : {resultat.rmse_initiale:.4f} → {resultat.rmse:.4f} m · '
                  f'recouvrement : {resultat.recouvrement:.0%} · {resultat.iterations} itérations · {resultat.duree:.3f} s\n'
                  f'{resultat.message} Le RMSE n’est pas l’erreur de pose réelle.')
