@@ -34,6 +34,10 @@ Le CSV ESP32 a 6 colonnes : indice, angle°, distance mm, intensité, x mm, y mm
 Nous recalculons x = r cos(angle), y = r sin(angle) : les colonnes x/y ESP32
 ne sont pas utilisées. Ne pas inverser de nouveau les angles de la bibliothèque.
 Un CSV à 3 colonnes est notre format angle_deg, distance_m, intensite.
+MapTool : angle_deg,r_m,x_rel_m,y_rel_m ; distances en mètres, référence 0°.
+La pose du commentaire Robot position est chargée et gardée comme référence.
+Intensité absente dans MapTool : ce filtre est ignoré pour ces seuls scans.
+Le bouton Importer accepte aussi les ZIP de CSV, sans extraction nécessaire.
 
 GRILLE
 Chaque rayon valide marque les cellules traversées libres et l'impact occupé.
@@ -115,7 +119,7 @@ class Atelier(tk.Tk):
         corps.add(droite, weight=1)
         fichiers = ttk.LabelFrame(gauche, text='1 · Mes scans', padding=8)
         fichiers.pack(fill='x')
-        self.bouton(fichiers, 'Importer un ou plusieurs CSV…', self.importer)
+        self.bouton(fichiers, 'Importer des CSV ou un ZIP…', self.importer)
         self.bouton(fichiers, 'Démonstration simulée (2 scans)', self.demo)
         self.liste = ttk.Treeview(fichiers, columns=('visible', 'inclure', 'points'), show='tree headings', height=7, selectmode='browse')
         self.liste.heading('#0', text='Scan')
@@ -275,7 +279,8 @@ class Atelier(tk.Tk):
         for k, v in zip(['x','y','orientation'], s.pose):
             self.vars[k].set(str(round(v,5)))
         d = diagnostic_scan(s.mesures)
-        self.info.configure(text=f"{s.source}\n{d['points']} points · étendue ≈ {d['etendue']:.1f}°\n{d['etat']} · écart max {d['pas_max']:.1f}°")
+        precision = '\nIntensité absente : ce filtre est ignoré.' if not s.intensite_disponible else ''
+        self.info.configure(text=f"{s.source}\n{d['points']} points · étendue ≈ {d['etendue']:.1f}°\n{d['etat']} · écart max {d['pas_max']:.1f}°{precision}")
 
     def clic_liste(self, event):
         self.annuler_geste()
@@ -303,12 +308,15 @@ class Atelier(tk.Tk):
         self.statut.set(f'{len(scans)} scan(s) ajouté(s). Vérifie la source, les points et l’étendue angulaire.')
 
     def importer(self):
-        fichiers = filedialog.askopenfilenames(filetypes=[('Scans CSV','*.csv'), ('Tous','*.*')])
+        fichiers = filedialog.askopenfilenames(filetypes=[('Scans CSV ou ZIP','*.csv *.zip'), ('Scans CSV','*.csv'), ('Archives ZIP','*.zip'), ('Tous','*.*')])
         nouveaux = []
         for f in fichiers:
             nouveaux.extend(lire_csv(f))
         if nouveaux:
             self.ajouter(nouveaux)
+            n = sum('MapTool' in s.source for s in nouveaux)
+            if n:
+                self.statut.set(f'{n} scan(s) MapTool SIMULÉS importés. Poses du fichier chargées si présentes ; intensité non fournie, filtre ignoré pour ces scans.')
 
     def demo(self):
         self.ajouter(demonstration())
@@ -591,7 +599,8 @@ class Atelier(tk.Tk):
         if p:
             contenu = dict(version=2, parametres={k:v.get() for k,v in self.vars.items() if k not in ['x','y','orientation','reference']},
                            scans=[dict(nom=s.nom,mesures=s.mesures.tolist(),pose=s.pose,source=s.source,
-                                       angle_reference=s.angle_reference,inclus=oui,visible=visible)
+                                       angle_reference=s.angle_reference,inclus=oui,visible=visible,
+                                       intensite_disponible=s.intensite_disponible,pose_connue=s.pose_connue)
                                   for s,oui,visible in zip(self.scans,self.inclus,self.visibles)])
             Path(p).write_text(json.dumps(contenu,ensure_ascii=False,indent=2),encoding='utf-8')
             self.statut.set('Session enregistrée : mesures originales, sources, poses et paramètres. Les cartes se recalculent.')
@@ -616,7 +625,14 @@ class Atelier(tk.Tk):
             # Les scans réels utilisent toujours l'ancien 270° comme zéro.
             # Les exemples synthétiques sont construits dans un repère neutre.
             reference = 0. if 'SIMULATION' in str(d['source']) else ANGLE_REFERENCE_DEFAUT
-            scans.append(Scan(str(d['nom']),m,pose.tolist(),str(d['source']),reference))
+            connue = d.get('pose_connue')
+            if connue is not None:
+                connue = np.asarray(connue, float)
+                if connue.shape != (3,) or not np.isfinite(connue).all():
+                    raise ValueError('Pose connue invalide dans la session.')
+                connue = connue.tolist()
+            scans.append(Scan(str(d['nom']),m,pose.tolist(),str(d['source']),reference,
+                              bool(d.get('intensite_disponible', 'MapTool' not in str(d['source']))), connue))
             inclus.append(bool(d['inclus']))
             visibles.append(bool(d.get('visible', d['inclus'])))
         parametres = data.get('parametres',{})
@@ -759,8 +775,8 @@ class Atelier(tk.Tk):
                            progression=lambda s: self.messages.put(('statut', s)))
         elif methode != 'ICP local':
             raise ValueError('Méthode de localisation inconnue.')
-        ref = Scan(reference.nom, reference.mesures.copy(), list(reference.pose), reference.source, reference.angle_reference)
-        mob = Scan(mobile.nom, mobile.mesures.copy(), list(mobile.pose), mobile.source, mobile.angle_reference)
+        ref = Scan(reference.nom, reference.mesures.copy(), list(reference.pose), reference.source, reference.angle_reference, reference.intensite_disponible)
+        mob = Scan(mobile.nom, mobile.mesures.copy(), list(mobile.pose), mobile.source, mobile.angle_reference, mobile.intensite_disponible)
         contexte = (reference, mobile, ref.pose, mob.pose, ref.mesures, mob.mesures, filtres)
         self.resultat_localisation = None
         self.travail = True

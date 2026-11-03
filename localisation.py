@@ -178,7 +178,7 @@ def erreur_pose(estimee, vraie):
 
 
 def points_filtres(scan, filtres, locaux=False, maximum=1200):
-    neutre = Scan(scan.nom, scan.mesures, [0., 0., 0.], scan.source, scan.angle_reference) if locaux else scan
+    neutre = Scan(scan.nom, scan.mesures, [0., 0., 0.], scan.source, scan.angle_reference, scan.intensite_disponible) if locaux else scan
     pts = neutre.points()[mesures_valides(scan, **filtres)]
     # Suppression des doublons exacts : un bloc de plusieurs tours est accepté.
     pts = np.unique(pts, axis=0)
