@@ -1,16 +1,26 @@
 # LD06 Atelier
 
-Application Python locale pour le TP EIGSI Jour 1 de cartographie lidar.
+Application Python locale pour le TP EIGSI de cartographie et localisation lidar.
 
 - Acquisition USB et import CSV polaire.
 - Nuages multiscans en couleurs et poses indépendantes.
 - Grille d'occupation, segments et carte vectorielle.
+- Superposition automatique entre deux scans par ICP, aperçu avant/après et application de la pose.
 - Mesures originales conservées et exports reproductibles.
 
 ## Démarrer
 
 Python 3.10 ou plus récent. Sous Windows : `installer_windows.bat`, puis
 `lancer_windows.bat`. Le guide complet est dans [LISEZ_MOI.md](LISEZ_MOI.md).
+
+## Jour 2
+
+L'onglet **Localisation** recale un mobile sur un scan fixe à partir d'une pose
+initiale proche. Les filtres communs sont utilisés. Vérifier l'aperçu avant
+d'appliquer la pose, puis enregistrer la session. Guide, méthode et limites dans
+[LOCALISATION_JOUR2.md](LOCALISATION_JOUR2.md). L'évaluation reproductible
+`python evaluer_localisation.py` exporte les erreurs vraies et les temps.
+La localisation sur grille et carte vectorielle reste à développer.
 
 ## Repère robot depuis v0.2.0
 

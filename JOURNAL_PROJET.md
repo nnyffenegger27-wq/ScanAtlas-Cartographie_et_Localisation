@@ -381,3 +381,27 @@ encore nécessaire pour confirmer le résultat visuel.
 Le rapport est corrigé pour distinguer l'ancienne extraction sélectionnée
 de l'extraction multiscans, et la fusion initiale de la nouvelle méthode.
 Les nouvelles captures sont conservées comme résultats avant correction.
+
+
+## 3 novembre 2026 — Jour 2 — Superposition automatique ICP
+
+Ajout de Localisation : choix explicite d'une référence fixe et d'un mobile,
+pose initiale actuelle, ICP point à point, aperçu avant/après, durée, RMSE,
+recouvrement et application explicite de la pose. Annulation, calcul en thread,
+refus des résultats périmés ou non convergés. Les données brutes et la référence
+restent intactes ; les cartes concernées sont invalidées après application.
+Les filtres communs sont utilisés, sans exclure les blocs de plusieurs tours.
+
+71 tests passent. Évaluation à pose connue sur les deux scans simulés : 4/6
+réussites avec seuils 0,10 m et 2°. Une initialisation décalée de 1 m, 0,5 m,
+15° converge vers une mauvaise pose ; un départ de 3 m, 3 m, 70° manque de
+recouvrement. Le RMSE des paires n'est pas une erreur de localisation vraie.
+Détails et CSV reproductible dans LOCALISATION_JOUR2.md et exemples/resultats_icp.csv.
+Interface testée par actions/tracés sans écran ; Windows et acquisition réelle
+restent à vérifier. Localisation grille et vectorielle non encore implémentées.
+
+Essais manuels de filtrage transmis ce matin : distances 1,8–6 m, intensité
+220, rupture 0,5 m, erreur de droite 0,2 m, fusion 6°/1 m ; captures à 78
+segments extraits et 24 de carte, 54 fusions, une coupe. Résultat plus lisible
+mais pertes de surfaces proches/faibles et risque de combler les ouvertures.
+Aucun réglage utilisateur n'est changé silencieusement par cette livraison.
