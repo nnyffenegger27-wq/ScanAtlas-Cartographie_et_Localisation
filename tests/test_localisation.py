@@ -5,7 +5,7 @@ import types
 import unittest
 import numpy as np
 from cartographie import Scan, demonstration
-from localisation import icp_scan, erreur_pose, transformer, points_filtres
+from localisation import icp_scan, recherche_icp, erreur_pose, transformer, points_filtres
 from app import Atelier
 from test_interface_sans_ecran import interface_factice, Variable
 from matplotlib.figure import Figure
@@ -90,6 +90,50 @@ class ICP(unittest.TestCase):
                 icp_scan(mob, ref, **options)
         with self.assertRaises(ValueError):
             icp_scan(ref, ref)
+
+
+class RechercheLarge(unittest.TestCase):
+    def test_rotation_et_translation_combinees(self):
+        ref, mob = demonstration()
+        for dx, dy, da in [(.5, .3, 15), (-.5, .5, -25), (1., .5, 15)]:
+            initiale = np.asarray(mob.pose)+[dx, dy, da]
+            avant = list(mob.pose)
+            v = recherche_icp(mob, ref, pose_initiale=initiale)
+            with self.subTest(decalage=(dx, dy, da)):
+                self.assertTrue(v.applicable, v.message)
+                ep, ea = erreur_pose(v.pose, mob.pose)
+                self.assertLess(ep, .01)
+                self.assertLess(ea, .1)
+                np.testing.assert_array_equal(v.pose_initiale, initiale)
+                self.assertGreater(v.candidats, 100)
+                self.assertEqual(mob.pose, avant)
+
+    def test_annulation_avant_et_pendant_recherche(self):
+        ref, mob = demonstration()
+        event = threading.Event(); event.set()
+        self.assertFalse(recherche_icp(mob, ref, annuler=event).applicable)
+        event.clear()
+        def progres(message): event.set()
+        v = recherche_icp(mob, ref, annuler=event, progression=progres)
+        self.assertFalse(v.applicable)
+        self.assertIn('annulée', v.message)
+
+    def test_fenetres_filtres_et_pas_de_recouvrement(self):
+        ref, mob = demonstration()
+        for opts in [dict(fenetre_xy=0), dict(fenetre_angle=100), dict(fenetre_xy=float('nan')),
+                     dict(iterations_max=2.5), dict(intensite=221)]:
+            with self.subTest(opts=opts), self.assertRaises(ValueError):
+                recherche_icp(mob, ref, **opts)
+        v = recherche_icp(mob, ref, pose_initiale=[100, 100, 0], fenetre_xy=.2, fenetre_angle=5)
+        self.assertFalse(v.applicable)
+
+    def test_score_penalise_faible_recouvrement(self):
+        from localisation import score_pose
+        ref, mob = demonstration()
+        source = points_filtres(mob, dict(mini=.05, maxi=12, intensite=0), locaux=True)
+        cible = points_filtres(ref, dict(mini=.05, maxi=12, intensite=0))
+        self.assertLess(score_pose(source, cible, mob.pose, .5),
+                        score_pose(source, cible, [100, 100, 0], .5))
 
 
 class Application(unittest.TestCase):

@@ -1,5 +1,9 @@
 # Superposition automatique entre deux scans
 
+Le mode par défaut est désormais **Recherche large + ICP**. Il teste des poses
+autour du départ avant les ajustements locaux. **ICP local** reste sélectionnable
+pour comparaison. Les filtres de la session ne sont pas modifiés.
+
 ## Utilisation
 
 1. Lancer l'application et importer deux scans ou ouvrir une session existante.
@@ -90,3 +94,44 @@ et sur carte vectorielle reste à réaliser ; le jour 2 n'est donc pas terminé.
 Pour les cartes, exclure le scan évalué de leur construction. Sur les données
 réelles, le placement manuel constitue seulement une référence approximative.
 Le jour 3 devra combiner estimation de pose et intégration cartographique.
+
+
+## Correction après les essais réels du jour 2
+
+L’utilisateur observe un fonctionnement correct pour de petites corrections
+(20–30 cm) et des rotations seules, mais des difficultés vers 50 cm et pour
+rotation + translation. Sa capture confirme les filtres **0,05–12 m, intensité 0**.
+L’hypothèse précédente de filtres 1,8–6 m / 220 ne s’appliquait pas à ces essais.
+Les déplacements rapportés sont approximatifs, sans pose mesurée de référence.
+
+Recherche large par défaut : fenêtre carrée ±1 m en x ET y et ±30° autour
+de la pose actuelle du mobile. Réglages jusqu’à ±3 m et ±90°. Ces fenêtres sont
+des limites de recherche, pas une précision garantie ; l’ICP affiné sortant
+de ces limites est refusé. Le coût inclut les points non appariés avec une
+pénalité bornée, au lieu de choisir un minuscule sous-ensemble très bien aligné.
+
+Un champ de distances bornées aux impacts à 5 cm accélère la recherche NumPy,
+sans nouvelle dépendance. La recherche utilise jusqu’à 300 points mobiles,
+une grille de poses à environ 25 cm / 5° puis deux affinements locaux par deux.
+Sur les grandes fenêtres, le pas de translation augmente pour limiter à 6000
+poses la grille initiale. On conserve huit candidats spatialement distincts,
+puis affine chacun par ICP sur jusqu’à 1200 points, avec le départ original
+en candidat supplémentaire. Le score final utilise les distances exactes
+sur tous les points échantillonnés, avec pénalité pour les points non appariés.
+L’annulation est vérifiée pendant la recherche et entre les raffinements.
+
+Pour reproduire la comparaison :
+
+```bash
+python evaluer_localisation.py --comparer --sortie exemples/comparaison_localisation.csv
+```
+
+Même référence, mobile, filtres, neuf poses initiales et critères (0,10 m / 2°)
+pour les deux méthodes : **ICP local 7/9, recherche large + ICP 8/9**. Temps
+médians de cet essai : environ 0,154 s et 0,892 s. Le cas à +1 m, +0,5 m, +15°
+est corrigé par la recherche large ; l’ICP seul aboutit à 1,056 m d’erreur.
+Le départ +3 m, +3 m, +70° reste hors de la fenêtre par défaut et échoue.
+Cela ne constitue pas un taux général de réussite ni une validation sur le robot.
+75 tests passent, dont translation/rotation combinées, limites, annulation et
+prise en compte des points non appariés. Essai Windows et nouvelle session
+réelle nécessaires ; symétries et objets mobiles peuvent toujours piéger le calcul.

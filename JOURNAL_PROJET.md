@@ -405,3 +405,23 @@ Essais manuels de filtrage transmis ce matin : distances 1,8–6 m, intensité
 segments extraits et 24 de carte, 54 fusions, une coupe. Résultat plus lisible
 mais pertes de surfaces proches/faibles et risque de combler les ouvertures.
 Aucun réglage utilisateur n'est changé silencieusement par cette livraison.
+
+
+## 3 novembre 2026 — Correction des mouvements combinés
+
+Retour utilisateur : ICP local peu fiable vers 50 cm et en translation +
+rotation, malgré de bons résultats sur rotations seules et petits déplacements.
+Filtres confirmés par capture : 0,05–12 m, intensité 0. La précédente hypothèse
+de filtrage fort était erronée pour cette série. Aucune modification silencieuse
+des filtres. Ajout par défaut de Recherche large + ICP, fenêtres ±1 m / ±30°,
+réglables. Champ de distances à 5 cm pour la recherche, plusieurs candidats
+diversifiés, deux affinements et ICP sur les points complets échantillonnés.
+Score borné incluant les points non appariés, contrôle des limites et annulation.
+ICP local conservé pour la comparaison.
+
+75 tests passent. Comparaison à poses connues sur 9 initialisations identiques :
+local 7/9 contre recherche large 8/9 aux seuils 10 cm et 2°. Temps médians
+environ 0,154 s / 0,892 s sur l’environnement de test. Le cas décalé de
+1 m, 0,5 m et 15° est récupéré ; le cas hors fenêtre de 3 m, 3 m, 70° reste
+en échec. CSV et protocole conservés. Le résultat sur le robot reste à vérifier,
+avec une incertitude des poses de référence à mesurer.
