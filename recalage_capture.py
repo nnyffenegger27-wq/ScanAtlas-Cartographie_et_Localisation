@@ -38,14 +38,15 @@ def recaler_capture(scans, reference=None, methode='Recherche large + ICP',
             info.update(reference=precedent.nom, pose_reference=list(precedent.pose),
                         rmse=r.rmse if r.rmse < float('inf') else None,
                         recouvrement=r.recouvrement, duree=r.duree, message=r.message)
-            accepte = (r.applicable and r.recouvrement >= .6 and r.rmse <= .10 and
-                       not (annuler is not None and annuler.is_set()))
+            # Même décision que le bouton Localiser : aucun seuil caché
+            # supplémentaire propre à l'acquisition.
+            accepte = r.applicable and not (annuler is not None and annuler.is_set())
             if accepte:
                 scan.pose = list(r.pose)
-                info.update(valide=True, etat='recalage', message='Pose appliquée automatiquement ; accord numérique accepté.')
+                info.update(valide=True, etat='recalage', message='Localisation automatique réussie : pose appliquée au nouveau scan.')
                 precedent = scan
             else:
-                info['message'] = ('Pose non appliquée : convergence, recouvrement ≥60 % et RMSE ≤0,10 m requis. '+r.message)
+                info['message'] = 'Échec de localisation automatique : '+r.message
                 interrompu = True
         except Exception as exc:
             info['message'] = 'Pose non appliquée : '+str(exc)

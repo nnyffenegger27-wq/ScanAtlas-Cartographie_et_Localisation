@@ -473,3 +473,31 @@ un mobile à pose inconnue initialisée à zéro retrouve sa vraie pose à envir
 2,9 mm et 0,049° près. Essai matériel USB toujours nécessaire. Une bonne RMSE
 ne prouve pas la pose correcte ; accumulation de dérive et faux alignements
 restent possibles. Aucun pilotage moteur ni mise à jour cartographique auto.
+
+
+## 3 novembre 2026 — Correction du retour et des critères de capture automatique
+
+Retour utilisateur : case cochée mais aucune superposition automatique visible.
+Le comportement attendu est confirmé : dernier scan déjà chargé comme référence,
+application de la pose au nouveau scan, message explicite si cela échoue.
+L’inspection trouve des seuils d’acceptation additionnels (60 % / 0,10 m) qui
+pouvaient rejeter un résultat pourtant applicable dans Localisation, ainsi qu’un
+retour limité à des compteurs. Sans la session de l’essai réel, la cause précise
+de cet échec n’est pas confirmée.
+
+Suppression des seuils propres à la capture : mêmes critères que Localiser.
+Affichage de la référence et des étapes réception/recalage ; succès avec pose
+appliquée et ouverture de Nuages, ou fenêtre d’échec avec motif. Premier scan
+explicitement présenté comme ancrage. Une exception du module ne perd plus les
+scans déjà reçus. Les scans non recalés restent visibles et décochés Carte.
+
+95 tests passent, dont un parcours complet depuis un flux série simulé, via
+le vrai décodeur CSV, la recherche large ICP, la file de messages et l’application
+de la pose. Simulation : erreur <1 cm et <0,1°, référence inchangée, passage
+à Nuages vérifié. Tests additionnels du motif d’échec, premier scan, exception
+et harmonisation des critères. L’essai sur le matériel réel reste nécessaire.
+
+Le dépôt avait évolué avant cette correction : ANGLE_REFERENCE_DEFAUT = 0°,
+modification utilisateur conservée. Les tests d’import/session suivent désormais
+la constante configurée ; la géométrie d’une référence explicite à 270° reste
+testée séparément. Pas de changement de filtrage ni d’algorithme multi-références.

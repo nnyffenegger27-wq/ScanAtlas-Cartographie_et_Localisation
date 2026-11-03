@@ -22,10 +22,10 @@ d'appliquer la pose, puis enregistrer la session. Guide, méthode et limites dan
 `python evaluer_localisation.py` exporte les erreurs vraies et les temps.
 La localisation sur grille et carte vectorielle reste à développer.
 
-## Repère robot depuis v0.2.0
+## Repère lidar actuel
 
-Pour les nouveaux imports/USB, **l'ancien 270° devient 0°** :
-`angle_local = angle_mesure - 270°`. La pose du robot reste un réglage séparé.
+Le dernier choix utilisateur dans le dépôt fixe `ANGLE_REFERENCE_DEFAUT = 0°`.
+`angle_local = angle_mesure - ANGLE_REFERENCE_DEFAUT`. La pose reste séparée.
 Cette référence est fixe, sans champ supplémentaire dans l'interface. Elle
 s'applique aussi aux scans réels des anciennes sessions ; les mesures restent
 intactes et les cartes doivent être recalculées. Les simulations gardent leur
@@ -151,7 +151,7 @@ et trois essais dans [SEGMENTS_MULTISCANS_ET_VECTORIELLE.md](SEGMENTS_MULTISCANS
 Le bouton **Importer des CSV ou un ZIP** accepte les exports
 `angle_deg,r_m,x_rel_m,y_rel_m`, avec pose optionnelle
 `# Robot position: x=...m, y=...m, theta=...deg`. Distances en mètres,
-repère de simulation neutre (aucun décalage LD06 de 270°). Les poses fournies
+repère de simulation neutre (aucune correction propre au LD06). Les poses fournies
 sont chargées et conservées séparément dans `pose_connue` pour l’évaluation ;
 ICP ne lit jamais cette métadonnée. Sans commentaire de pose, le départ est zéro.
 Pour évaluer un recalage, perturber volontairement la pose de départ : une
@@ -159,7 +159,7 @@ superposition grâce à l’en-tête n’est pas un résultat de localisation.
 
 MapTool ne fournit pas d’intensité : le filtre d’intensité est ignoré pour ces
 scans et l’information est affichée. Les filtres de distance restent actifs.
-Les acquisitions LD06 continuent à utiliser leur intensité et la référence 270°.
+Les acquisitions LD06 utilisent leur intensité et la référence fixe configurée dans le code (actuellement 0°).
 Les sessions conservent ces distinctions et l’export d’un scan MapTool conserve
 le format sans intensité. La pose exportée est la pose actuelle du scan ;
 la pose de référence d’origine est conservée séparément dans la session JSON.
@@ -186,9 +186,10 @@ chaque scan accepté devient la référence du suivant. En pratique, capturer un
 scan à chaque arrêt du robot, puis le déplacer avant la capture suivante.
 Les poses acceptées sont appliquées automatiquement, sans le bouton Appliquer.
 
-Acceptation automatique : convergence du solveur, ≥60 % de correspondances
-sous la distance d’appariement et RMSE de ces correspondances ≤0,10 m. Ces
-critères ne garantissent pas une erreur de pose réelle inférieure à 10 cm.
+Acceptation automatique : **exactement les mêmes critères que le bouton
+Localiser**, sans seuil supplémentaire de 60 % ou 0,10 m. Le solveur exige
+notamment convergence et correspondances suffisantes. Ces critères ne
+garantissent pas une pose vraie correcte.
 Sur échec, exception ou annulation du recalage, les données sont conservées ;
 la pose du scan concerné n’est pas remplacée, la chaîne est interrompue et les
 scans non recalés sont décochés Carte. Ils restent visibles, avec le motif dans
@@ -201,3 +202,15 @@ Si référence ou filtres changent pendant la capture, les poses calculées sont
 et les bilans par scan sont sauvegardés dans les sessions. Il ne s’agit pas
 encore d’un SLAM avec fermeture de boucle ; les erreurs successives peuvent
 s’accumuler. Les cartes se construisent avec leurs boutons habituels.
+
+
+### Résultat visible après capture
+
+Un état indique la référence choisie dès le lancement, puis « Capture terminée,
+localisation automatique en cours ». Si le calcul est accepté, la pose du nouveau
+scan est appliquée, le dernier scan est sélectionné et l’onglet Nuages affiche
+la superposition. Si le calcul échoue, une fenêtre **Échec de localisation
+automatique** donne le motif ; le scan reste disponible pour correction.
+Le premier scan d’une session vide affiche explicitement qu’il devient la
+référence et qu’aucune localisation n’est à effectuer. Les exceptions du module
+de recalage conservent également les scans déjà reçus.

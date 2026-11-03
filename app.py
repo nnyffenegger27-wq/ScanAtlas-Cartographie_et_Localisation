@@ -78,6 +78,9 @@ La démo est SIMULÉE et ne remplace jamais les scans réels demandés au TP.
 '''
 
 
+AIDE = AIDE.replace('270°', f'{ANGLE_REFERENCE_DEFAUT:g}°')
+
+
 class Atelier(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -863,7 +866,7 @@ class Atelier(tk.Tk):
                         variable=self.vars['auto_icp'], onvalue='1', offvalue='0',
                         command=lambda: self.info_capture.configure(text='Recalage automatique activé : les poses acceptées seront appliquées.'
                             if self.vars['auto_icp'].get() == '1' else 'Recalage automatique désactivé.')).pack(anchor='w', pady=6)
-        ttk.Label(cadre, text='Utilise la méthode et les fenêtres de Localisation, avec les filtres communs.\nDépart = pose du dernier scan chargé. Sans scan, le premier ancre le repère.\nAcceptation auto : convergence, recouvrement ≥60 % et RMSE ≤0,10 m.\nEn cas d’échec, les scans restent visibles et sont décochés Carte pour vérification.', wraplength=740).pack(anchor='w')
+        ttk.Label(cadre, text='Après réception : localise et déplace le nouveau scan sur le dernier scan déjà chargé.\nMéthode, fenêtres, filtres et critères identiques au bouton Localiser.\nSans scan précédent : le premier sert de référence, sans déplacement.\nEn cas d’échec, un message explique le motif ; les mesures sont conservées.', wraplength=740).pack(anchor='w')
         self.info_capture = ttk.Label(cadre, text='Recalage automatique désactivé par défaut.', wraplength=740)
         self.info_capture.pack(anchor='w', pady=4)
         self.bouton(cadre,'Capturer',self.lancer_capture)
@@ -901,13 +904,21 @@ class Atelier(tk.Tk):
         self.travail=True
         self.annuler.clear()
         self.statut.set('Capture en cours : attente d’un scan complet…')
+        self.info_capture.configure(text=(f'Auto activé · référence : scan {len(self.scans)} — {reference.nom}. Réception en cours…'
+            if automatique and reference is not None else 'Auto activé · premier scan : création de la référence.'
+            if automatique else 'Auto désactivé · capture sans localisation.'))
         def travail():
             try:
                 from acquisition import capturer
-                scans=capturer(port,int(baud),int(quantite),self.annuler,lambda s:self.messages.put(('statut',s)))
+                scans=capturer(port,int(baud),int(quantite),self.annuler,lambda s:self.messages.put(('capture_statut',s)))
                 if automatique and scans:
-                    scans = recaler_capture(scans, copie, methode=methode, annuler=self.annuler,
-                        progression=lambda s:self.messages.put(('statut',s)), **filtres, **options)
+                    self.messages.put(('capture_statut', f'Capture terminée : {len(scans)} scan(s) reçus. Localisation automatique en cours…'))
+                    try:
+                        scans = recaler_capture(scans, copie, methode=methode, annuler=self.annuler,
+                            progression=lambda s:self.messages.put(('capture_statut',s)), **filtres, **options)
+                    except Exception as exc:
+                        for s in scans:
+                            s.suivi_recalage = dict(valide=False, etat='erreur', message='Échec de localisation automatique : '+str(exc))
                     self.messages.put(('capture_recalee', (scans, reference, copie, filtres)))
                 else:
                     self.messages.put(('scans',scans))
@@ -938,11 +949,33 @@ class Atelier(tk.Tk):
             if not s.suivi_recalage['valide']:
                 self.inclus[i] = False
                 refus += 1
-        self.actualiser(debut)
-        texte = (f'{len(scans)} scan(s) reçus : {len(scans)-refus} ancré(s)/recalé(s), '
-                 f'{refus} à vérifier (décochés Carte). Enregistre la session.')
+        self.actualiser(len(self.scans)-1)
+        reussis = [s for s in scans if s.suivi_recalage.get('etat') == 'recalage' and s.suivi_recalage['valide']]
+        if refus:
+            motifs = [f'{i+1}. {s.nom} : {s.suivi_recalage.get("message", "Échec sans détail")}'
+                      for i,s in enumerate(scans) if not s.suivi_recalage['valide']]
+            texte = (f'Échec de localisation automatique pour {refus} scan(s). '
+                     'Mesures conservées, scans non recalés décochés Carte.\n'+'\n'.join(motifs[:3]))
+        elif reussis:
+            dernier = reussis[-1]
+            p = dernier.pose
+            texte = (f'Localisation automatique réussie : {len(reussis)} scan(s) déplacé(s). '
+                     f'Dernière pose : x={p[0]:.3f} m, y={p[1]:.3f} m, θ={p[2]:.2f}°. '
+                     'Vérifie la superposition et enregistre la session.')
+        else:
+            texte = 'Premier scan enregistré comme référence. Aucun scan précédent : aucune localisation à effectuer.'
         self.info_capture.configure(text=texte)
         self.statut.set(texte)
+        if refus:
+            messagebox.showwarning('Échec de localisation automatique', texte, parent=self)
+        elif reussis:
+            # Montrer la superposition réellement appliquée, pas seulement un compteur.
+            onglets = getattr(self, 'onglets', None)
+            if onglets is not None:
+                for tab in onglets.tabs():
+                    if onglets.tab(tab, 'text') == 'Nuages':
+                        onglets.select(tab)
+                        break
 
     def poll(self):
         try:
@@ -950,6 +983,9 @@ class Atelier(tk.Tk):
                 type_,data=self.messages.get_nowait()
                 if type_=='statut':
                     self.statut.set(data)
+                elif type_=='capture_statut':
+                    self.statut.set(data)
+                    self.info_capture.configure(text=data)
                 elif type_=='scans':
                     if data:
                         self.ajouter(data)

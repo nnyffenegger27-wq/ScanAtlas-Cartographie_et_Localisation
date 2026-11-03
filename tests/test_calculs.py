@@ -84,10 +84,9 @@ class Donnees(unittest.TestCase):
         np.testing.assert_allclose(s.points(),[[2,4]],atol=1e-10)
 
     def test_ajout_180_a_reference_90(self):
-        from cartographie import ANGLE_REFERENCE_DEFAUT
         mesures=np.array([[0,1,200],[90,2,200],[180,3,200],[270,4,200]])
         avant=Scan('avant',mesures,angle_reference=90.)
-        apres=Scan('apres',mesures,angle_reference=ANGLE_REFERENCE_DEFAUT)
+        apres=Scan('apres',mesures,angle_reference=270.)
         np.testing.assert_allclose(apres.points(),-avant.points(),atol=1e-10)
 
     def test_pose(self):
@@ -99,7 +98,8 @@ class Donnees(unittest.TestCase):
             p=Path(d)/'scan.csv'
             p.write_text('N,Angle(°),Distance(mm),Intensity,x(mm),y(mm)\n0,0,1000,200,1000,0\n1,90,500,200,0,-500\n\n0,180,2000,220,-2000,0\n',encoding='utf-8')
             scans=lire_csv(p)
-            self.assertEqual(scans[0].angle_reference,270.)
+            from cartographie import ANGLE_REFERENCE_DEFAUT
+            self.assertEqual(scans[0].angle_reference,ANGLE_REFERENCE_DEFAUT)
             self.assertEqual(len(scans),2)
             self.assertEqual(scans[0].mesures[0,1],1)
             exporter_scan(scans[0],p)

@@ -101,9 +101,11 @@ class AnciennesSessions(unittest.TestCase):
                     source='CSV réel/importé', angle_reference=0, inclus=True)])))
                 with patch('app.filedialog.askopenfilename',return_value=str(p)):
                     a.ouvrir_session()
-                self.assertEqual(a.scans[0].angle_reference,270.)
+                from cartographie import ANGLE_REFERENCE_DEFAUT
+                self.assertEqual(a.scans[0].angle_reference,ANGLE_REFERENCE_DEFAUT)
                 import numpy as np
-                np.testing.assert_allclose(a.scans[0].points(),[[1,0]],atol=1e-12)
+                angle=np.deg2rad(270.-ANGLE_REFERENCE_DEFAUT)
+                np.testing.assert_allclose(a.scans[0].points(),[[np.cos(angle),np.sin(angle)]],atol=1e-12)
                 self.assertEqual(a.scans[0].mesures[0,0],270.)
 
 
