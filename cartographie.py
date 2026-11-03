@@ -6,6 +6,8 @@ Une pose = (x, y, orientation). Un segment = tableau 2×2 : [premier, dernier po
 from dataclasses import dataclass, field
 from pathlib import Path
 import csv
+import re
+from zipfile import ZipFile
 import numpy as np
 
 EPS = 1e-8  # Tolérance géométrique en mètres ; angles comparés en radians.
@@ -19,6 +21,8 @@ class Scan:
     pose: list = field(default_factory=lambda: [0., 0., 0.])
     source: str = 'CSV réel/importé'
     angle_reference: float = 0.  # Géométrie neutre ; imports/USB utilisent 270°.
+    intensite_disponible: bool = True
+    pose_connue: list | None = None  # Métadonnée MapTool, jamais utilisée par ICP.
 
     def points(self):
         """Polaire -> repère lidar -> rotation et translation dans la carte."""
@@ -54,65 +58,114 @@ def diagnostic_scan(mesures):
                 tour_plausible=340. <= etendue <= 380. and lacune <= 10.)
 
 
-def lire_csv(chemin):
-    """Lit le CSV ESP32 (6 colonnes) ou notre export (3 colonnes).
+def lire_csv(chemin, contenu=None):
+    """Lit ESP32 (6 colonnes), notre export (3), MapTool (4) ou un ZIP de CSV.
 
     Les indices qui reviennent à zéro et les lignes vides séparent les scans.
     Un fragment importé reste possible : l'utilisateur doit vérifier sa complétude.
     Les lignes non reconnues ne sont jamais ignorées silencieusement.
     """
+    if contenu is None and Path(chemin).suffix.lower() == '.zip':
+        resultat = []
+        with ZipFile(chemin) as archive:
+            noms = sorted(n for n in archive.namelist() if n.lower().endswith('.csv') and not n.startswith('__MACOSX/'))
+            if not noms:
+                raise ValueError('Aucun fichier CSV dans cette archive.')
+            for nom in noms:
+                try:
+                    resultat.extend(lire_csv(nom, archive.read(nom).decode('utf-8-sig')))
+                except (ValueError, UnicodeError) as exc:
+                    raise ValueError(f'{nom} : {exc}') from exc
+        return resultat
+    texte = Path(chemin).read_text(encoding='utf-8-sig') if contenu is None else contenu.lstrip('\ufeff')
+    maptool = any(l.strip().lower() == 'angle_deg,r_m,x_rel_m,y_rel_m' for l in texte.splitlines())
+    pose = [0., 0., 0.]
+    pose_connue = None
+    if maptool:
+        for ligne in texte.splitlines():
+            if ligne.strip().lower().startswith('# robot position:'):
+                motif = r'#\s*Robot position:\s*x=([^,]+)m,\s*y=([^,]+)m,\s*theta=(.+)deg\s*'
+                m = re.fullmatch(motif, ligne.strip(), re.IGNORECASE)
+                if not m:
+                    raise ValueError('Pose MapTool invalide : x et y en mètres, theta en degrés attendus.')
+                try:
+                    pose = [float(v) for v in m.groups()]
+                except ValueError as exc:
+                    raise ValueError('Pose MapTool invalide.') from exc
+                if not np.isfinite(pose).all():
+                    raise ValueError('Pose MapTool non finie.')
+                pose_connue = list(pose)
     groupes, courant, precedent = [], [], None
     def terminer():
         nonlocal courant, precedent
         if courant:
             groupes.append(np.asarray(courant, dtype=float))
         courant, precedent = [], None
-    with open(chemin, encoding='utf-8-sig') as f:
-        for numero, ligne in enumerate(f, 1):
-            ligne = ligne.strip()
-            if not ligne:
-                terminer()
-                continue
-            if ligne.startswith('#') or ligne.lower().startswith(('n,', 'angle_deg,')):
-                continue
-            try:
-                valeurs = [float(v) for v in ligne.split(',')]
-                if not np.all(np.isfinite(valeurs)):
-                    raise ValueError('valeur non finie')
-                if len(valeurs) == 6:
-                    indice, angle, distance, intensite, _, _ = valeurs
-                    if indice < 0 or indice != int(indice):
-                        raise ValueError('indice invalide')
-                    if precedent is not None and indice <= precedent:
-                        terminer()
-                    precedent = indice
-                    distance /= 1000.  # Le CSV ESP32 est en mm.
-                elif len(valeurs) == 3:
-                    angle, distance, intensite = valeurs  # Notre export est en mètres.
-                else:
-                    raise ValueError('3 ou 6 colonnes attendues')
-                if distance < 0 or not 0 <= intensite <= 255:
-                    raise ValueError('distance ou intensité invalide')
-                courant.append((angle % 360., distance, intensite))
-            except ValueError as exc:
-                raise ValueError(f'Ligne {numero} : {exc}. CSV attendu, sans sortie Teleplot.') from exc
+    for numero, ligne in enumerate(texte.splitlines(), 1):
+        ligne = ligne.strip()
+        if not ligne:
+            terminer()
+            continue
+        if ligne.startswith('#') or ligne.lower().startswith(('n,', 'angle_deg,')):
+            continue
+        try:
+            valeurs = [float(v) for v in ligne.split(',')]
+            if not np.all(np.isfinite(valeurs)):
+                raise ValueError('valeur non finie')
+            if maptool:
+                if len(valeurs) != 4:
+                    raise ValueError('MapTool : 4 colonnes attendues')
+                angle, distance, x, y = valeurs
+                # x/y relatifs sont redondants ; vérifier le repère puis
+                # recalculer les coordonnées depuis angle et distance.
+                attendu = distance*np.array([np.cos(np.deg2rad(angle)), np.sin(np.deg2rad(angle))])
+                if not np.allclose(attendu, [x, y], atol=.001, rtol=0):
+                    raise ValueError('Coordonnées relatives MapTool incompatibles avec angle et distance')
+                intensite = 0.  # Valeur de stockage seulement, flag indisponible.
+            elif len(valeurs) == 6:
+                indice, angle, distance, intensite, _, _ = valeurs
+                if indice < 0 or indice != int(indice):
+                    raise ValueError('indice invalide')
+                if precedent is not None and indice <= precedent:
+                    terminer()
+                precedent = indice
+                distance /= 1000.  # Le CSV ESP32 est en mm.
+            elif len(valeurs) == 3:
+                angle, distance, intensite = valeurs  # Notre export est en mètres.
+            else:
+                raise ValueError('3 ou 6 colonnes attendues')
+            if distance < 0 or not 0 <= intensite <= 255:
+                raise ValueError('distance ou intensité invalide')
+            courant.append((angle % 360., distance, intensite))
+        except ValueError as exc:
+            raise ValueError(f'Ligne {numero} : {exc}. CSV attendu, sans sortie Teleplot.') from exc
     terminer()
     if not groupes:
         raise ValueError('Aucune mesure dans ce fichier.')
-    return [Scan(f'{Path(chemin).stem} / {i+1}', g,
-                 angle_reference=ANGLE_REFERENCE_DEFAUT) for i, g in enumerate(groupes)]
+    return [Scan(f'{Path(chemin).stem} / {i+1}', g, list(pose),
+                 source='SIMULATION MapTool — intensité non fournie' if maptool else 'CSV réel/importé',
+                 angle_reference=0. if maptool else ANGLE_REFERENCE_DEFAUT,
+                 intensite_disponible=not maptool,
+                 pose_connue=list(pose_connue) if pose_connue is not None else None) for i, g in enumerate(groupes)]
 
 
 def exporter_scan(scan, chemin):
     with open(chemin, 'w', newline='', encoding='utf-8') as f:
         w = csv.writer(f)
+        if not scan.intensite_disponible:
+            f.write(f'# Robot position: x={scan.pose[0]}m, y={scan.pose[1]}m, theta={scan.pose[2]}deg\n')
+            w.writerow(['angle_deg', 'r_m', 'x_rel_m', 'y_rel_m'])
+            a = np.deg2rad(scan.mesures[:, 0]-scan.angle_reference)
+            for (angle, distance, _), theta in zip(scan.mesures, a):
+                w.writerow([angle-scan.angle_reference, distance, distance*np.cos(theta), distance*np.sin(theta)])
+            return
         w.writerow(['angle_deg', 'distance_m', 'intensite'])
         w.writerows(scan.mesures)
 
 
 def mesures_valides(scan, mini=.05, maxi=12., intensite=0):
     m = scan.mesures
-    return np.isfinite(m).all(axis=1) & (m[:, 1] >= mini) & (m[:, 1] < maxi) & (m[:, 2] >= intensite)
+    return np.isfinite(m).all(axis=1) & (m[:, 1] >= mini) & (m[:, 1] < maxi) & ((m[:, 2] >= intensite) if scan.intensite_disponible else True)
 
 
 def produit_vectoriel(a, b):
@@ -332,7 +385,7 @@ def carte_vectorielle(scans, angle_max=8., distance_max=.12, retour_details=Fals
     details = dict(extraits=0, fusions=0, coupes=0, scans=len(scans))
     for scan in scans:
         valide = mesures_valides(scan, options.get('mini', .05), options.get('maxi', 12.), options.get('intensite', 0))
-        filtre = Scan(scan.nom, scan.mesures[valide], scan.pose, scan.source, scan.angle_reference)
+        filtre = Scan(scan.nom, scan.mesures[valide], scan.pose, scan.source, scan.angle_reference, scan.intensite_disponible)
         nettoyee = []
         for segment, supports in carte:
             morceaux, coupes = nettoyer_segments([segment], filtre,

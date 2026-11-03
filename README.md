@@ -2,7 +2,7 @@
 
 Application Python locale pour le TP EIGSI de cartographie et localisation lidar.
 
-- Acquisition USB et import CSV polaire.
+- Acquisition USB, import CSV LD06 / MapTool et import direct des ZIP de CSV.
 - Nuages multiscans en couleurs et poses indépendantes.
 - Grille d'occupation, segments et carte vectorielle.
 - Superposition automatique entre deux scans par ICP, aperçu avant/après et application de la pose.
@@ -144,3 +144,27 @@ La carte vectorielle fusionne sur les points d'origine avec contrôle de l'erreu
 de droite, puis traite prudemment les anciennes formes traversées par au moins
 trois nouveaux rayons de directions distinctes. Voir les méthodes, limites
 et trois essais dans [SEGMENTS_MULTISCANS_ET_VECTORIELLE.md](SEGMENTS_MULTISCANS_ET_VECTORIELLE.md).
+
+
+## Import MapTool du professeur
+
+Le bouton **Importer des CSV ou un ZIP** accepte les exports
+`angle_deg,r_m,x_rel_m,y_rel_m`, avec pose optionnelle
+`# Robot position: x=...m, y=...m, theta=...deg`. Distances en mètres,
+repère de simulation neutre (aucun décalage LD06 de 270°). Les poses fournies
+sont chargées et conservées séparément dans `pose_connue` pour l’évaluation ;
+ICP ne lit jamais cette métadonnée. Sans commentaire de pose, le départ est zéro.
+Pour évaluer un recalage, perturber volontairement la pose de départ : une
+superposition grâce à l’en-tête n’est pas un résultat de localisation.
+
+MapTool ne fournit pas d’intensité : le filtre d’intensité est ignoré pour ces
+scans et l’information est affichée. Les filtres de distance restent actifs.
+Les acquisitions LD06 continuent à utiliser leur intensité et la référence 270°.
+Les sessions conservent ces distinctions et l’export d’un scan MapTool conserve
+le format sans intensité. La pose exportée est la pose actuelle du scan ;
+la pose de référence d’origine est conservée séparément dans la session JSON.
+
+Validation de l’archive ScanJules fournie : 15 scans de 450 points, 6750 points
+au total, bornes globales proches de [0,2] × [0,3] m à l’arrondi près. Les
+coordonnées relatives sont vérifiées puis recalculées depuis angle et portée.
+82 tests passent, dont ZIP, pose non nulle, intensité absente et sessions.

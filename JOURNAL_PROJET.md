@@ -425,3 +425,26 @@ environ 0,154 s / 0,892 s sur l’environnement de test. Le cas décalé de
 1 m, 0,5 m et 15° est récupéré ; le cas hors fenêtre de 3 m, 3 m, 70° reste
 en échec. CSV et protocole conservés. Le résultat sur le robot reste à vérifier,
 avec une incertitude des poses de référence à mesurer.
+
+
+## 3 novembre 2026 — Import des CSV MapTool
+
+Prise en charge de l’archive ScanJules du professeur : 15 CSV, chacun de 450
+points, colonnes angle_deg,r_m,x_rel_m,y_rel_m et commentaire de pose. Les
+distances sont déjà en mètres et le repère est neutre : ne pas appliquer les
+270° du LD06. Les coordonnées relatives redondantes sont vérifiées à 1 mm
+puis les points sont recalculés. La pose de l’en-tête initialise le scan et
+reste conservée séparément dans pose_connue. ICP n’utilise pas pose_connue.
+
+Absence d’intensité : ajout d’un indicateur explicite ; stockage interne à 0
+sans prétendre à une mesure, filtre d’intensité ignoré pour MapTool uniquement.
+Propagation aux copies de localisation, sessions et export. L’import ZIP lit
+les CSV sans extraction sur disque. Les formats ESP32 à six colonnes et nos
+anciens CSV à trois colonnes restent acceptés.
+
+82 tests passent. Lecture des 6750 points réels de l’archive fournie : bornes
+globales environ (−0,000096, −0,000091) à (2,000096, 3,000081) m, cohérentes
+avec un domaine de 2 × 3 m et les arrondis. Aucun point supprimé par un seuil
+d’intensité 220 (car non disponible), filtres de distance par défaut inchangés.
+La pose du fichier est fournie par le simulateur : pour mesurer la localisation,
+il faut perturber la pose initiale et comparer au champ pose_connue.
