@@ -222,3 +222,13 @@ Localisation propose **Superposer le lot coché Carte**, dans l’ordre d’acqu
 ### Mode global 360° et groupes en attente — version actuelle
 
 Le mode par défaut est maintenant **Carte cumulée · recherche globale 360°** : premier scan fixe, recherche sur toute la carte connue, aucune fenêtre obligatoire de déplacement ou d’orientation. Dans Localisation, **Assembler tous les scans** recale la collection et garde les groupes non raccordés séparément. Acquisition USB utilise la même carte cumulée et peut reprendre après un scan refusé. La concordance est affichée avec le motif de refus éventuel. Lire [LOCALISATION_GLOBALE.md](LOCALISATION_GLOBALE.md) pour le fonctionnement, les tests et les limites. Les sections antérieures décrivent les étapes précédentes.
+
+### Objectif suivant : cartographie vectorielle pendant le déplacement
+
+L’objectif confirmé est le pilotage clavier via Wi-Fi avec acquisition et carte vectorielle en continu, puis l’autonomie. L’étude [ARCHITECTURE_TEMPS_REEL_WIFI.md](ARCHITECTURE_TEMPS_REEL_WIFI.md) compare les projets existants, attribue les inspirations et définit l’intégration : suivi local rapide, segments incrémentaux et relocalisation globale en arrière-plan. **Il s’agit du plan de développement : le pilotage Wi-Fi et moteur n’est pas encore implémenté.** Le point de départ comporte maintenant le test LD06 et le programme moteur MecanumCarV2 importé ensuite (I2C SDA 19 / SCL 21). Aucun des deux n’intègre encore la liaison Wi-Fi à ScanAtlas.
+
+### TP Jour 2 — les trois références et leur évaluation
+
+Un nouvel onglet **TP Localisation** propose la grille d’occupation, la carte vectorielle et un scan de référence. Deux stratégies par type : affinement local robuste, ou multi-résolution puis affinement. La carte doit être construite sans le scan mobile ; l’application contrôle cette exclusion. Le bouton d’évaluation exporte 42 essais simulés sur les mêmes scans et les mêmes poses initiales, avec erreurs vraies, temps, taux de réussite et faux acceptés. Lire [TP_JOUR2_RESULTATS.md](TP_JOUR2_RESULTATS.md).
+
+**Après mise à jour, relancer installer_windows.bat** pour installer SciPy, puis redémarrer l’application. Les nouvelles méthodes TP supposent une pose approchée ; le mode global 360° reste disponible séparément. Les essais réels avec incertitudes mesurées restent à réaliser.

@@ -21,6 +21,8 @@ from localisation import icp_scan, recherche_icp, points_filtres, transformer
 from recalage_capture import recaler_capture, recaler_lot
 from localisation_globale import localisation_globale, METHODE_GLOBALE
 from assemblage_global import assembler_scans
+from interface_tp import InterfaceTP
+from localisation_tp import LOCALE as TP_LOCALE, MULTI as TP_MULTI
 
 AIDE = '''PARCOURS CONSEILLÉ
 1. « Démonstration simulée » pour découvrir les vues sans matériel.
@@ -75,7 +77,7 @@ le nombre de points et l'étendue angulaire sont affichés pour contrôle.
 Les retours nuls, trop faibles ou à portée maximale sont ignorés, sans libérer
 les cellules du rayon. Les paramètres de segmentation demandent un réglage.
 La carte vectorielle est une première méthode heuristique, pas une topologie parfaite.
-La localisation sur grille et sur carte vectorielle reste à développer pour le jour 2.
+L’onglet TP Localisation compare grille, carte vectorielle et scan, avec export des erreurs vraies en simulation.
 La démo est SIMULÉE et ne remplace jamais les scans réels demandés au TP.
 '''
 
@@ -83,7 +85,7 @@ La démo est SIMULÉE et ne remplace jamais les scans réels demandés au TP.
 AIDE = AIDE.replace('270°', f'{ANGLE_REFERENCE_DEFAUT:g}°')
 
 
-class Atelier(tk.Tk):
+class Atelier(InterfaceTP, tk.Tk):
     def __init__(self):
         super().__init__()
         self.title('LD06 Atelier · Acquisition et cartographie 2D')
@@ -92,6 +94,7 @@ class Atelier(tk.Tk):
         self.scans, self.inclus, self.visibles = [], [], []
         self.grille, self.vecteurs = None, None
         self.scans_grille, self.parametres_grille = set(), None
+        self.scans_vecteurs=set()
         self.segments = []
         self.manipulation = None
         self.resultat_localisation = None
@@ -160,7 +163,7 @@ class Atelier(tk.Tk):
         self.onglets = ttk.Notebook(droite)
         self.onglets.pack(fill='both', expand=True)
         self.axes, self.canvas = {}, {}
-        for titre in ['Nuages', 'Grille', 'Segments', 'Carte vectorielle', 'Localisation', 'Acquisition USB']:
+        for titre in ['Nuages', 'Grille', 'Segments', 'Carte vectorielle', 'Localisation', 'TP Localisation', 'Acquisition USB']:
             cadre = ttk.Frame(self.onglets, padding=8)
             self.onglets.add(cadre, text=titre)
             if titre == 'Acquisition USB':
@@ -168,7 +171,9 @@ class Atelier(tk.Tk):
                 continue
             barre = ttk.Frame(cadre)
             barre.pack(fill='x')
-            if titre == 'Localisation':
+            if titre == 'TP Localisation':
+                self.interface_tp(barre)
+            elif titre == 'Localisation':
                 self.interface_localisation(barre)
             elif titre == 'Grille':
                 self.champ(barre, 'resolution', 'Résolution (m/cellule)', .05)
@@ -277,6 +282,7 @@ class Atelier(tk.Tk):
             self.info.configure(text='Aucun scan sélectionné')
         self.dessiner_nuages()
         self.actualiser_choix_localisation()
+        if hasattr(self,'choix_reference_tp'): self.actualiser_choix_tp()
 
     def selection(self, event=None):
         self.annuler_geste()
@@ -383,6 +389,9 @@ class Atelier(tk.Tk):
 
     def invalider(self, conserver_grille=False):
         self.resultat_localisation = None
+        self.resultat_tp=None
+        self.scans_vecteurs=set()
+        if 'TP Localisation' in self.axes: self.effacer('TP Localisation','Choisir une référence et localiser le scan mobile')
         if 'Localisation' in self.axes:
             self.effacer('Localisation', 'Choisir deux scans et lancer le recalage ICP')
         self.vecteurs, self.segments = None, []
@@ -541,6 +550,7 @@ class Atelier(tk.Tk):
             raise ValueError('Angle entre 0 et 90°, distance positive ou nulle.')
         scans = self.choisis()
         self.vecteurs, bilan = carte_vectorielle(scans, a, d, retour_details=True, **self.options_segments())
+        self.scans_vecteurs={id(s) for s in scans}
         fonds = [s.points()[mesures_valides(s, **self.filtres())] for s in scans]
         self.tracer_segments('Carte vectorielle', self.vecteurs, np.vstack(fonds))
         self.axes['Carte vectorielle'].set_title(f"{len(self.vecteurs)} segments de carte · {len(scans)} scans · {bilan['fusions']} fusions · {bilan['coupes']} coupes")
@@ -675,6 +685,9 @@ class Atelier(tk.Tk):
         if methode == 'Recherche large + ICP': methode = METHODE_GLOBALE
         if methode not in ('ICP local', 'Recherche large + ICP', METHODE_GLOBALE):
             raise ValueError('Méthode de localisation inconnue dans la session.')
+        tp_type=parametres.get('tp_reference','Grille');tp_methode=parametres.get('tp_methode',TP_MULTI)
+        if tp_type not in ('Grille','Carte vectorielle','Scan') or tp_methode not in (TP_LOCALE,TP_MULTI):
+            raise ValueError('Paramètres de localisation TP invalides.')
         auto = str(parametres.get('auto_icp', '0'))
         if auto not in ('0', '1'):
             raise ValueError('Option de recalage automatique invalide.')
@@ -688,6 +701,8 @@ class Atelier(tk.Tk):
                 else: self.reglages_fenetres.pack_forget()
         if 'auto_icp' in self.vars:
             self.vars['auto_icp'].set(auto)
+        if 'tp_reference' in self.vars: self.vars['tp_reference'].set(tp_type)
+        if 'tp_methode' in self.vars: self.vars['tp_methode'].set(tp_methode)
         self.invalider()
         self.actualiser()
         self.statut.set('Session ouverte. Recalcule les cartes avec les boutons dédiés.')
@@ -1155,6 +1170,13 @@ class Atelier(tk.Tk):
                     self.statut.set(data)
                     if hasattr(self, 'info_localisation'):
                         self.info_localisation.configure(text=data)
+                elif type_=='tp_statut':
+                    self.info_tp.configure(text=data)
+                    self.statut.set(data)
+                elif type_=='tp_resultat':
+                    self.recevoir_localisation_tp(data)
+                elif type_=='tp_evaluation':
+                    self.recevoir_evaluation_tp(data)
                 elif type_=='lot':
                     self.recevoir_lot(data)
                 elif type_=='localisation':
