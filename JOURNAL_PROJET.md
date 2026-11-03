@@ -448,3 +448,28 @@ avec un domaine de 2 × 3 m et les arrondis. Aucun point supprimé par un seuil
 d’intensité 220 (car non disponible), filtres de distance par défaut inchangés.
 La pose du fichier est fournie par le simulateur : pour mesurer la localisation,
 il faut perturber la pose initiale et comparer au champ pose_connue.
+
+
+## 3 novembre 2026 — Option ICP après capture USB
+
+Ajout d’une case à cocher dans Acquisition USB, désactivée initialement :
+recaler automatiquement chaque nouveau scan sur le dernier scan de la liste.
+Réutilisation de la méthode et des fenêtres de Localisation et des filtres
+communs. Capture du lot puis fermeture du port avant calcul afin de ne pas
+ralentir la réception série. Sans référence, le premier scan ancre le repère ;
+les suivants partent de la pose précédente. Application automatique autorisée
+par l’option, avec convergence, recouvrement ≥60 % et RMSE ≤0,10 m.
+
+Après un échec ou annulation de recalage, les mesures restent conservées, la
+chaîne s’arrête et les nouveaux scans non recalés sont décochés Carte, visibles
+pour correction. Les résultats périmés après modification de référence/filtres
+sont écartés sans perdre les données. Suivi numérique sauvegardé par scan.
+Une correction explicite de pose enlève le blocage de référence non validée.
+
+90 tests passent. Cas vérifiés : ancrage, référence du prédécesseur, absence
+de mutation des entrées, exception, qualité insuffisante, annulation, option
+désactivée/activée et rejet de résultat périmé. Sur deux acquisitions simulées,
+un mobile à pose inconnue initialisée à zéro retrouve sa vraie pose à environ
+2,9 mm et 0,049° près. Essai matériel USB toujours nécessaire. Une bonne RMSE
+ne prouve pas la pose correcte ; accumulation de dérive et faux alignements
+restent possibles. Aucun pilotage moteur ni mise à jour cartographique auto.

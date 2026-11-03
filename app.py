@@ -2,6 +2,7 @@
 Les calculs du TP sont dans cartographie.py ; l'USB dans acquisition.py.
 """
 import csv
+from copy import deepcopy
 import json
 from pathlib import Path
 import queue
@@ -17,6 +18,7 @@ from cartographie import (Scan, Grille, lire_csv, exporter_scan, demonstration,
 from cartographie import ANGLE_REFERENCE_DEFAUT, diagnostic_scan
 from manipulation import ManipulationScan
 from localisation import icp_scan, recherche_icp, points_filtres, transformer
+from recalage_capture import recaler_capture
 
 AIDE = '''PARCOURS CONSEILLÉ
 1. « Démonstration simulée » pour découvrir les vues sans matériel.
@@ -280,6 +282,8 @@ class Atelier(tk.Tk):
             self.vars[k].set(str(round(v,5)))
         d = diagnostic_scan(s.mesures)
         precision = '\nIntensité absente : ce filtre est ignoré.' if not s.intensite_disponible else ''
+        if s.suivi_recalage:
+            precision += '\nAuto : '+str(s.suivi_recalage.get('message', ''))
         self.info.configure(text=f"{s.source}\n{d['points']} points · étendue ≈ {d['etendue']:.1f}°\n{d['etat']} · écart max {d['pas_max']:.1f}°{precision}")
 
     def clic_liste(self, event):
@@ -352,6 +356,7 @@ class Atelier(tk.Tk):
 
     def fin_geste(self):
         scan = self.scans[self.indice()]
+        scan.suivi_recalage = None
         self.invalider(conserver_grille=id(scan) not in self.scans_grille)
         self.statut.set('Pose modifiée à la souris. Recalcule les cartes, puis enregistre la session.')
 
@@ -360,6 +365,7 @@ class Atelier(tk.Tk):
         s = self.scans[self.indice()]
         nouvelle_pose = [self.nombre(k) for k in ['x','y','orientation']]
         s.pose = nouvelle_pose
+        s.suivi_recalage = None
         self.invalider(conserver_grille=id(s) not in self.scans_grille)
         self.dessiner_nuages()
         self.statut.set('Pose appliquée. Recalcule les cartes pour utiliser cette nouvelle pose.')
@@ -600,7 +606,8 @@ class Atelier(tk.Tk):
             contenu = dict(version=2, parametres={k:v.get() for k,v in self.vars.items() if k not in ['x','y','orientation','reference']},
                            scans=[dict(nom=s.nom,mesures=s.mesures.tolist(),pose=s.pose,source=s.source,
                                        angle_reference=s.angle_reference,inclus=oui,visible=visible,
-                                       intensite_disponible=s.intensite_disponible,pose_connue=s.pose_connue)
+                                       intensite_disponible=s.intensite_disponible,pose_connue=s.pose_connue,
+                                       suivi_recalage=s.suivi_recalage)
                                   for s,oui,visible in zip(self.scans,self.inclus,self.visibles)])
             Path(p).write_text(json.dumps(contenu,ensure_ascii=False,indent=2),encoding='utf-8')
             self.statut.set('Session enregistrée : mesures originales, sources, poses et paramètres. Les cartes se recalculent.')
@@ -633,6 +640,10 @@ class Atelier(tk.Tk):
                 connue = connue.tolist()
             scans.append(Scan(str(d['nom']),m,pose.tolist(),str(d['source']),reference,
                               bool(d.get('intensite_disponible', 'MapTool' not in str(d['source']))), connue))
+            suivi = d.get('suivi_recalage')
+            if suivi is not None and (not isinstance(suivi, dict) or not isinstance(suivi.get('valide'), bool)):
+                raise ValueError('Suivi de recalage automatique invalide.')
+            scans[-1].suivi_recalage = suivi
             inclus.append(bool(d['inclus']))
             visibles.append(bool(d.get('visible', d['inclus'])))
         parametres = data.get('parametres',{})
@@ -656,11 +667,16 @@ class Atelier(tk.Tk):
         methode = parametres.get('icp_methode', 'Recherche large + ICP')
         if methode not in ('ICP local', 'Recherche large + ICP'):
             raise ValueError('Méthode de localisation inconnue dans la session.')
+        auto = str(parametres.get('auto_icp', '0'))
+        if auto not in ('0', '1'):
+            raise ValueError('Option de recalage automatique invalide.')
         self.scans,self.inclus,self.visibles=scans,inclus,visibles
         for k,v in nouveaux.items():
             self.vars[k].set(str(v))
         if 'icp_methode' in self.vars:
             self.vars['icp_methode'].set(methode)
+        if 'auto_icp' in self.vars:
+            self.vars['auto_icp'].set(auto)
         self.invalider()
         self.actualiser()
         self.statut.set('Session ouverte. Recalcule les cartes avec les boutons dédiés.')
@@ -756,12 +772,7 @@ class Atelier(tk.Tk):
         except ValueError:
             return False
 
-    def lancer_localisation(self):
-        if self.travail:
-            raise ValueError('Un calcul ou une capture est déjà en cours.')
-        self.annuler_geste()
-        reference, mobile = self.paire_localisation()
-        filtres = self.filtres()
+    def parametres_recalage(self):
         distance, iterations = self.nombre('icp_distance'), self.nombre('icp_iterations')
         if distance <= 0 or iterations != int(iterations) or not 1 <= iterations <= 300:
             raise ValueError('Distance positive et nombre entier d’itérations entre 1 et 300 requis.')
@@ -771,10 +782,19 @@ class Atelier(tk.Tk):
             xy, angle = self.nombre('icp_fenetre_xy'), self.nombre('icp_fenetre_angle')
             if not 0 < xy <= 3 or not 0 < angle <= 90:
                 raise ValueError('Les fenêtres doivent être positives, jusqu’à 3 m et 90°.')
-            options = dict(fenetre_xy=xy, fenetre_angle=angle,
-                           progression=lambda s: self.messages.put(('statut', s)))
+            options = dict(fenetre_xy=xy, fenetre_angle=angle)
         elif methode != 'ICP local':
             raise ValueError('Méthode de localisation inconnue.')
+        options.update(distance_max=distance, iterations_max=int(iterations))
+        return methode, options
+
+    def lancer_localisation(self):
+        if self.travail:
+            raise ValueError('Un calcul ou une capture est déjà en cours.')
+        self.annuler_geste()
+        reference, mobile = self.paire_localisation()
+        filtres = self.filtres()
+        methode, options = self.parametres_recalage()
         ref = Scan(reference.nom, reference.mesures.copy(), list(reference.pose), reference.source, reference.angle_reference, reference.intensite_disponible)
         mob = Scan(mobile.nom, mobile.mesures.copy(), list(mobile.pose), mobile.source, mobile.angle_reference, mobile.intensite_disponible)
         contexte = (reference, mobile, ref.pose, mob.pose, ref.mesures, mob.mesures, filtres)
@@ -786,8 +806,7 @@ class Atelier(tk.Tk):
         def travail():
             try:
                 calcul = recherche_icp if methode == 'Recherche large + ICP' else icp_scan
-                resultat = calcul(mob, ref, **filtres, distance_max=distance,
-                                  iterations_max=int(iterations), annuler=self.annuler, **options)
+                resultat = calcul(mob, ref, **filtres, annuler=self.annuler, **options)
                 self.messages.put(('localisation', (contexte, resultat, ref, mob)))
             except Exception as exc:
                 self.messages.put(('erreur', str(exc)))
@@ -822,6 +841,7 @@ class Atelier(tk.Tk):
             raise ValueError('Ce recalage n’est pas applicable. '+resultat.message)
         mobile = contexte[1]
         mobile.pose = list(resultat.pose)
+        mobile.suivi_recalage = None
         self.invalider(conserver_grille=id(mobile) not in self.scans_grille)
         self.actualiser(next(i for i, s in enumerate(self.scans) if s is mobile))
         self.info_localisation.configure(text='Pose appliquée au mobile. Référence inchangée. Enregistre la session ; recalcule les cartes concernées.')
@@ -838,6 +858,14 @@ class Atelier(tk.Tk):
         self.bouton(cadre,'Actualiser la liste des ports',self.actualiser_ports)
         self.champ(cadre,'baud','Baud ESP32 → PC (Serial.begin)',115200)
         self.champ(cadre,'quantite','Nombre de scans à capturer (1 à 20)',1)
+        self.vars['auto_icp'] = tk.StringVar(value='0')
+        ttk.Checkbutton(cadre, text='Recaler automatiquement chaque nouveau scan sur le précédent (ICP)',
+                        variable=self.vars['auto_icp'], onvalue='1', offvalue='0',
+                        command=lambda: self.info_capture.configure(text='Recalage automatique activé : les poses acceptées seront appliquées.'
+                            if self.vars['auto_icp'].get() == '1' else 'Recalage automatique désactivé.')).pack(anchor='w', pady=6)
+        ttk.Label(cadre, text='Utilise la méthode et les fenêtres de Localisation, avec les filtres communs.\nDépart = pose du dernier scan chargé. Sans scan, le premier ancre le repère.\nAcceptation auto : convergence, recouvrement ≥60 % et RMSE ≤0,10 m.\nEn cas d’échec, les scans restent visibles et sont décochés Carte pour vérification.', wraplength=740).pack(anchor='w')
+        self.info_capture = ttk.Label(cadre, text='Recalage automatique désactivé par défaut.', wraplength=740)
+        self.info_capture.pack(anchor='w', pady=4)
         self.bouton(cadre,'Capturer',self.lancer_capture)
         self.bouton(cadre,'Annuler la capture',self.annuler.set)
         ttk.Label(cadre,text='Garde le lidar immobile. Les scans reçus sont ajoutés à la liste ; exporte-les ensuite.\nLe port se ferme automatiquement en fin de capture. Le délai maximal est de 40 s.\nLa capture attend le début d’un scan et rejette les blocs incomplets.\nCapture : étendue ≥340°. Les blocs de plusieurs tours sont conservés avec une information.',wraplength=740).pack(anchor='w',pady=15)
@@ -860,6 +888,16 @@ class Atelier(tk.Tk):
         baud, quantite = self.nombre('baud'), self.nombre('quantite')
         if not port or baud != int(baud) or baud<=0 or quantite != int(quantite) or not 1<=quantite<=20:
             raise ValueError('Indique un port, un baud entier positif et 1 à 20 scans.')
+        self.annuler_geste()
+        automatique = self.vars['auto_icp'].get() == '1'
+        reference = self.scans[-1] if self.scans else None
+        copie = deepcopy(reference)
+        methode, options, filtres = None, {}, {}
+        if automatique:
+            if reference is not None and reference.suivi_recalage and not reference.suivi_recalage['valide']:
+                raise ValueError('Le dernier scan n’est pas recalé. Corrige sa pose manuellement ou dans Localisation avant de reprendre le recalage automatique.')
+            methode, options = self.parametres_recalage()
+            filtres = self.filtres()
         self.travail=True
         self.annuler.clear()
         self.statut.set('Capture en cours : attente d’un scan complet…')
@@ -867,12 +905,44 @@ class Atelier(tk.Tk):
             try:
                 from acquisition import capturer
                 scans=capturer(port,int(baud),int(quantite),self.annuler,lambda s:self.messages.put(('statut',s)))
-                self.messages.put(('scans',scans))
+                if automatique and scans:
+                    scans = recaler_capture(scans, copie, methode=methode, annuler=self.annuler,
+                        progression=lambda s:self.messages.put(('statut',s)), **filtres, **options)
+                    self.messages.put(('capture_recalee', (scans, reference, copie, filtres)))
+                else:
+                    self.messages.put(('scans',scans))
             except Exception as exc:
                 self.messages.put(('erreur',str(exc)))
             finally:
                 self.messages.put(('fini',None))
         threading.Thread(target=travail,daemon=True).start()
+
+    def recevoir_capture_recalee(self, data):
+        scans, reference, copie, filtres = data
+        try:
+            actuel = self.scans[-1] if self.scans else None
+            contexte_valide = (actuel is reference and self.filtres() == filtres and
+                (reference is None or (np.array_equal(reference.pose, copie.pose) and
+                 np.array_equal(reference.mesures, copie.mesures) and
+                 reference.angle_reference == copie.angle_reference)))
+        except ValueError:
+            contexte_valide = False
+        if not contexte_valide:
+            for s in scans:
+                s.pose = [0., 0., 0.]
+                s.suivi_recalage = dict(valide=False, etat='perime', message='Référence ou filtres modifiés pendant la capture ; recalage écarté, mesures conservées.')
+        debut = len(self.scans)
+        self.ajouter(scans)
+        refus = 0
+        for i, s in enumerate(scans, debut):
+            if not s.suivi_recalage['valide']:
+                self.inclus[i] = False
+                refus += 1
+        self.actualiser(debut)
+        texte = (f'{len(scans)} scan(s) reçus : {len(scans)-refus} ancré(s)/recalé(s), '
+                 f'{refus} à vérifier (décochés Carte). Enregistre la session.')
+        self.info_capture.configure(text=texte)
+        self.statut.set(texte)
 
     def poll(self):
         try:
@@ -892,6 +962,8 @@ class Atelier(tk.Tk):
                         self.info_localisation.configure(text=data)
                 elif type_=='localisation':
                     self.recevoir_localisation(data)
+                elif type_=='capture_recalee':
+                    self.recevoir_capture_recalee(data)
                 elif type_=='fini':
                     self.travail=False
         except queue.Empty:
