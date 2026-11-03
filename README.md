@@ -7,6 +7,7 @@ Application Python locale pour le TP EIGSI de cartographie et localisation lidar
 - Grille d'occupation, segments et carte vectorielle.
 - Superposition automatique entre deux scans par ICP, aperçu avant/après et application de la pose.
 - Mesures originales conservées et exports reproductibles.
+- Pilotage clavier en Wi-Fi via hotspot ESP32, scans continus et carte vectorielle incrémentale.
 
 ## Démarrer
 
@@ -20,7 +21,8 @@ défaut, réglables) et **ICP local** pour recaler un mobile sur un scan fixe. L
 d'appliquer la pose, puis enregistrer la session. Guide, méthode et limites dans
 [LOCALISATION_JOUR2.md](LOCALISATION_JOUR2.md). L'évaluation reproductible
 `python evaluer_localisation.py` exporte les erreurs vraies et les temps.
-La localisation sur grille et carte vectorielle reste à développer.
+L'onglet **TP Localisation** ajoute aussi les références grille et carte
+vectorielle ; résultats dans [TP_JOUR2_RESULTATS.md](TP_JOUR2_RESULTATS.md).
 
 ## Repère lidar actuel
 
@@ -223,9 +225,19 @@ Localisation propose **Superposer le lot coché Carte**, dans l’ordre d’acqu
 
 Le mode par défaut est maintenant **Carte cumulée · recherche globale 360°** : premier scan fixe, recherche sur toute la carte connue, aucune fenêtre obligatoire de déplacement ou d’orientation. Dans Localisation, **Assembler tous les scans** recale la collection et garde les groupes non raccordés séparément. Acquisition USB utilise la même carte cumulée et peut reprendre après un scan refusé. La concordance est affichée avec le motif de refus éventuel. Lire [LOCALISATION_GLOBALE.md](LOCALISATION_GLOBALE.md) pour le fonctionnement, les tests et les limites. Les sections antérieures décrivent les étapes précédentes.
 
-### Objectif suivant : cartographie vectorielle pendant le déplacement
+### Pilotage Wi-Fi et cartographie pendant le déplacement
 
-L’objectif confirmé est le pilotage clavier via Wi-Fi avec acquisition et carte vectorielle en continu, puis l’autonomie. L’étude [ARCHITECTURE_TEMPS_REEL_WIFI.md](ARCHITECTURE_TEMPS_REEL_WIFI.md) compare les projets existants, attribue les inspirations et définit l’intégration : suivi local rapide, segments incrémentaux et relocalisation globale en arrière-plan. **Il s’agit du plan de développement : le pilotage Wi-Fi et moteur n’est pas encore implémenté.** Le point de départ comporte maintenant le test LD06 et le programme moteur MecanumCarV2 importé ensuite (I2C SDA 19 / SCL 21). Aucun des deux n’intègre encore la liaison Wi-Fi à ScanAtlas.
+L'onglet **Robot Wi-Fi** et le firmware `firmware/ScanAtlas_WiFi` implémentent
+maintenant le hotspot **ScanAtlas** (mot de passe **ScanAtlas2026**, adresse
+**192.168.4.1**), les commandes clavier et la carte vectorielle incrémentale.
+Guide de flash, connexion, tests et limites : [PILOTAGE_WIFI.md](PILOTAGE_WIFI.md).
+Le firmware a été compilé pour ESP32 classique, core Arduino **2.0.17**.
+Les essais matériels restent à réaliser ; pas encore de navigation autonome.
+Pour essayer sans matériel : `python simuler_robot_wifi.py`, puis adresse
+`127.0.0.1` dans Robot Wi-Fi. Les dossiers moteur et lidar d'origine sont conservés.
+L'étude [ARCHITECTURE_TEMPS_REEL_WIFI.md](ARCHITECTURE_TEMPS_REEL_WIFI.md)
+reste la référence pour les étapes suivantes, notamment odométrie,
+relocalisation globale en arrière-plan et autonomie.
 
 ### TP Jour 2 — les trois références et leur évaluation
 
