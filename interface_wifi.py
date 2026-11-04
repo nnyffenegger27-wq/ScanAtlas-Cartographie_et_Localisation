@@ -87,6 +87,7 @@ class InterfaceWifi:
         from manette import ManetteXbox
         self.manette=ManetteXbox()
         self.wifi_demo_process=None
+        self.wifi_en_demo=False;self.wifi_avant_demo=None
         self.wifi_journal=None
         entete=ttk.Frame(cadre);entete.pack(fill='x',pady=(2,10))
         ttk.Label(entete,text='Robot en direct',style='Titre.TLabel').pack(side='left')
@@ -98,7 +99,8 @@ class InterfaceWifi:
         ttk.Button(liaison,text='Connecter',command=self.wifi_connecter,style='Accent.TButton').pack(side='left')
         ttk.Button(liaison,text='Déconnecter',command=self.wifi_deconnecter,style='Ghost.TButton').pack(side='left',padx=(4,0))
         ttk.Button(entete,text='ARRÊT · ESPACE',command=self.wifi_arreter,style='Danger.TButton').pack(side='right')
-        ttk.Button(entete,text='Démonstration',command=self.wifi_demo).pack(side='right',padx=8)
+        self.wifi_bouton_demo=ttk.Button(entete,text='Démonstration',command=self.wifi_demo)
+        self.wifi_bouton_demo.pack(side='right',padx=8)
         self.wifi_badge=ttk.Label(entete,text='HORS CONNEXION',style='Badge.TLabel')
         self.wifi_badge.pack(side='right',padx=8)
         self.wifi_panes=ttk.Panedwindow(cadre,orient='horizontal')
@@ -226,13 +228,47 @@ class InterfaceWifi:
             self.wifi_info.set('Session directe enregistrée ; ouvrir dans Cartographie pour la reprendre.')
 
     def wifi_demo(self):
+        """Démarre le robot simulé, ou en sort si la démonstration est déjà en cours (le bouton sert de bascule)."""
+        if self.wifi_en_demo:
+            self.wifi_quitter_demo()
+            return
         import subprocess,sys
         from pathlib import Path
         self.wifi_deconnecter()
+        # La liaison, l'adresse et la carte réelles sont mises de côté et rendues en quittant la démonstration.
+        self.wifi_avant_demo=(self.wifi_liaison.get(),self.wifi_hote.get(),self.wifi_carte,self.wifi_etat)
+        self.wifi_carte=None;self.wifi_etat=None;self.wifi_vider_affichage()
         if self.wifi_demo_process is None or self.wifi_demo_process.poll() is not None:
             self.wifi_demo_process=subprocess.Popen([sys.executable,str(Path(__file__).with_name('simuler_robot_wifi.py'))])
+        self.wifi_en_demo=True
+        self.wifi_bouton_demo.configure(text='Quitter la démo')
         self.wifi_liaison.set('Wi-Fi');self.wifi_hote.set('127.0.0.1')
-        self.after(800,self.wifi_connecter)
+        self.wifi_info.set('Démonstration : robot simulé sur ce PC. « Quitter la démo » ou « Déconnecter » rend la main au vrai robot.')
+        self.after(800,lambda:self.wifi_en_demo and self.wifi_connecter())
+
+    def wifi_quitter_demo(self):
+        """Arrête le robot simulé, rend l'adresse et la carte d'avant la démonstration."""
+        self.wifi_en_demo=False
+        self.wifi_deconnecter()
+        if self.wifi_demo_process is not None and self.wifi_demo_process.poll() is None:
+            self.wifi_demo_process.terminate()
+        self.wifi_demo_process=None
+        self.wifi_bouton_demo.configure(text='Démonstration')
+        if self.wifi_avant_demo is not None:
+            liaison,hote,carte,etat=self.wifi_avant_demo
+            self.wifi_avant_demo=None
+            self.wifi_liaison.set(liaison);self.wifi_hote.set(hote)
+            self.wifi_carte,self.wifi_etat=carte,etat
+            self.wifi_vider_affichage()
+            if etat is not None:self.wifi_dessiner(etat)
+        self.wifi_info.set('Démonstration terminée ; adresse du robot rétablie.')
+
+    def wifi_vider_affichage(self):
+        self.wifi_axes.clear()
+        self.wifi_artistes=None
+        self.wifi_image_grille=None
+        self.wifi_grille_affichee=None
+        self.wifi_canvas.draw_idle()
 
     def wifi_liaison_changer(self):
         """Wi-Fi ↔ USB : propose la valeur usuelle du champ sans écraser une saisie personnalisée."""
@@ -351,6 +387,9 @@ class InterfaceWifi:
                 self.wifi_relance=self.after(500,self.wifi_reconnecter)
 
     def wifi_deconnecter(self, automatique=False):
+        if self.wifi_en_demo and not automatique:
+            self.wifi_quitter_demo()   # « Déconnecter » pendant la démonstration en sort aussi
+            return
         if not automatique:
             self.wifi_tentatives=0
             if self.wifi_relance is not None:
@@ -433,11 +472,7 @@ class InterfaceWifi:
         self.wifi_deconnecter()
         self.wifi_carte = None
         self.wifi_etat = None
-        self.wifi_axes.clear()
-        self.wifi_artistes = None
-        self.wifi_image_grille = None
-        self.wifi_grille_affichee = None
-        self.wifi_canvas.draw_idle()
+        self.wifi_vider_affichage()
         if connecte:
             # Le firmware libère son bail après 300 ms.
             self.after(650, self.wifi_connecter)

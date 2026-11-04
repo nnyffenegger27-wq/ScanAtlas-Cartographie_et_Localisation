@@ -102,6 +102,9 @@ La démo est SIMULÉE et ne remplace jamais les scans réels demandés au TP.
 AIDE = AIDE.replace('270°', f'{ANGLE_REFERENCE_DEFAUT:g}°')
 
 
+SCANS_DETAIL = 25  # au-delà, le nuage est dessiné d'un seul bloc (voir dessiner_nuages)
+
+
 class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
     def __init__(self):
         super().__init__()
@@ -512,18 +515,43 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
             filtres = dict(mini=.05, maxi=12., intensite=0)
         from matplotlib import colormaps
         nombre = max(len(self.scans), 1)
-        for i, s in enumerate(self.scans):
-            if not self.visibles[i]:
-                continue
-            couleur = colormaps['hsv'](i/nombre*.85)
-            pts = s.points()[mesures_valides(s, **filtres)]
-            ax.scatter(pts[:,0], pts[:,1], s=5, color=couleur, label=s.nom)
-            a = np.deg2rad(s.pose[2])
-            ax.plot(*s.pose[:2], marker='x', color=couleur)
-            ax.arrow(*s.pose[:2], .3*np.cos(a), .3*np.sin(a), width=.012, color=couleur)
-        if any(self.visibles):
-            ax.legend(fontsize=8, loc='upper right')
-        ax.set_title('Scans visibles dans leur pose — coordonnées recalculées depuis angle et distance')
+        visibles = [i for i in range(len(self.scans)) if self.visibles[i]]
+        if len(visibles) <= SCANS_DETAIL:
+            for i in visibles:
+                s = self.scans[i]
+                couleur = colormaps['hsv'](i/nombre*.85)
+                pts = s.points()[mesures_valides(s, **filtres)]
+                ax.scatter(pts[:,0], pts[:,1], s=5, color=couleur, label=s.nom)
+                a = np.deg2rad(s.pose[2])
+                ax.plot(*s.pose[:2], marker='x', color=couleur)
+                ax.arrow(*s.pose[:2], .3*np.cos(a), .3*np.sin(a), width=.012, color=couleur)
+            if visibles:
+                ax.legend(fontsize=8, loc='upper right')
+            ax.set_title('Scans visibles dans leur pose — coordonnées recalculées depuis angle et distance')
+        else:
+            # Beaucoup de scans (cartographie en direct, import d'une session) : un seul nuage, une seule
+            # flèche par scan et pas de légende. Un artiste par scan + une légende de 150 lignes coûtaient
+            # plus d'une seconde à chaque affichage de l'onglet.
+            blocs, couleurs, poses = [], [], []
+            for i in visibles:
+                s = self.scans[i]
+                pts = s.points()[mesures_valides(s, **filtres)]
+                blocs.append(pts)
+                couleurs.append(np.repeat([colormaps['hsv'](i/nombre*.85)], len(pts), axis=0))
+                poses.append((s.pose, colormaps['hsv'](i/nombre*.85)))
+            tous = np.vstack(blocs) if blocs else np.empty((0, 2))
+            if len(tous):
+                # Un point par case de 3 cm (le plus récent l'emporte) : l'écran ne montre pas davantage et
+                # Matplotlib dessine chaque point séparément (67 000 points ≈ 1 s).
+                couleurs = np.vstack(couleurs)[::-1]; tous = tous[::-1]
+                cases = np.floor(tous/0.03).astype(np.int64)
+                _, garde = np.unique(cases[:,0]*1_000_003+cases[:,1], return_index=True)
+                tous, couleurs = tous[garde], couleurs[garde]
+                ax.scatter(tous[:,0], tous[:,1], s=3, c=couleurs, rasterized=True)
+            xy = np.array([p[0][:2] for p in poses]); a = np.deg2rad([p[0][2] for p in poses])
+            ax.quiver(xy[:,0], xy[:,1], .3*np.cos(a), .3*np.sin(a), color=[p[1] for p in poses], angles='xy',
+                      scale_units='xy', scale=1, width=.003, headwidth=3)
+            ax.set_title(f'{len(visibles)} scans visibles dans leur pose (légende masquée au-delà de {SCANS_DETAIL})')
         if limites is not None:
             ax.set_xlim(limites[0])
             ax.set_ylim(limites[1])

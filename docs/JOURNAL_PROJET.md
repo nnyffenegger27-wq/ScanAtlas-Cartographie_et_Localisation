@@ -718,3 +718,11 @@ Scans qu'il ne faudrait pas prendre, autour des reconnexions : après une positi
 « Position 360° » : après une recherche globale, le suivi continuait avec la référence locale de l'ancien endroit (14 m autour du dernier scan clé) et reperdait le robot, et le bouton décochait en plus clavier et manette. La confirmation et le suivi se font maintenant sur la carte autour de la position trouvée, et les cases ne sont plus décochées par aucun arrêt (clavier et manette actifs d'emblée ; B n'arrête que tant qu'il est tenu).
 
 Difficulté : plusieurs tests d'interface intermittents sous écran virtuel (lecture du focus Tk qui lève `KeyError`, calcul précédent encore vivant) ; la lecture de l'onglet est séparée de celle du focus et la reconnexion retentée. Validation : 224 tests réussis (14 exécutions successives des tests de pilotage et de reconnexion). **Non essayé sur le robot** : il faut reflasher le firmware ; la machine d'analyse n'atteint pas 192.168.4.1.
+
+## 4 novembre 2026 — Démonstration impossible à quitter, onglets lents
+
+Démonstration : le bouton lançait un robot simulé et réglait l'adresse sur 127.0.0.1, mais rien ne permettait d'en sortir : le processus restait actif, l'adresse du vrai robot était perdue et la carte simulée restait en place (un vrai robot connecté ensuite était localisé dans la carte de la démonstration). Désormais le bouton devient « Quitter la démo » ; « Déconnecter » en sort aussi. La sortie arrête le robot simulé, rend la liaison, l'adresse et la carte d'avant. Une connexion différée de 0,8 s est ignorée si on a déjà quitté.
+
+Lenteur : mesures sous Linux avec écran virtuel. Démarrage ≈ 2,4 s (imports 1,3 s, construction de la fenêtre 1 s) ; ouverture d'un onglet ≤ 0,3 s à vide. Avec 150 scans chargés, l'onglet Cartographie coûtait 1,2 s à chaque affichage et l'ajout des scans 1,4 s : un nuage, une flèche et une ligne de légende par scan (600 dessins de collections, 300 éléments de légende). Au-delà de 25 scans visibles, le nuage est dessiné en un bloc (une case de 3 cm par point, une seule série de flèches, pas de légende) : 0,27 s et 0,35 s. Le plus gros du coût était donc le dessin Matplotlib, pas Python. Non mesuré sous Windows (antivirus, premier lancement avec construction du cache de polices Matplotlib).
+
+Validation : 225 tests réussis.

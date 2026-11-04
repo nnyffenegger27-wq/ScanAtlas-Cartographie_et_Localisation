@@ -79,6 +79,8 @@ Le journal ne contient pas le jeton d'authentification réseau. Un problème d'�
 
 L'encart **Commandes** du panneau Pilotage est un **pavé 3 × 3** : rotation gauche, avance, rotation droite ; gauche, croix, droite ; recul. Derrière chaque flèche, un **carré vert se remplit** proportionnellement à la puissance demandée, du côté d'où part le mouvement (l'avance monte depuis le bas de la case, le recul descend depuis le haut, etc.), avec le pourcentage écrit dans la case. Au clavier le remplissage est fixe (tout ou rien, égal au réglage PWM) ; à la manette il suit l'inclinaison du stick. **La croix centrale est pleine quand le robot est à l'arrêt.** Le fond de l'encart est beige tant que le robot n'est pas connecté et vert pâle une fois connecté et le flux lidar reçu.
 
+**Démonstration** : le bouton lance un robot simulé sur ce PC (adresse 127.0.0.1) avec sa propre carte. **Quitter la démo** (le même bouton) ou **Déconnecter** l'arrête et rétablit l'adresse du robot et la carte d'avant.
+
 **Clavier et manette sont actifs d'emblée** et restent cochés : un arrêt (Espace, B, bouton ARRÊT, perte de focus, déconnexion, « Position 360° », « Reprendre ici ») arrête les moteurs mais ne décoche rien. On ne décoche une case que par un clic. Les deux entrées coexistent ; si la manette est inclinée, elle prime sur le clavier. Sans manette branchée, le clavier fonctionne normalement.
 
 **Le pilotage se teste sans robot** : sans être connecté affiche l'encart exactement comme avec un robot, mais **aucune commande n'est envoyée**. Avec un robot connecté, les commandes ne partent que si le flux lidar est récent (comme avant).

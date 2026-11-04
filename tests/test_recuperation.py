@@ -173,6 +173,33 @@ class ReconnexionAutomatique(unittest.TestCase):
             for fw in firmwares:
                 fw.stop.set()
 
+    def test_on_peut_quitter_la_demonstration(self):
+        from app import Atelier
+        app = Atelier(); app.geometry('1500x950')
+        try:
+            app.onglets.select(app.wifi_cadre); app.update()
+            app.wifi_liaison.set('USB filaire'); app.wifi_hote.set('COM8')
+            app.wifi_demo()
+            self.assertTrue(app.wifi_en_demo)
+            self.assertEqual((app.wifi_liaison.get(), app.wifi_hote.get()), ('Wi-Fi', '127.0.0.1'))
+            self.assertEqual(app.wifi_bouton_demo.cget('text'), 'Quitter la démo')
+            fin = time.monotonic()+8
+            while time.monotonic() < fin and not (app.wifi_etat is not None and app.wifi_etat.accepte):
+                app.update(); time.sleep(.01)
+            self.assertTrue(app.wifi_etat is not None and app.wifi_etat.accepte)   # la démonstration tourne
+            processus = app.wifi_demo_process
+            app.wifi_deconnecter()                         # « Déconnecter » suffit pour en sortir
+            self.assertFalse(app.wifi_en_demo)
+            self.assertIsNone(app.wifi_robot)
+            self.assertEqual((app.wifi_liaison.get(), app.wifi_hote.get()), ('USB filaire', 'COM8'))
+            self.assertEqual(app.wifi_bouton_demo.cget('text'), 'Démonstration')
+            self.assertIsNone(app.wifi_carte)              # la carte simulée ne reste pas pour le vrai robot
+            processus.wait(timeout=5)                      # le robot simulé est arrêté
+            app.update(); time.sleep(1.); app.update()
+            self.assertIsNone(app.wifi_robot)              # et ne se reconnecte pas tout seul
+        finally:
+            app.wifi_deconnecter(); app.destroy()
+
     def test_case_de_reconnexion_desactivee(self):
         from app import Atelier
         app = Atelier()
