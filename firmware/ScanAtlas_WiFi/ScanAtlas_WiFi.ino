@@ -6,8 +6,11 @@
 #include <WiFiUdp.h>
 #include <esp_timer.h>
 #include <freertos/semphr.h>
+#include <esp_system.h>
+#include <stdarg.h>
 #include "motor_driver.h"
 #include "protocol.h"
+#include "usb_live.h"
 
 const char *AP_SSID="ScanAtlas";
 const char *AP_PASSWORD="ScanAtlas2026"; // Modifier ici avant flash si souhaité.
@@ -21,6 +24,29 @@ SemaphoreHandle_t ownerMutex;
 char ownerToken[33]={0};IPAddress ownerIP;bool ownerActive=false;
 uint32_t dataAlive=0;  // millis du dernier tour transféré (pas de backlog moteur).
 
+// Journal d'événements sur la console série, pour comprendre une coupure (redémarrage, bail, client).
+// Suspendu pendant la liaison filaire et les captures CSV, où la console porte des données.
+const bool LOG_LIAISON=true;
+UsbLive live;                        // liaison filaire : modifiée par loop() seulement
+bool liveActive=false;               // copie protégée par ownerMutex, lue par commandTask
+Motion liveApplied=STOP;Command liveCurrent={};
+void logLiaison(const char *fmt,...){
+  if(!LOG_LIAISON||liveActive||usbRemaining>0)return;
+  char line[120];va_list ap;va_start(ap,fmt);vsnprintf(line,sizeof(line),fmt,ap);va_end(ap);
+  Serial.printf("[%lu ms] %s\n",(unsigned long)millis(),line);
+}
+const char *resetName(){
+  switch(esp_reset_reason()){
+    case ESP_RST_POWERON:return "mise sous tension";
+    case ESP_RST_EXT:return "broche reset";
+    case ESP_RST_SW:return "redemarrage logiciel";
+    case ESP_RST_PANIC:return "PLANTAGE du programme";
+    case ESP_RST_INT_WDT:case ESP_RST_TASK_WDT:case ESP_RST_WDT:return "watchdog (programme bloque)";
+    case ESP_RST_BROWNOUT:return "BROWNOUT (tension trop basse : alimentation / batterie)";
+    case ESP_RST_DEEPSLEEP:return "sortie de veille";
+    default:return "autre";
+  }
+}
 void applyCommand(const Command &c) {
   if(c.motion==DRIVE)car.drive(c.vx,c.vy,c.w);
   else car.apply(c.motion,c.pwm);
@@ -34,6 +60,7 @@ void commandTask(void *) {
   for(;;){
     uint32_t now=millis();
     if(lease.expired(now)){
+      logLiaison("Bail Wi-Fi expire : plus de commande recue depuis 300 ms.");
       lease.close();car.stop();applied=STOP;current=Command{};
       xSemaphoreTake(ownerMutex,portMAX_DELAY);ownerActive=false;xSemaphoreGive(ownerMutex);
     }
@@ -47,13 +74,19 @@ void commandTask(void *) {
       if(n>=int(sizeof(buf))){vTaskDelay(pdMS_TO_TICKS(2));continue;}
       char tok[33],extra;
       if(sscanf(buf,"HELLO %32s %c",tok,&extra)==1&&tokenValid(tok)){
+        bool blocked=false;
         if(!lease.active){
-          car.stop();applied=STOP;current=Command{};lease.open(now);ownerPort=port;
-          xSemaphoreTake(ownerMutex,portMAX_DELAY);
-          strcpy(ownerToken,tok);ownerIP=ip;ownerActive=true;dataAlive=0;
-          xSemaphoreGive(ownerMutex);
+          xSemaphoreTake(ownerMutex,portMAX_DELAY);blocked=liveActive;xSemaphoreGive(ownerMutex);
+          if(!blocked){
+            car.stop();applied=STOP;current=Command{};lease.open(now);ownerPort=port;
+            xSemaphoreTake(ownerMutex,portMAX_DELAY);
+            strcpy(ownerToken,tok);ownerIP=ip;ownerActive=true;dataAlive=0;
+            xSemaphoreGive(ownerMutex);
+            logLiaison("Session Wi-Fi ouverte.");
+          }
         }
-        if(ip==ownerIP&&port==ownerPort&&!strcmp(tok,ownerToken)){
+        if(blocked)reply("BUSY\n",ip,port);
+        else if(ip==ownerIP&&port==ownerPort&&!strcmp(tok,ownerToken)){
           // « SA2 » annonce la commande combinée ; un ancien firmware répond « READY jeton » seul.
           char out[56];snprintf(out,sizeof(out),"READY %s SA2\n",tok);reply(out,ip,port);
         }else reply("BUSY\n",ip,port);
@@ -88,6 +121,7 @@ void scanTask(void *) {
     xSemaphoreGive(ownerMutex);
     if(!allowed){client.stop();continue;}
     xQueueReset(scans); // Les données en attente avant la connexion ne sont pas transmises.
+    logLiaison("Flux de scans Wi-Fi ouvert.");
     while(client.connected()){
       xSemaphoreTake(ownerMutex,portMAX_DELAY);
       allowed=ownerActive&&!strcmp(token,ownerToken);xSemaphoreGive(ownerMutex);
@@ -103,6 +137,7 @@ void scanTask(void *) {
       xSemaphoreTake(ownerMutex,portMAX_DELAY);dataAlive=millis();xSemaphoreGive(ownerMutex);
     }
     client.stop();
+    logLiaison("Flux de scans Wi-Fi ferme.");
     xSemaphoreTake(ownerMutex,portMAX_DELAY);dataAlive=0;xSemaphoreGive(ownerMutex);
   }
 }
@@ -131,6 +166,7 @@ void usbTask(void *) {
 
 void setup(){
   Serial.begin(115200);
+  Serial.printf("\nDemarrage ScanAtlas. Cause du dernier redemarrage : %s\n",resetName());
   if(!car.begin()){Serial.print("Profil moteur invalide (pilote ");Serial.print(MotorDriver::name());Serial.println(") : verifier motor_config.h");while(true)delay(1000);}
   Serial.print("Pilote moteur : ");Serial.println(MotorDriver::name());
   car.stop();
@@ -144,6 +180,14 @@ void setup(){
      !WiFi.softAP(AP_SSID,AP_PASSWORD,6,0,1)){
     Serial.println("Point acces impossible : moteurs arretes.");while(true)delay(1000);
   }
+  WiFi.onEvent([](WiFiEvent_t event,WiFiEventInfo_t info){
+    const uint8_t *m=info.wifi_ap_staconnected.mac;
+    logLiaison("Wi-Fi : appareil associe (%02x:%02x:%02x:%02x:%02x:%02x).",m[0],m[1],m[2],m[3],m[4],m[5]);
+  },ARDUINO_EVENT_WIFI_AP_STACONNECTED);
+  WiFi.onEvent([](WiFiEvent_t event,WiFiEventInfo_t info){
+    const uint8_t *m=info.wifi_ap_stadisconnected.mac;
+    logLiaison("Wi-Fi : appareil DECONNECTE (%02x:%02x:%02x:%02x:%02x:%02x).",m[0],m[1],m[2],m[3],m[4],m[5]);
+  },ARDUINO_EVENT_WIFI_AP_STADISCONNECTED);
   udp.begin(COMMAND_PORT);server.begin();
   if(xTaskCreate(commandTask,"commands",6144,nullptr,3,nullptr)!=pdPASS||
      xTaskCreate(scanTask,"scans",6144,nullptr,1,nullptr)!=pdPASS||
@@ -151,6 +195,44 @@ void setup(){
     car.stop();Serial.println("Taches impossibles.");while(true)delay(1000);
   }
   Serial.print("ScanAtlas AP : ");Serial.println(WiFi.softAPIP());
+}
+// Ferme la liaison filaire : arrêt moteurs et retour au débit historique.
+void liveClose(const char *why){
+  xSemaphoreTake(ownerMutex,portMAX_DELAY);liveActive=false;xSemaphoreGive(ownerMutex);
+  car.stop();liveApplied=STOP;liveCurrent=Command{};
+  bool fast=live.baud!=115200;live.close();
+  if(fast){Serial.flush();Serial.updateBaudRate(115200);}
+  logLiaison("Liaison filaire fermee : %s.",why);
+}
+void liveCommand(const Command &cmd,uint32_t now){
+  if(!live.owns(cmd.token)||!live.lease.accept(cmd,now))return;
+  Command effective=cmd;
+  if(!live.fresh(now)){effective.motion=STOP;effective.vx=effective.vy=effective.w=0;}
+  if(!sameDrive(effective,liveCurrent)){applyCommand(effective);liveApplied=effective.motion;liveCurrent=effective;}
+  Serial.printf("SA1 %s %lu %s\n",live.token,(unsigned long)cmd.seq,MOTIONS[effective.motion]);
+}
+// Une ligne reçue sur la console : session filaire, commande, ou requête CSV historique.
+void handleLine(const char *line,uint32_t now){
+  LiveRequest request;Command cmd;unsigned count;
+  if(parseLive(line,request)){
+    xSemaphoreTake(ownerMutex,portMAX_DELAY);
+    UsbLive::Open result=ownerActive?UsbLive::REFUSED:live.open(request,now);
+    if(result==UsbLive::OPENED){liveActive=true;usbRemaining=0;xQueueReset(scansUSB);}
+    xSemaphoreGive(ownerMutex);
+    if(result==UsbLive::REFUSED){Serial.println("BUSY");return;}
+    if(result==UsbLive::OPENED){car.stop();liveApplied=STOP;liveCurrent=Command{};}
+    Serial.printf("READY %s SA2\n",request.token);
+    if(result==UsbLive::OPENED&&request.baud!=115200){Serial.flush();delay(20);Serial.updateBaudRate(request.baud);}
+    return;
+  }
+  if(isLiveStop(line)){if(live.active)liveClose("arret demande par le PC");return;}
+  if(live.active){if(parseCommand(line,cmd))liveCommand(cmd,now);return;}
+  if(parseUsbRequest(line,count)){
+    xSemaphoreTake(ownerMutex,portMAX_DELAY);
+    if(!ownerActive||count==0){usbRemaining=count;xQueueReset(scansUSB);}
+    else Serial.println("BUSY : deconnecter le pilotage Wi-Fi avant USB");
+    xSemaphoreGive(ownerMutex);
+  }
 }
 void loop(){
   if(MOTOR_DIAGNOSTIC){
@@ -166,29 +248,40 @@ void loop(){
     delay(1);return;
   }
   static LidarParser parser;static ScanFrame frame;
-  static char request[32];static unsigned length=0;static bool overflow=false;
+  static char request[96];static unsigned length=0;static bool overflow=false;
   for(int n=0;n<64&&Serial.available();++n){
     char c=Serial.read();
     if(c=='\n'){
-      request[length]=0;unsigned count;
-      if(!overflow&&parseUsbRequest(request,count)){
-        xSemaphoreTake(ownerMutex,portMAX_DELAY);
-        if(!ownerActive||count==0){usbRemaining=count;xQueueReset(scansUSB);}
-        else Serial.println("BUSY : deconnecter le pilotage Wi-Fi avant USB");
-        xSemaphoreGive(ownerMutex);
-      }
+      request[length]=0;
+      if(!overflow)handleLine(request,millis());
       length=0;overflow=false;
     }else if(c!='\r'){
       if(length<sizeof(request)-1)request[length++]=c;else overflow=true;
     }
   }
+  if(live.active){
+    uint32_t now=millis();
+    if(live.lease.expired(now))liveClose("plus de commande depuis 300 ms");
+    else if(!live.fresh(now)&&liveApplied!=STOP){car.stop();liveApplied=STOP;liveCurrent=Command{};}
+  }
   // Un tour par trame, CRC UART puis CRC réseau. La file ne garde que le dernier.
-  for(int n=0;n<4096&&Serial2.available();++n)
-    if(parser.feed(Serial2.read(),esp_timer_get_time(),frame)){
+  static uint32_t lastByte=0,lastTurn=0;static bool lidarSilent=false;
+  for(int n=0;n<4096&&Serial2.available();++n){
+    uint8_t b=Serial2.read();lastByte=millis();
+    if(parser.feed(b,esp_timer_get_time(),frame)){
+      lastTurn=millis();
+      if(lidarSilent){lidarSilent=false;logLiaison("Lidar : tours de nouveau recus.");}
       xQueueOverwrite(scans,&frame);
       xSemaphoreTake(ownerMutex,portMAX_DELAY);bool wanted=usbRemaining>0;xSemaphoreGive(ownerMutex);
       if(wanted)xQueueOverwrite(scansUSB,&frame);
+      if(live.active){Serial.write(frame.bytes,frame.size);live.lastFrame=millis();}  // liaison filaire
     }
+  }
+  // Lidar muet : câblage ou alimentation du capteur plutôt que Wi-Fi.
+  if(!lidarSilent&&millis()>4000&&uint32_t(millis()-(lastTurn?lastTurn:4000))>1500){
+    lidarSilent=true;
+    logLiaison(lastByte?"Lidar : plus de tour complet depuis 1,5 s.":"Lidar : AUCUN octet recu (alimentation, cable ou broche 33).");
+  }
   delay(1);
 }
 

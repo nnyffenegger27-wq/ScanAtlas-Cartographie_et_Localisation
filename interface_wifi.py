@@ -12,6 +12,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 from matplotlib.collections import LineCollection
 from matplotlib.patches import Polygon
 from robot_wifi import RobotWifi, dernier
+from robot_usb import RobotUsb
 from cartographie_direct import CarteDirecte
 from cartographie import mesures_valides
 from apparence import curseur, FOND, SURFACE, ENCRE, SECONDAIRE, ACCENT
@@ -67,7 +68,7 @@ class InterfaceWifi:
         self.wifi_mode=tk.StringVar(value='Cartographier')
         self.wifi_reference=tk.StringVar(value='Nouvelle carte')
         self.wifi_vue=tk.StringVar(value='Vectorielle')
-        self.wifi_hote=tk.StringVar(value='192.168.4.1');self.wifi_pwm=tk.IntVar(value=65)
+        self.wifi_liaison=tk.StringVar(value='Wi-Fi');self.wifi_hote=tk.StringVar(value='192.168.4.1');self.wifi_pwm=tk.IntVar(value=65)
         self.wifi_info=tk.StringVar(value='Connecte le PC au hotspot ScanAtlas ou démarre la démonstration.')
         self.wifi_commande=tk.StringVar(value='PC : STOP | ESP32 : EN ATTENTE')
         self.wifi_dernier_resultat=self.wifi_dernier_dessin=0.
@@ -112,7 +113,10 @@ class InterfaceWifi:
         self.wifi_canvas.get_tk_widget().pack(fill='both',expand=True)
         self.wifi_axes.set_aspect('equal',adjustable='box')
         ttk.Label(panneau,text='Connexion',style='Section.TLabel').pack(anchor='w')
+        liaisons=ttk.Combobox(panneau,textvariable=self.wifi_liaison,values=['Wi-Fi','USB filaire'],state='readonly')
+        liaisons.pack(fill='x',pady=(5,0));liaisons.bind('<<ComboboxSelected>>',lambda e:self.wifi_liaison_changer())
         ttk.Entry(panneau,textvariable=self.wifi_hote).pack(fill='x',pady=5)
+        ttk.Label(panneau,text='Wi-Fi : adresse du robot · USB : port (auto ou COM8)',style='SousTitre.TLabel',wraplength=270).pack(anchor='w')
         ligne=ttk.Frame(panneau);ligne.pack(fill='x')
         ttk.Button(ligne,text='Connecter',command=self.wifi_connecter,style='Accent.TButton').pack(side='left')
         ttk.Button(ligne,text='Déconnecter',command=self.wifi_deconnecter).pack(side='right')
@@ -205,8 +209,21 @@ class InterfaceWifi:
         self.wifi_deconnecter()
         if self.wifi_demo_process is None or self.wifi_demo_process.poll() is not None:
             self.wifi_demo_process=subprocess.Popen([sys.executable,str(Path(__file__).with_name('simuler_robot_wifi.py'))])
-        self.wifi_hote.set('127.0.0.1')
+        self.wifi_liaison.set('Wi-Fi');self.wifi_hote.set('127.0.0.1')
         self.after(800,self.wifi_connecter)
+
+    def wifi_liaison_changer(self):
+        """Wi-Fi ↔ USB : propose la valeur usuelle du champ sans écraser une saisie personnalisée."""
+        usb = self.wifi_liaison.get() == 'USB filaire'
+        actuel = self.wifi_hote.get().strip()
+        if usb and actuel in ('', '192.168.4.1', '127.0.0.1'):
+            self.wifi_hote.set('auto')
+        elif not usb and (actuel == '' or actuel.lower() == 'auto' or actuel.upper().startswith('COM')
+                          or actuel.startswith('/dev/')):
+            self.wifi_hote.set('192.168.4.1')
+        if usb:
+            self.wifi_info.set('USB filaire : brancher le robot en USB et fermer le moniteur série Arduino. '
+                               'Le PC garde sa connexion internet.')
 
     def wifi_connecter(self):
         if self.wifi_robot is not None:
@@ -222,7 +239,7 @@ class InterfaceWifi:
             filtres = self.filtres()
             hote = self.wifi_hote.get().strip()
             if not hote:
-                raise ValueError('Adresse du robot manquante.')
+                raise ValueError('Adresse du robot (Wi-Fi) ou port (USB) manquant.')
         except ValueError as exc:
             messagebox.showerror('Robot Wi-Fi', str(exc))
             return
@@ -243,7 +260,8 @@ class InterfaceWifi:
         try:self.wifi_journal=JournalDirect()
         except OSError as exc:
             self.wifi_info.set('Impossible de créer le journal : '+str(exc));return
-        robot = self.wifi_robot = RobotWifi(hote)
+        usb = self.wifi_liaison.get() == 'USB filaire'
+        robot = self.wifi_robot = RobotUsb(hote) if usb else RobotWifi(hote)
         self.wifi_info.set('Connexion… carte conservée si existante ; filtres figés jusqu’à Nouvelle carte.')
         robot.journal=self.wifi_journal
         robot.demarrer()

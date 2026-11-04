@@ -50,7 +50,7 @@ Le journal ne contient pas le jeton d'authentification réseau. Un problème d'�
 
 ## Clavier et manette Xbox
 
-L'encart **Commandes** du panneau Pilotage affiche en direct les commandes de deux façons. À gauche, un **pavé 3 × 3** : rotation gauche, avance, rotation droite ; gauche, croix, droite ; recul. Une case devient verte quand la commande est active (plus franchement quand la puissance est forte) ; **la croix centrale est verte quand le robot est à l'arrêt**. À droite, trois axes avec leur pourcentage : **Surge** (avancer / reculer), **Sway** (gauche / droite) et **Yaw** (rotation). Chaque axe a deux cases qui se remplissent en vert depuis le centre, en pourcentage du réglage PWM. Au clavier le remplissage est fixe (tout ou rien, égal au réglage PWM) ; à la manette il suit l'inclinaison du stick. Le fond de l'encart est beige tant que le robot n'est pas connecté et vert pâle une fois connecté et le flux lidar reçu.
+L'encart **Commandes** du panneau Pilotage est un **pavé 3 × 3** : rotation gauche, avance, rotation droite ; gauche, croix, droite ; recul. Derrière chaque flèche, un **carré vert se remplit** proportionnellement à la puissance demandée, du côté d'où part le mouvement (l'avance monte depuis le bas de la case, le recul descend depuis le haut, etc.), avec le pourcentage écrit dans la case. Au clavier le remplissage est fixe (tout ou rien, égal au réglage PWM) ; à la manette il suit l'inclinaison du stick. **La croix centrale est pleine quand le robot est à l'arrêt.** Le fond de l'encart est beige tant que le robot n'est pas connecté et vert pâle une fois connecté et le flux lidar reçu.
 
 **Le pilotage se teste sans robot** : cocher Clavier actif ou Manette Xbox sans être connecté affiche l'encart exactement comme avec un robot, mais **aucune commande n'est envoyée**. Avec un robot connecté, les commandes ne partent que si le flux lidar est récent (comme avant).
 
@@ -122,6 +122,30 @@ Une puissance positive agit sur le canal pair (2, 4, 6, 8), comme « avancer » 
 ### Vérifier les roues (les deux pilotes)
 
 Passer `MOTOR_DIAGNOSTIC=true`, téléverser, ouvrir le moniteur série à 115200, roues levées. `1` à `4` donnent une impulsion dans un sens sur le moteur 1..4 (M1..M4 en PWM ; Upper_R, Upper_L, Lower_R, Lower_L en I2C) ; `a` à `d` dans l'autre sens. Impulsion de 250 ms à puissance 50 ; espace arrête. Ce mode ne démarre ni Wi-Fi ni lidar. Remettre la valeur à false et téléverser pour piloter normalement. Les GPIO de la console et du lidar sont réservés. Ces essais n'ont pas été réalisés physiquement ici.
+
+## Direct filaire (USB)
+
+Le panneau Connexion propose **Wi-Fi** ou **USB filaire**. En USB, le PC garde sa connexion internet (le hotspot du robot la coupe) et le Wi-Fi est hors de cause : c'est le moyen le plus simple de savoir si une perte de scans vient du Wi-Fi.
+
+1. Téléverser le firmware `ScanAtlas_WiFi` à jour (la liaison filaire en fait partie).
+2. Brancher le robot en USB avec un câble de données, **fermer le moniteur série d'Arduino** (il occuperait le port).
+3. Choisir **USB filaire**. Le champ vaut `auto` : le port est trouvé tout seul s'il n'y en a qu'un plausible ; sinon écrire le port (par exemple `COM8`).
+4. Connecter. Cartographie, localisation, clavier, manette et encart fonctionnent comme en Wi-Fi.
+
+Principe : le PC ouvre le port à 115200, envoie `LIVE jeton débit`, le robot répond `READY` puis les deux côtés passent à **921 600 bauds** (115200 ne suffit pas pour environ dix tours lidar par seconde). Les tours lidar (mêmes trames SA06 avec CRC) et les commandes SA1 / SA2 circulent ensuite sur le même câble. Le bail de 300 ms est identique : sans commande, les moteurs s'arrêtent et le robot revient à 115200, ce qui laisse l'acquisition USB historique utilisable. Les trames abîmées sont ignorées (jamais insérées en carte). Un robot déjà piloté en Wi-Fi répond « déjà utilisé » ; un robot qui ne répond pas dans les 6 secondes donne un message demandant de vérifier le firmware et le moniteur série.
+
+Limites : non essayé avec un vrai câble ni un vrai robot ici ; le débit 921 600 dépend de la puce USB de la carte (CP210x et CH340 le gèrent) ; si le port est mauvais ou occupé, le message de l'application le dit.
+
+## Diagnostiquer une coupure : le journal série du robot
+
+Le firmware écrit sur la console série (115200, moniteur série d'Arduino) des événements horodatés en millisecondes, **hors liaison filaire** et hors capture CSV :
+
+- au démarrage, **la cause du dernier redémarrage** (mise sous tension, plantage, watchdog, **BROWNOUT** = tension trop basse, donc alimentation ou batterie) ;
+- appareils Wi-Fi associés ou déconnectés ;
+- session Wi-Fi ouverte, bail expiré (plus de commande pendant 300 ms), flux de scans ouvert ou fermé ;
+- lidar muet : aucun octet reçu (alimentation, câble ou broche 33) ou plus de tour complet depuis 1,5 s.
+
+Pour une coupure, laisser le moniteur série ouvert pendant l'essai et noter les dernières lignes avant l'arrêt des scans. Le réglage `LOG_LIAISON` du sketch désactive ces messages.
 
 ## USB et Wi-Fi avec le même programme
 

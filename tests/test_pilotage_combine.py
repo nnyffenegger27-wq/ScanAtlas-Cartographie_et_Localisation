@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 from cartographie import demonstration
 from manette import vecteur_manette, EtatManette, BOUTON_RB, BOUTON_B
-from encart_commandes import pourcentages, remplissages, cellules_pave, teinte, CASE, VERT
+from encart_commandes import pourcentages, cellules_pave
 from test_interface_sans_ecran import Variable
 
 RB, B = BOUTON_RB, BOUTON_B
@@ -56,13 +56,6 @@ class EncartCalculs(unittest.TestCase):
         self.assertEqual(pourcentages(5, -5, 0, 80), (80, -80, 0))   # niveaux bornés à ±1
         self.assertEqual(pourcentages(1, 1, 1, 250), (100, 100, 100))  # PWM borné à 100
 
-    def test_remplissages_par_case(self):
-        self.assertEqual(remplissages(40, True), (.4, 0.))
-        self.assertEqual(remplissages(40, False), (0., .4))
-        self.assertEqual(remplissages(-100, True), (0., 1.))
-        self.assertEqual(remplissages(150, False), (0., 1.))
-        self.assertEqual(remplissages(0, True), (0., 0.))
-
 
 class PaveCalculs(unittest.TestCase):
     def test_cellules_du_pave(self):
@@ -74,12 +67,6 @@ class PaveCalculs(unittest.TestCase):
         c = cellules_pave(-100, 100, -10)
         self.assertEqual((c['recul'], c['gauche'], c['rot_d']), (1., 1., .1))
         self.assertEqual(cellules_pave(300, 0, 0)['avance'], 1.)   # borné
-
-    def test_teinte_blanc_vers_vert(self):
-        self.assertEqual(teinte(0), CASE)
-        self.assertEqual(teinte(1), VERT)
-        self.assertNotEqual(teinte(.05), CASE)                      # une commande faible reste visible
-        self.assertNotEqual(teinte(.5), teinte(1))
 
 
 class FausseManette:
@@ -97,33 +84,41 @@ class FausseManette:
 class InterfacePilotageReelle(unittest.TestCase):
     def test_dessin_de_l_encart(self):
         import tkinter as tk
-        from encart_commandes import EncartCommandes, VERT, FOND_CONNECTE, FOND_HORS_LIGNE
-        racine = tk.Tk(); racine.geometry('420x300')
+        from encart_commandes import EncartCommandes, FOND_CONNECTE, FOND_HORS_LIGNE
+        racine = tk.Tk(); racine.geometry('420x320')
         try:
             e = EncartCommandes(racine); e.pack(fill='x'); racine.update()
             def vertes():
                 return [e.coords(i) for i in e.find_withtag('rempli')]
-            def pave_actif():
-                return [e.coords(i) for i in e.find_withtag('pave') if e.type(i) == 'rectangle' and e.itemcget(i, 'fill') != CASE]
+            def textes():
+                return [e.itemcget(i, 'text') for i in e.find_all() if e.type(i) == 'text']
+            def hauteur(c): return c[3]-c[1]
+            def largeur(c): return c[2]-c[0]
             e.afficher(0, 0, 0, False); racine.update_idletasks()
-            self.assertEqual(vertes(), [])
-            self.assertEqual(len(pave_actif()), 1)          # À l'arrêt : seule la croix centrale est verte.
+            arret = vertes()
+            self.assertEqual(len(arret), 1)                 # À l'arrêt : seule la croix centrale est pleine.
             self.assertEqual(e.cget('background'), FOND_HORS_LIGNE)
+            cote = hauteur(arret[0]); self.assertGreater(cote, 30)
+            self.assertAlmostEqual(largeur(arret[0]), cote, delta=1)
             e.afficher(100, 0, 0, True); racine.update_idletasks()
             self.assertEqual(e.cget('background'), FOND_CONNECTE)
-            plein = vertes(); self.assertEqual(len(plein), 1)
-            self.assertEqual(len(pave_actif()), 1)          # Avance : la flèche haute remplace la croix.
-            largeur_case = plein[0][2]-plein[0][0]
-            self.assertGreater(largeur_case, 100)
+            plein = vertes(); self.assertEqual(len(plein), 1)           # La flèche haute remplace la croix.
+            self.assertAlmostEqual(hauteur(plein[0]), cote, delta=1)    # 100 % : case entière
+            self.assertIn('100', textes())
+            e.afficher(50, 0, 0, True); racine.update_idletasks()
+            demi = vertes()[0]
+            self.assertAlmostEqual(hauteur(demi), cote/2, delta=1)      # 50 % : moitié, montée depuis le bas
+            self.assertAlmostEqual(demi[3], plein[0][3], delta=1)
             e.afficher(-50, 0, 0, True); racine.update_idletasks()
-            demi = vertes(); self.assertEqual(len(demi), 1)       # recul : case de gauche, remplie depuis le centre
-            self.assertAlmostEqual(demi[0][2]-demi[0][0], largeur_case/2, delta=1)
-            self.assertLess(demi[0][0], plein[0][0])
+            recul = vertes()[0]                                         # recul : la case du bas, descend depuis le haut
+            self.assertGreater(recul[1], demi[1]); self.assertAlmostEqual(hauteur(recul), cote/2, delta=1)
+            e.afficher(0, 40, 0, True); racine.update_idletasks()
+            gauche = vertes()[0]
+            self.assertAlmostEqual(largeur(gauche), cote*.4, delta=1)   # case de gauche, remplie depuis la droite
             e.afficher(30, -30, 30, True, 'note'); racine.update_idletasks()
-            self.assertEqual(len(vertes()), 3)
-            self.assertEqual(len(pave_actif()), 3)          # avance, droite, rotation à gauche
-            textes = [e.itemcget(i, 'text') for i in e.find_all() if e.type(i) == 'text']
-            self.assertIn('30 %', textes); self.assertIn('note', textes)
+            self.assertEqual(len(vertes()), 3)                          # avance, droite, rotation à gauche
+            self.assertIn('30', textes()); self.assertIn('note', textes())
+            self.assertNotIn('SURGE', textes())                         # plus de barres redondantes
         finally:
             racine.destroy()
 
