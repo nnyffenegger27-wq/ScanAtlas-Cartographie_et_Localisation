@@ -125,6 +125,7 @@ export function creerCarte() {
       $('insp-info').textContent = `${m.source} · ${m.points} points · étendue ${m.etendue}° · ${m.etat}` + (m.recalage ? ` · ${m.recalage}` : '');
       if (!['p-x', 'p-y', 'p-t'].includes(document.activeElement.id) && !S.apercu) remplirPose(m.pose);
       $('insp-csv').href = lienScan(m.id);
+      majReference();
     }
     verrouiller();
   }
@@ -135,7 +136,7 @@ export function creerCarte() {
   function verrouiller() {
     const v = S.verrou;
     $('verrou').hidden = !v;
-    for (const id of ['c-importer', 'vide-importer', 'vide-exemple', 'c-assembler', 'insp-recaler', 'insp-supprimer', 'insp-appliquer', 'p-x', 'p-y', 'p-t', 'f-mini', 'f-maxi', 'f-intensite', 'f-resolution']) $(id).disabled = v;
+    for (const id of ['c-importer', 'vide-importer', 'vide-exemple', 'c-assembler', 'insp-recaler', 'insp-methode', 'insp-ref', 'insp-supprimer', 'insp-appliquer', 'p-x', 'p-y', 'p-t', 'f-mini', 'f-maxi', 'f-intensite', 'f-resolution']) $(id).disabled = v;
     for (const b of document.querySelectorAll('#seg-outil button[data-outil]:not([data-outil=naviguer])')) b.disabled = v;
     if (v && S.outil !== 'naviguer') choisirOutil('naviguer');
   }
@@ -182,7 +183,47 @@ export function creerCarte() {
     agir(appel('/api/carte/scan', { id: S.choisi, pose: p }));
   };
   for (const id of ['p-x', 'p-y', 'p-t']) $(id).onchange = validerPose;
-  $('insp-recaler').onclick = () => agir(appel('/api/carte/recaler', { id: S.choisi }));
+  // Recalage : toute la carte (recherche 360°) ou, comme dans le TP, sur l'une des trois références construites sans ce scan.
+  const methode = $('insp-methode'), refScan = $('insp-ref');
+  function majReference() {
+    const scan = methode.value.startsWith('scan:');
+    $('champ-ref-scan').hidden = !scan;
+    if (!scan || !S.liste) return;
+    const avant = refScan.value;
+    refScan.textContent = '';
+    for (const s of S.liste.scans) {
+      if (s.id === S.choisi || !s.inclus) continue;
+      const o = document.createElement('option'); o.value = s.id; o.textContent = s.nom; refScan.appendChild(o);
+    }
+    if ([...refScan.options].some((o) => o.value === avant)) refScan.value = avant;
+  }
+  methode.onchange = majReference;
+  $('insp-recaler').onclick = () => {
+    if (methode.value === 'auto') { agir(appel('/api/carte/recaler', { id: S.choisi })); return; }
+    const [reference, strategie] = methode.value.split(':');
+    const corps = { id: S.choisi, reference, methode: strategie };
+    if (reference === 'scan') {
+      if (!refScan.value) { toast('Il faut un autre scan inclus comme référence.', true); return; }
+      corps.reference_id = parseInt(refScan.value, 10);
+    }
+    agir(appel('/api/carte/localiser', corps));
+  };
+  // Banc d'évaluation du TP
+  const dlg = $('dialogue-tp');
+  $('c-evaluer').onclick = () => dlg.showModal();
+  $('tp-fermer').onclick = () => dlg.close();
+  $('tp-lancer').onclick = () => { $('tp-etat').textContent = 'Calcul en cours…'; $('tp-lancer').disabled = true; agir(appel('/api/carte/evaluer_tp')); };
+  function tableTP(synthese) {
+    const corps = $('tp-table').querySelector('tbody'); corps.textContent = '';
+    for (const l of synthese) {
+      const tr = document.createElement('tr');
+      const cases = [[l.reference, ''], [l.methode, ''], [`${l.reussites}/${l.essais} (${(100 * l.taux_reussite).toFixed(1)} %)`, 'num'], [l.corrects_acceptes, 'num'],
+                     [l.faux_acceptes, 'num' + (l.faux_acceptes ? ' mauvais' : '')], [l.refus, 'num'], [`${(1000 * l.mediane_s).toFixed(0)} ms`, 'num']];
+      for (const [t, c] of cases) { const td = document.createElement('td'); td.textContent = t; if (c) td.className = c; tr.appendChild(td); }
+      corps.appendChild(tr);
+    }
+    $('tp-table').hidden = false; $('tp-synthese').hidden = false; $('tp-essais').hidden = false;
+  }
   $('insp-appliquer').onclick = () => { const p = S.proposition; if (!p) return; $('insp-resultat').hidden = true; S.proposition = null; agir(appel('/api/carte/scan', { id: p.id, pose: p.pose })); };
   $('insp-ignorer').onclick = () => { S.proposition = null; $('insp-resultat').hidden = true; vue.demander(); };
   $('insp-supprimer').onclick = () => { const m = S.liste.scans[S.choisi]; if (confirm(`Supprimer « ${m.nom} » de la carte ?`)) { const id = S.choisi; S.choisi = null; agir(appel('/api/carte/supprimer', { id })); } };
@@ -213,13 +254,19 @@ export function creerCarte() {
       $('c-tache').textContent = t.texte || '';
       $('c-annuler').hidden = t.etat !== 'en_cours';
       for (const id of ['c-assembler', 'insp-recaler']) $(id).disabled = t.etat === 'en_cours' || S.verrou;
+      if (t.nom === 'Évaluation TP') {
+        $('tp-lancer').disabled = t.etat === 'en_cours';
+        $('tp-etat').textContent = t.etat === 'fini' ? '42 essais terminés.' : t.texte || '';
+        if (t.etat === 'fini' && t.resultat) tableTP(t.resultat.synthese);
+      }
       if (t.etat === 'fini' && t.nom === 'Recalage' && t.resultat) {
         const r = t.resultat;
         $('insp-resultat').hidden = false;
         $('insp-appliquer').hidden = !r.applicable;
+        const detail = r.methode ? ` (${r.methode} · ${(1000 * r.duree).toFixed(0)} ms${r.candidats ? ' · ' + r.candidats + ' candidats' : ''})` : '';
         $('insp-resultat-texte').textContent = r.applicable
-          ? `Pose trouvée : x ${r.pose[0].toFixed(3)} m, y ${r.pose[1].toFixed(3)} m, cap ${r.pose[2].toFixed(2)}° · concordance ${(100 * r.concordance).toFixed(0)} % · RMSE ${(1000 * r.rmse).toFixed(0)} mm. L’aperçu orange montre le résultat.`
-          : 'Pas de position sûre : ' + r.message;
+          ? `Pose trouvée : x ${r.pose[0].toFixed(3)} m, y ${r.pose[1].toFixed(3)} m, cap ${r.pose[2].toFixed(2)}° · concordance ${(100 * r.concordance).toFixed(0)} % · RMSE ${(1000 * r.rmse).toFixed(0)} mm${detail}. L’aperçu orange montre le résultat.`
+          : `Pas de position sûre : ${r.message}${detail}`;
         S.proposition = r.applicable ? { id: r.id, pose: r.pose } : null; vue.demander();
       }
       if (t.etat === 'fini' && t.nom === 'Assemblage' && t.resultat) toast(t.resultat.message);

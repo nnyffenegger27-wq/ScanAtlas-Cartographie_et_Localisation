@@ -86,6 +86,33 @@ class Navigateur(unittest.TestCase):
         page.wait_for_function("document.getElementById('puce-texte').textContent.includes('Hors')", timeout=8000)
         self.assertEqual(self.erreurs, [])
 
+    def test_recalage_tp_et_evaluation_depuis_l_interface(self):
+        self.app.doc.vider()
+        page = self.page()
+        requetes = []
+        page.on('request', lambda r: r.method == 'POST' and requetes.append((r.url.split('/api')[-1], json.loads(r.post_data or '{}'))))
+        page.goto(self.url+'#carte')
+        page.click('#vide-exemple')
+        page.wait_for_selector('#liste-scans li')
+        page.click('#liste-scans li:nth-child(2)')
+        page.wait_for_selector('#insp-methode', state='visible')
+        self.assertTrue(page.locator('#champ-ref-scan').is_hidden())
+        page.select_option('#insp-methode', 'scan:multi')
+        self.assertTrue(page.locator('#champ-ref-scan').is_visible())
+        self.assertEqual(page.locator('#insp-ref option').count(), 1)          # le seul autre scan inclus
+        page.click('#insp-recaler')
+        page.wait_for_function("document.getElementById('insp-resultat-texte').textContent.includes('Multi-résolution')", timeout=30000)
+        envoi = [c for u, c in requetes if u == '/carte/localiser']
+        self.assertEqual(len(envoi), 1)
+        self.assertEqual((envoi[0]['reference'], envoi[0]['methode']), ('scan', 'multi'))
+        # banc d'évaluation : fenêtre, tableau de 6 lignes, deux exports
+        page.click('#c-evaluer')
+        self.assertTrue(page.locator('#dialogue-tp').is_visible())
+        page.click('#tp-lancer')
+        page.wait_for_function("document.querySelectorAll('#tp-table tbody tr').length === 6", timeout=120000)
+        self.assertTrue(page.locator('#tp-synthese').is_visible())
+        self.assertEqual(self.erreurs, [])
+
     def test_couches_replacer_et_exploration_depuis_l_interface(self):
         page = self.page()
         requetes = []

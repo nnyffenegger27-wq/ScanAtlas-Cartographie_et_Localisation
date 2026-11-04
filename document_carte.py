@@ -16,6 +16,8 @@ from cartographie import (Scan, Grille, lire_csv, exporter_scan, demonstration, 
 from localisation import sous_carte, points_filtres
 from localisation_globale import localisation_globale
 from assemblage_global import assembler_scans
+from localisation_tp import (ReferenceGrille, ReferenceVectorielle, ReferenceScan,
+                             localiser_sur_reference, LOCALE, MULTI)
 from cartographie_direct import CarteDirecte
 
 FILTRES_DEFAUT = dict(mini=.05, maxi=12., intensite=0)
@@ -78,6 +80,7 @@ class DocumentCarte:
         self.vue_directe = None      # carte fusionnée du direct, valable tant que la version n'a pas changé
         self.session_fusionnee = None   # version d'une grosse session ouverte, affichée fusionnée tant qu'on n'y touche pas
         self._cache_vue = None
+        self.evaluation_tp = None    # CSV du dernier banc d'évaluation du TP (essais, synthèse)
         self._verrou_vue = threading.Lock()      # un seul calcul de la carte fusionnée à la fois (nuage, plan et grille la demandent ensemble)
 
     # -- état -----------------------------------------------------------------------------------
@@ -333,6 +336,59 @@ class DocumentCarte:
         return dict(id=indice, applicable=bool(r.applicable), pose=[float(v) for v in r.pose],
                     pose_initiale=[float(v) for v in r.pose_initiale], concordance=float(r.accord_fin),
                     rmse=float(r.rmse), recouvrement=float(r.recouvrement), duree=float(r.duree), message=r.message)
+
+    METHODES_TP = {'locale': LOCALE, 'multi': MULTI}
+    REFERENCES_TP = ('grille', 'plan', 'scan')
+
+    def localiser_tp(self, indice, reference, methode, indice_reference=None, annuler=None, progression=None):
+        """TP Jour 2 : pose du scan `indice` sur l'une des trois références construites SANS lui, à partir de sa pose actuelle.
+
+        reference : 'grille' (occupation), 'plan' (segments fusionnés), 'scan' (un autre scan, `indice_reference`).
+        methode : 'locale' (affinement robuste) ou 'multi' (recherche ±1 m / ±30° puis même affinement). Ne modifie rien."""
+        if reference not in self.REFERENCES_TP or methode not in self.METHODES_TP:
+            raise ValueError('Référence ou méthode inconnue.')
+        with self.verrou:
+            self._verifier(indice)
+            mobile = deepcopy(self.scans[indice])
+            autres = [s for i, (s, oui) in enumerate(zip(self.scans, self.inclus)) if oui and i != indice]
+            fixe = None
+            if reference == 'scan':
+                if indice_reference is None:
+                    indice_reference = next((i for i, oui in enumerate(self.inclus) if oui and i != indice), None)
+                if indice_reference is None or indice_reference == indice:
+                    raise ValueError('Choisis un autre scan comme référence.')
+                self._verifier(indice_reference)
+                fixe = deepcopy(self.scans[indice_reference])
+            filtres, resolution = dict(self.filtres), self.resolution
+        if not autres:
+            raise ValueError('Il faut au moins un autre scan inclus : la référence est construite sans le scan à localiser.')
+        if progression:
+            progression('Construction de la référence…')
+        if reference == 'grille':
+            grille = Grille.creer(autres, resolution, **filtres)
+            for scan in autres:
+                grille.mettre_a_jour(scan, **filtres)
+            modele = ReferenceGrille(grille)
+        elif reference == 'plan':
+            _, appuis, _ = CarteDirecte.construire(autres, filtres, resolution, annuler)
+            modele = ReferenceVectorielle(np.array([s for s, _ in appuis]))
+        else:
+            modele = ReferenceScan(fixe, filtres)
+        r = localiser_sur_reference(mobile, modele, self.METHODES_TP[methode], pose_initiale=mobile.pose,
+                                    annuler=annuler, progression=progression, **filtres)
+        return dict(id=indice, applicable=bool(r.applicable), pose=[float(v) for v in r.pose],
+                    pose_initiale=[float(v) for v in r.pose_initiale], concordance=float(r.accord_fin),
+                    rmse=float(r.rmse), rmse_initiale=float(r.rmse_initiale), duree=float(r.duree), candidats=int(r.candidats),
+                    methode=r.methode, message=r.message)
+
+    def evaluer_tp(self, annuler=None, progression=None):
+        """Banc du TP Jour 2 : trois références × deux stratégies × sept départs sur les scans simulés du TP
+        (ne touche pas à la carte). Garde le résultat pour les téléchargements CSV."""
+        from evaluer_tp_jour2 import calculer, csv_texte
+        lignes, synthese = calculer(annuler, progression)
+        with self.verrou:
+            self.evaluation_tp = dict(essais=csv_texte(lignes), synthese=csv_texte(synthese))
+        return dict(synthese=synthese, essais=len(lignes))
 
     def assembler(self, annuler=None, progression=None):
         """Replace tous les scans inclus dans un même repère (le premier est fixe)."""

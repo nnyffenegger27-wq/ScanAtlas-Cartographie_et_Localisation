@@ -183,3 +183,17 @@ main{flex:1;min-height:0;position:relative}
   #vue-carte{flex-direction:column}
   #panneau-carte{max-height:42vh}
 }
+
+/* TP : recalage sur une référence, banc d'évaluation */
+.inspecteur .champ select{min-width:0;width:100%;font:12px var(--mono)}
+dialog{width:min(760px,94vw);padding:20px;border:1px solid var(--trait-fort);border-radius:14px;background:var(--surface);color:var(--encre);box-shadow:var(--ombre);display:none;flex-direction:column;gap:12px}
+dialog[open]{display:flex}
+dialog::backdrop{background:rgba(10,14,18,.45)}
+dialog h2{margin:0;font-size:18px}
+.table-tp{overflow-x:auto}
+.table-tp table{border-collapse:collapse;width:100%;font-size:13px}
+.table-tp th,.table-tp td{padding:7px 8px;border-bottom:1px solid var(--trait);text-align:left}
+.table-tp td.num{white-space:nowrap}
+.table-tp th{color:var(--encre-2);font-weight:600;font-size:12px}
+.table-tp td.num{font-family:var(--mono);text-align:right}
+.table-tp td.mauvais{color:var(--alerte,#b4463a);font-weight:600}

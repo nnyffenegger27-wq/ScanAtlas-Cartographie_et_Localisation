@@ -826,3 +826,19 @@ Validation : 216 tests réussis (nouveaux : `tests/test_charge_carte.py` — `re
 **Leçon.** Valider sur les vrais journaux avant de pousser : une simulation propre ne remplace pas le rejeu de tours réels. Le rejeu est maintenant un outil du dépôt : `python outils/rejouer_journal.py <tours.jsonl>`.
 
 **Reste à traiter.** Démarrage à froid : les 5–10 premières secondes restent fragiles (75 %) ; déconnexions Wi-Fi (`WinError 10051`, « Pause de 1–2 s sans scan »), écart de 89°, dérive du sway, vitesse d'exploration.
+
+## 4 novembre 2026 (17 h) — gel toutes les 5 s, vecteurs superposés, TP intégrés à la version web
+
+**Retour de l'utilisateur** (scan `scanenautonomie.json`) : « beaucoup mieux » ; reste un gel environ toutes les 5 s (le robot s'arrête, il faut relâcher puis réappuyer la commande ; après le gel il est un peu perdu mais se retrouve vite) ; carte vectorielle avec beaucoup de vecteurs superposés ; demande d'intégrer aussi les TP précédents dans la version web.
+
+**Gel : le lien Wi-Fi est coupé 0,5 à 4 s.** Dans les vrais journaux, les acquittements UDP et les scans TCP s'arrêtent *ensemble* pendant 0,5 à 4 s, aussi bien à l'arrêt qu'en mouvement ; avec le câble USB il n'y en a aucune. Cause probable : balayage / itinérance de la carte Wi-Fi de Windows, ou coexistence radio. Ce n'est pas corrigeable côté logiciel. Ce qui l'est : le comportement après la coupure. (1) Le suivi tolère maintenant un trou jusqu'à `TROU_MAX = 8 s` et lance tout de suite une recherche large au retour du lien au lieu de se déclarer perdu. (2) Critère d'acceptation du suivi corrigé : accord à 12 cm ≥ 75 % **et** RMSE des points concordants ≤ 6 cm (`rmse_fin`), au lieu du RMSE global qui refusait de bons recalages à cause de quelques points isolés. (3) Diagnostics dans le journal : PC réactif ou bloqué pendant la pause, signal et canal Wi-Fi. (4) Simulateur : option `--coupures` qui reproduit ces coupures.
+
+**À tester sur le robot :** `ping -t 192.168.4.1` pendant un gel (pertes ou pas) ; carte Wi-Fi de Windows : agressivité d'itinérance au minimum, économie d'énergie désactivée ; essai en USB ; autre canal. Le reflash du firmware n'est pas nécessaire pour ces changements.
+
+**Non expliqué :** pourquoi il faut relâcher puis réappuyer la touche. Le firmware traite volontairement la première commande après une coupure comme un STOP (`resumed`), ce qui explique un arrêt ; dans le simulateur et Chromium le clavier reprend tout seul, donc le cas réel (focus, manette, comportement de l'ESP) reste à décrire précisément.
+
+**Vecteurs superposés.** Les segments sont fusionnés quand angle < 8°, distance < 25 cm, résidu p90 < 8 cm (`FUSION_*`) ; sur la carte de l'utilisateur 416 / 808 segments → 144–169. L'onglet Carte d'une session importée de plus de 30 scans affiche la vue fusionnée (reconstruction 92 s → ~16 s) jusqu'à la première modification.
+
+**TP intégrés.** Écran Carte : menu *Recalage sur…* (toute la carte, ou grille / plan / scan × locale / multi-résolution, point de départ = pose actuelle) et bouton *Évaluer les méthodes (TP)* (42 essais, tableau de synthèse, CSV). Backend : `DocumentCarte.localiser_tp` et `evaluer_tp`, points d'accès `/api/carte/localiser`, `/api/carte/evaluer_tp`, `/api/carte/evaluation_{synthese,essais}.csv`. Le banc ne modifie pas la carte. Tests : `tests/test_tp_web.py` et un parcours navigateur.
+
+**Reste à traiter.** `WinError 10051` / reconnexion, écart de 89° (orientation du lidar), dérive du sway, vitesse d'exploration / pas de 50 cm, démarrage à froid (~75 % les premières secondes), perte longue après coupure avec forte rotation (~120°/s). Rien de tout cela n'est validé sur mouvement réel du robot.

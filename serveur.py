@@ -165,6 +165,13 @@ def fabriquer_gestionnaire(app):
                     nom = ''.join(c for c in nom if c.isalnum() or c in '-_ ') or 'scan'
                     return self.envoyer(200, app.doc.scan_csv(indice), 'text/csv; charset=utf-8',
                                         {'Content-Disposition': f'attachment; filename="{nom}.csv"'})
+                if chemin in ('/api/carte/evaluation_essais.csv', '/api/carte/evaluation_synthese.csv'):
+                    evaluation = app.doc.evaluation_tp
+                    if evaluation is None:
+                        return self.erreur('Aucune évaluation : lance-la d\'abord.', 404)
+                    genre = 'essais' if 'essais' in chemin else 'synthese'
+                    return self.envoyer(200, evaluation[genre].encode('utf-8-sig'), 'text/csv; charset=utf-8',
+                                        {'Content-Disposition': f'attachment; filename="evaluation_tp_{genre}.csv"'})
                 if chemin == '/api/ports':
                     return self.json(dict(ports=app.session.ports()))
                 return self.erreur('Introuvable.', 404)
@@ -280,6 +287,15 @@ def fabriquer_gestionnaire(app):
                 self.modifiable()
                 indice = entier(d.get('id'))
                 app.taches.lancer('Recalage', lambda annuler, progression: doc.recaler(indice, annuler))
+            elif chemin == '/api/carte/localiser':
+                self.modifiable()
+                indice = entier(d.get('id'))
+                reference, methode = str(d.get('reference', '')), str(d.get('methode', ''))
+                ref_id = d.get('reference_id')
+                ref_id = None if ref_id is None else entier(ref_id)
+                app.taches.lancer('Recalage', lambda annuler, progression: doc.localiser_tp(indice, reference, methode, ref_id, annuler, progression))
+            elif chemin == '/api/carte/evaluer_tp':
+                app.taches.lancer('Évaluation TP', lambda annuler, progression: doc.evaluer_tp(annuler, progression))
             elif chemin == '/api/carte/assembler':
                 self.modifiable()
                 app.taches.lancer('Assemblage', lambda annuler, progression: dict(message=doc.assembler(annuler, progression)))

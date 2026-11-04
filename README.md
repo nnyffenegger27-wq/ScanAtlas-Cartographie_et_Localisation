@@ -15,7 +15,7 @@ Sous Windows : `installer_windows.bat` puis `lancer_windows.bat` (détails dans 
 
 - **Direct** : connexion (Wi-Fi ou USB), pilotage (clavier, manette, pavé à l'écran), carte et position en temps réel. Modes *Cartographier* (ajoute des scans) et *Localiser* (se positionne sans modifier la carte), *Me retrouver* (recherche sur toute la carte), *Reprendre ici*, *Nouvelle carte*.
 - **Explorer seul** : le robot choisit où aller pour terminer la carte (exploration par frontières, évitement d'obstacles, arrêt dès qu'on touche une commande). **Replacer** : s'il est perdu, on clique sa position sur la carte et on glisse sa direction.
-- **Carte** : la même carte, hors connexion. Importer des CSV / ZIP / sessions, afficher ou exclure des scans, les déplacer ou les tourner, les recaler automatiquement, assembler tous les scans inclus, voir en points, en grille d'occupation ou en plan vectoriel, exporter.
+- **Carte** : la même carte, hors connexion. Importer des CSV / ZIP / sessions, afficher ou exclure des scans, les déplacer ou les tourner, les recaler (toute la carte, ou sur grille / plan vectoriel / autre scan comme au TP Jour 2, avec le banc d'évaluation de 42 essais et ses exports CSV), assembler tous les scans inclus, voir en points, en grille d'occupation ou en plan vectoriel, exporter.
 
 Une seule carte alimente les deux écrans ; elle n'est modifiable que robot déconnecté.
 

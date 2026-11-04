@@ -23,7 +23,8 @@ def construire_references(scan):
     return [(rg,tg),(rv,tv),(rs,ts)],grille,segments
 
 
-def evaluer(sortie='exemples/evaluation_tp_jour2.csv',annuler=None,progression=None):
+def calculer(annuler=None,progression=None):
+    """Les 42 essais et la synthèse des six combinaisons ; ne touche à aucun fichier."""
     reference,mobile=demonstration();vraie=list(mobile.pose)
     modeles,_,_=construire_references(reference)
     lignes=[]
@@ -42,11 +43,6 @@ def evaluer(sortie='exemples/evaluation_tp_jour2.csv',annuler=None,progression=N
                     reussite=correct,reussite_acceptee=correct and r.applicable,faux_accepte=r.applicable and not correct,
                     seuil_position_m=.1,seuil_angle_deg=2,message=r.message))
     if annuler is not None and annuler.is_set():raise InterruptedError('Évaluation annulée ; export non remplacé.')
-    chemin=Path(sortie);chemin.parent.mkdir(parents=True,exist_ok=True)
-    temporaire=chemin.with_suffix(chemin.suffix+'.tmp')
-    with temporaire.open('w',newline='',encoding='utf-8') as f:
-        w=csv.DictWriter(f,fieldnames=list(lignes[0]));w.writeheader();w.writerows(lignes)
-    temporaire.replace(chemin)
     synthese=[]
     for modele,_ in modeles:
         for methode in [LOCALE,MULTI]:
@@ -56,6 +52,23 @@ def evaluer(sortie='exemples/evaluation_tp_jour2.csv',annuler=None,progression=N
                 faux_acceptes=sum(l['faux_accepte'] for l in g),refus=sum(not l['accepte'] for l in g),
                 taux_reussite=sum(l['reussite'] for l in g)/len(g),
                 mediane_s=float(np.median([l['temps_s'] for l in g])),p95_s=float(np.percentile([l['temps_s'] for l in g],95))))
+    return lignes,synthese
+
+
+def csv_texte(lignes):
+    """Texte CSV (UTF-8) d'une liste de dictionnaires de mêmes clés."""
+    import io
+    tampon=io.StringIO(newline='');w=csv.DictWriter(tampon,fieldnames=list(lignes[0]),lineterminator='\r\n')
+    w.writeheader();w.writerows(lignes);return tampon.getvalue()
+
+
+def evaluer(sortie='exemples/evaluation_tp_jour2.csv',annuler=None,progression=None):
+    lignes,synthese=calculer(annuler,progression)
+    chemin=Path(sortie);chemin.parent.mkdir(parents=True,exist_ok=True)
+    temporaire=chemin.with_suffix(chemin.suffix+'.tmp')
+    with temporaire.open('w',newline='',encoding='utf-8') as f:
+        w=csv.DictWriter(f,fieldnames=list(lignes[0]));w.writeheader();w.writerows(lignes)
+    temporaire.replace(chemin)
     synth=chemin.with_name(chemin.stem+'_synthese.csv')
     with synth.open('w',newline='',encoding='utf-8') as f:
         w=csv.DictWriter(f,fieldnames=list(synthese[0]));w.writeheader();w.writerows(synthese)

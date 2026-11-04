@@ -160,8 +160,21 @@
         <label class="champ"><span>y (m)</span><input id="p-y" inputmode="decimal"></label>
         <label class="champ"><span>cap (°)</span><input id="p-t" inputmode="decimal"></label>
       </div>
+      <label class="champ"><span>Recalage sur…</span>
+        <select id="insp-methode">
+          <option value="auto">Toute la carte, sans indice (recherche 360°)</option>
+          <optgroup label="TP — depuis la pose actuelle (±1 m, ±30°)">
+            <option value="grille:locale">Grille d’occupation · affinement local</option>
+            <option value="grille:multi">Grille d’occupation · multi-résolution</option>
+            <option value="plan:locale">Carte vectorielle · affinement local</option>
+            <option value="plan:multi">Carte vectorielle · multi-résolution</option>
+            <option value="scan:locale">Scan de référence · affinement local</option>
+            <option value="scan:multi">Scan de référence · multi-résolution</option>
+          </optgroup>
+        </select></label>
+      <label class="champ" id="champ-ref-scan" hidden><span>Scan de référence</span><select id="insp-ref"></select></label>
       <div class="rangee">
-        <button id="insp-recaler">Recaler automatiquement</button>
+        <button id="insp-recaler">Recaler</button>
       </div>
       <div id="insp-resultat" class="resultat" hidden>
         <p id="insp-resultat-texte"></p>
@@ -174,6 +187,7 @@
     </div>
     <div class="panneau-pied">
       <button id="c-assembler" title="Replace tous les scans inclus dans un même repère">Assembler les scans inclus</button>
+      <button id="c-evaluer" title="Banc du TP Jour 2 : trois références × deux stratégies × sept départs, sur les scans simulés du TP">Évaluer les méthodes (TP)</button>
       <button id="c-annuler" hidden>Annuler le calcul</button>
       <p class="aide" id="c-tache"></p>
     </div>
@@ -217,6 +231,22 @@
   </div>
 </section>
 </main>
+<dialog id="dialogue-tp" aria-labelledby="tp-titre">
+  <h2 id="tp-titre">Évaluation des méthodes de localisation</h2>
+  <p class="aide">Deux scans simulés d’une même pièce : le fixe construit les trois références, le mobile (pose vraie −0,8 m ; +0,4 m ; +15°) est localisé depuis sept départs de plus en plus faux (jusqu’à 3 m et 70°). Réussite = position à 10 cm et angle à 2° de la vérité.</p>
+  <div id="tp-etat" class="aide"></div>
+  <div class="table-tp"><table id="tp-table" hidden>
+    <thead><tr><th>Référence</th><th>Stratégie</th><th>Réussite vraie</th><th>Correctes acceptées</th><th>Fausses acceptées</th><th>Refus</th><th>Temps médian</th></tr></thead>
+    <tbody></tbody></table></div>
+  <p class="aide">Un faible RMSE ou une forte concordance ne sont pas une erreur vraie. Les temps dépendent du PC. Ce banc ne valide pas la robustesse sur le robot.</p>
+  <div class="rangee">
+    <button class="primaire" id="tp-lancer">Lancer l’évaluation</button>
+    <a class="bouton" id="tp-synthese" href="/api/carte/evaluation_synthese.csv" download hidden>Synthèse CSV</a>
+    <a class="bouton" id="tp-essais" href="/api/carte/evaluation_essais.csv" download hidden>42 essais CSV</a>
+    <button id="tp-fermer">Fermer</button>
+  </div>
+</dialog>
+
 <div id="toasts" class="toasts" aria-live="polite"></div>
 <script type="module" src="/static/main.js"></script>
 </body>
