@@ -1,7 +1,10 @@
 """Évaluation indépendante des poses d'entrée : première référence, recherche 360°.
-python evaluer_global.py chemin/ScanJules.zip
+python outils/evaluer_global.py chemin/ScanJules.zip
 Les en-têtes MapTool servent aux erreurs uniquement, jamais aux départs du calcul.
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # modules de l'application à la racine
 import csv
 import sys
 import numpy as np

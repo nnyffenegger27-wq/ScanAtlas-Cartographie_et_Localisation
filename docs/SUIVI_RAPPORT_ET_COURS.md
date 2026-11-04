@@ -88,7 +88,7 @@ Ajout au rapport du hotspot ESP32, de l'onglet de pilotage, du protocole de tour
 
 ## Interface unifiée et suivi analytique
 
-Le rapport est complété par l'onglet unique Localisation conforme aux trois références du TP, les curseurs et le tableau de bord Wi-Fi. Le suivi point-vers-droite, sa prédiction SE(2), le cache local et les limites sont décrits. Une comparaison chiffrée avant/après utilise exactement les mêmes 60 tours simulés ; elle est séparée des essais radio et moteurs. Sources et reproduction : SUIVI_CONTINU.md et comparer_suivi.py.
+Le rapport est complété par l'onglet unique Localisation conforme aux trois références du TP, les curseurs et le tableau de bord Wi-Fi. Le suivi point-vers-droite, sa prédiction SE(2), le cache local et les limites sont décrits. Une comparaison chiffrée avant/après utilise exactement les mêmes 60 tours simulés ; elle est séparée des essais radio et moteurs. Sources et reproduction : SUIVI_CONTINU.md et outils/comparer_suivi.py.
 
 
 ## 3 novembre 2026 — Reprise du suivi et acquisition USB ou Wi-Fi

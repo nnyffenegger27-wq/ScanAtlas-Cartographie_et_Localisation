@@ -1,9 +1,12 @@
 """Banc reproductible du suivi continu, salle synthétique avec occultations.
 
-python evaluer_wifi.py
+python outils/evaluer_wifi.py
 60 tours espacés de 100 ms, translation et rotation simultanées, bruit 3 mm.
 Ce banc ne mesure ni le réseau radio, ni les moteurs, ni le rolling scan.
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # modules de l'application à la racine
 import csv
 from pathlib import Path
 import numpy as np

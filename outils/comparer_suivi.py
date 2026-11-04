@@ -1,9 +1,12 @@
 """Compare la même trajectoire avec une ancienne version de cartographie_direct.py.
 
-python comparer_suivi.py --ancienne /chemin/cartographie_direct.py
+python outils/comparer_suivi.py --ancienne /chemin/cartographie_direct.py
 L'ancien module doit provenir du dépôt ScanAtlas (par exemple commit b28f7c9).
 Les deux moteurs reçoivent les mêmes mesures synthétiques et horodatages.
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # modules de l'application à la racine
 import argparse
 import csv
 import importlib.util

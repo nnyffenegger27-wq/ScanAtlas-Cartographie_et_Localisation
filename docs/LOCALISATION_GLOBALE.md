@@ -45,9 +45,9 @@ Cette gestion n’est pas une optimisation de graphe de poses. Elle ne corrige p
 ## Essais reproductibles
 
 - `python -m unittest discover -s tests`
-- `python evaluer_global.py` : demi-tour et déplacement de 4,47 m avec demi-tour.
-- `python evaluer_global.py chemin/ScanJules.zip` : 14 scans MapTool contre une référence fixe.
-- `python evaluer_global.py --lot` : assemblage cumulé de huit scans bruités.
+- `python outils/evaluer_global.py` : demi-tour et déplacement de 4,47 m avec demi-tour.
+- `python outils/evaluer_global.py chemin/ScanJules.zip` : 14 scans MapTool contre une référence fixe.
+- `python outils/evaluer_global.py --lot` : assemblage cumulé de huit scans bruités.
 
 Les poses de départ du banc global sont volontairement fixées à des coordonnées erronées de plusieurs dizaines de mètres ; les poses connues servent uniquement aux erreurs finales. Réussite : position ≤ 10 cm et angle ≤ 2°.
 

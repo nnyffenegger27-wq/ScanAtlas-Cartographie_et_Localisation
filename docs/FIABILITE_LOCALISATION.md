@@ -28,7 +28,7 @@ Ces contrôles sont des heuristiques numériques, sans garantie absolue. Le seui
 
 `python -m unittest discover -s tests`
 
-`python evaluer_robustesse.py chemin/ScanJules.zip`
+`python outils/evaluer_robustesse.py chemin/ScanJules.zip`
 
 Le ZIP fourni contient 15 scans MapTool. Le premier fichier importé sert de référence fixe ; les 14 autres ont chacun trois erreurs initiales identiques pour les deux méthodes : (+0,50 m,+0,30 m,+15°), (−0,50 m,+0,40 m,−20°), (+0,80 m,−0,60 m,+25°). Les poses des en-têtes servent uniquement à fabriquer les erreurs initiales et mesurer les erreurs finales. Réussite : position ≤0,10 m ET angle ≤2°. Les scans ne voient pas tous les mêmes obstacles depuis la référence unique.
 
@@ -39,7 +39,7 @@ Le ZIP fourni contient 15 scans MapTool. Le premier fichier importé sert de ré
 
 Un refus peut concerner une pose juste : la priorité est de limiter la propagation d’erreurs. Le taux de poses correctes acceptées est 35,7 % sur ce jeu difficile à référence unique ; il ne faut pas le présenter comme une localisation universellement fiable. Zéro faux accepté sur ce jeu ne prédit pas zéro en conditions réelles. Les temps dépendent du PC.
 
-`python evaluer_lot.py`
+`python outils/evaluer_lot.py`
 
 Une trajectoire de huit scans est générée dans une salle avec un obstacle, graine aléatoire 20261103 : bruit de distance d’écart type 15 mm, environ 20 % de mesures supprimées et environ 5 % de distances aberrantes parmi les mesures restantes. Déplacements jusqu’à environ 0,64 m et rotations jusqu’à 20° entre poses. Toutes les poses d’entrée sont nulles ; les sept scans après l’ancre sont correctement acceptés. Erreurs maximales : 0,0118 m et 0,222°, temps total environ 12,7 s. Les poses vraies ne sont jamais données au recalage. Les résultats détaillés sont dans exemples/robustesse_lot.csv.
 

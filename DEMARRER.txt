@@ -8,7 +8,7 @@ LD06 ATELIER — DÉMARRAGE WINDOWS
 Pour tes mesures réelles : Acquisition USB, ou Importer CSV.
 Ferme le moniteur série Arduino avant la capture USB.
 
-Le guide LISEZ_MOI.md explique chaque étape et le code.
+Le guide docs/LISEZ_MOI.md explique chaque étape et le code.
 Le bouton « Comprendre l'application » affiche aussi les explications.
 
 La démonstration est SIMULÉE : elle ne remplace pas tes scans réels de salle.

@@ -1,8 +1,11 @@
 """Évaluation reproductible du recalage entre les deux scans simulés de la démo.
 
-python evaluer_localisation.py --sortie resultats_icp.csv
+python outils/evaluer_localisation.py --sortie resultats_icp.csv
 Les critères de réussite utilisent la pose vraie, pas la convergence du solveur.
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # modules de l'application à la racine
 import argparse
 import csv
 import numpy as np

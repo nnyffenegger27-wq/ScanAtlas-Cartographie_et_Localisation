@@ -1,4 +1,4 @@
-> **Version du 4 novembre 2026** — Interface en trois espaces, carte reprise, localisation seule, grille en direct, PWM et USB/Wi-Fi réunis. Consulter [le guide actuel](GUIDE_SCANATLAS_V3.md). Les descriptions antérieures ci-dessous peuvent correspondre à une version précédente.
+> **Version du 4 novembre 2026** — Interface en trois espaces, carte reprise, localisation seule, grille en direct, PWM et USB/Wi-Fi réunis. Consulter [le guide actuel](docs/GUIDE_SCANATLAS_V3.md). Les descriptions antérieures ci-dessous peuvent correspondre à une version précédente.
 
 # LD06 Atelier
 
@@ -14,7 +14,7 @@ Application Python locale pour le TP EIGSI de cartographie et localisation lidar
 ## Démarrer
 
 Python 3.10 ou plus récent. Sous Windows : `installer_windows.bat`, puis
-`lancer_windows.bat`. Le guide complet est dans [LISEZ_MOI.md](LISEZ_MOI.md).
+`lancer_windows.bat`. Le guide complet est dans [LISEZ_MOI.md](docs/LISEZ_MOI.md).
 
 ## Jour 2
 
@@ -23,7 +23,7 @@ Un seul onglet **Localisation** réunit les trois références demandées :
 Le mobile est sélectionné dans la liste des scans. La référence doit être
 construite sans lui. Deux stratégies sont comparées : affinement local robuste
 et multi-résolution suivie du même affinement. L’évaluation exporte les 42 essais,
-les erreurs, durées et taux de réussite. Guide : [TP_JOUR2_RESULTATS.md](TP_JOUR2_RESULTATS.md).
+les erreurs, durées et taux de réussite. Guide : [TP_JOUR2_RESULTATS.md](docs/TP_JOUR2_RESULTATS.md).
 
 L’ancien second panneau de recalage n’est plus affiché. Les algorithmes
 historiques restent disponibles dans les scripts et pour l’acquisition USB,
@@ -40,8 +40,8 @@ repère de démonstration.
 
 ## Suivi du projet
 
-- [JOURNAL_PROJET.md](JOURNAL_PROJET.md) : contexte, décisions, observations et tâches.
-- [GUIDE_GITHUB.md](GUIDE_GITHUB.md) : envoyer le dépôt et travailler avec GitHub.
+- [JOURNAL_PROJET.md](docs/JOURNAL_PROJET.md) : contexte, décisions, observations et tâches.
+- [GUIDE_GITHUB.md](docs/GUIDE_GITHUB.md) : envoyer le dépôt et travailler avec GitHub.
 
 ## Tests
 
@@ -73,14 +73,14 @@ Recalculer ensuite les cartes et enregistrer la session.
 Le diagnostic du scan sélectionné signale les tours multiples et les grandes
 lacunes. Les blocs de plusieurs tours sont conservés ; leur étendue est indiquée à titre informatif. Un scan de 305 points
 couvrant 360° ne prouve pas que toutes les mesures ont été reçues.
-Voir [l'analyse des acquisitions et des difficultés](ANALYSE_SCANS_ET_SOURIS.md).
+Voir [l'analyse des acquisitions et des difficultés](docs/ANALYSE_SCANS_ET_SOURIS.md).
 
 
 ## Rapport et supports du cours
 
 Le premier rapport Word illustré reprend les cinq captures utilisateur.
 Le suivi du rapport et la comparaison aux méthodes du cours sont consignés
-dans [SUIVI_RAPPORT_ET_COURS.md](SUIVI_RAPPORT_ET_COURS.md).
+dans [SUIVI_RAPPORT_ET_COURS.md](docs/SUIVI_RAPPORT_ET_COURS.md).
 La grid map est rapprochée de la méthode fournie ; la gestion des anciennes
 formes traversées par les nouveaux rayons reste à intégrer à la carte vectorielle.
 
@@ -150,7 +150,7 @@ explicite sans réécrire les paramètres des anciennes sessions.
 La carte vectorielle fusionne sur les points d'origine avec contrôle de l'erreur
 de droite, puis traite prudemment les anciennes formes traversées par au moins
 trois nouveaux rayons de directions distinctes. Voir les méthodes, limites
-et trois essais dans [SEGMENTS_MULTISCANS_ET_VECTORIELLE.md](SEGMENTS_MULTISCANS_ET_VECTORIELLE.md).
+et trois essais dans [SEGMENTS_MULTISCANS_ET_VECTORIELLE.md](docs/SEGMENTS_MULTISCANS_ET_VECTORIELLE.md).
 
 
 ## Import MapTool du professeur
@@ -224,29 +224,29 @@ de recalage conservent également les scans déjà reçus.
 
 ### Recalage fiable et lots de scans
 
-Localisation propose **Superposer le lot coché Carte**, dans l’ordre d’acquisition : première pose fixe, sous-carte des cinq derniers scans acceptés, poses refusées signalées, restauration possible du dernier lot. Acquisition USB utilise également une sous-carte des dernières références acceptées. Recherche large vérifie l’accord fin, la géométrie et les solutions concurrentes avant application. Lire [FIABILITE_LOCALISATION.md](FIABILITE_LOCALISATION.md) pour les critères, les limites et les évaluations chiffrées (simulation et MapTool, sans nouvelle validation matérielle).
+Localisation propose **Superposer le lot coché Carte**, dans l’ordre d’acquisition : première pose fixe, sous-carte des cinq derniers scans acceptés, poses refusées signalées, restauration possible du dernier lot. Acquisition USB utilise également une sous-carte des dernières références acceptées. Recherche large vérifie l’accord fin, la géométrie et les solutions concurrentes avant application. Lire [FIABILITE_LOCALISATION.md](docs/FIABILITE_LOCALISATION.md) pour les critères, les limites et les évaluations chiffrées (simulation et MapTool, sans nouvelle validation matérielle).
 
 ### Étape antérieure du mode global 360° et des groupes en attente
 
-Le mode par défaut est maintenant **Carte cumulée · recherche globale 360°** : premier scan fixe, recherche sur toute la carte connue, aucune fenêtre obligatoire de déplacement ou d’orientation. Dans Localisation, **Assembler tous les scans** recale la collection et garde les groupes non raccordés séparément. Acquisition USB utilise la même carte cumulée et peut reprendre après un scan refusé. La concordance est affichée avec le motif de refus éventuel. Lire [LOCALISATION_GLOBALE.md](LOCALISATION_GLOBALE.md) pour le fonctionnement, les tests et les limites. Les sections antérieures décrivent les étapes précédentes.
+Le mode par défaut est maintenant **Carte cumulée · recherche globale 360°** : premier scan fixe, recherche sur toute la carte connue, aucune fenêtre obligatoire de déplacement ou d’orientation. Dans Localisation, **Assembler tous les scans** recale la collection et garde les groupes non raccordés séparément. Acquisition USB utilise la même carte cumulée et peut reprendre après un scan refusé. La concordance est affichée avec le motif de refus éventuel. Lire [LOCALISATION_GLOBALE.md](docs/LOCALISATION_GLOBALE.md) pour le fonctionnement, les tests et les limites. Les sections antérieures décrivent les étapes précédentes.
 
 ### Pilotage Wi-Fi et cartographie pendant le déplacement
 
 L'onglet **Robot Wi-Fi** et le firmware `firmware/ScanAtlas_WiFi` implémentent
 maintenant le hotspot **ScanAtlas** (mot de passe **ScanAtlas2026**, adresse
 **192.168.4.1**), les commandes clavier et la carte vectorielle incrémentale.
-Guide de flash, connexion, tests et limites : [PILOTAGE_WIFI.md](PILOTAGE_WIFI.md).
+Guide de flash, connexion, tests et limites : [PILOTAGE_WIFI.md](docs/PILOTAGE_WIFI.md).
 Le firmware a été compilé pour ESP32 classique, core Arduino **2.0.17**.
 Les essais matériels restent à réaliser ; pas encore de navigation autonome.
 Pour essayer sans matériel : `python simuler_robot_wifi.py`, puis adresse
 `127.0.0.1` dans Robot Wi-Fi. Les dossiers moteur et lidar d'origine sont conservés.
-L'étude [ARCHITECTURE_TEMPS_REEL_WIFI.md](ARCHITECTURE_TEMPS_REEL_WIFI.md)
+L'étude [ARCHITECTURE_TEMPS_REEL_WIFI.md](docs/ARCHITECTURE_TEMPS_REEL_WIFI.md)
 reste la référence pour les étapes suivantes, notamment odométrie,
 relocalisation globale en arrière-plan et autonomie.
 
 ### TP Jour 2 — les trois références et leur évaluation
 
-L’onglet unique **Localisation** propose la grille d’occupation, la carte vectorielle et un scan de référence. Deux stratégies par type : affinement local robuste, ou multi-résolution puis affinement. La carte doit être construite sans le scan mobile ; l’application contrôle cette exclusion. Le bouton d’évaluation exporte 42 essais simulés sur les mêmes scans et les mêmes poses initiales, avec erreurs vraies, temps, taux de réussite et faux acceptés. Lire [TP_JOUR2_RESULTATS.md](TP_JOUR2_RESULTATS.md).
+L’onglet unique **Localisation** propose la grille d’occupation, la carte vectorielle et un scan de référence. Deux stratégies par type : affinement local robuste, ou multi-résolution puis affinement. La carte doit être construite sans le scan mobile ; l’application contrôle cette exclusion. Le bouton d’évaluation exporte 42 essais simulés sur les mêmes scans et les mêmes poses initiales, avec erreurs vraies, temps, taux de réussite et faux acceptés. Lire [TP_JOUR2_RESULTATS.md](docs/TP_JOUR2_RESULTATS.md).
 
 **Après mise à jour, relancer installer_windows.bat** pour installer SciPy, puis redémarrer l’application. Les méthodes TP supposent une pose approchée ; les routines globales historiques restent dans les scripts et l’acquisition USB. Les essais réels avec incertitudes mesurées restent à réaliser.
 
@@ -261,9 +261,9 @@ et la puissance PWM. Aucun changement de firmware ni de protocole Wi-Fi
 n’est nécessaire pour cette mise à jour de l’application PC.
 
 Le minimum du TP reste visible dans un unique onglet **Localisation**.
-Résultats, limites et mesures avant/après : [SUIVI_CONTINU.md](SUIVI_CONTINU.md).
+Résultats, limites et mesures avant/après : [SUIVI_CONTINU.md](docs/SUIVI_CONTINU.md).
 
 
 ## Acquisition et pilotage manuel
 
-L’onglet Acquisition propose USB (CSV historique) et Wi-Fi (scans bruts). Le pilotage manuel ne dépend plus du succès de la localisation. Voir [les instructions et limites matérielles](ACQUISITION_ET_DEPANNAGE.md). Le firmware reste inchangé ; USB et Wi-Fi nécessitent encore leurs programmes respectifs.
+L’onglet Acquisition propose USB (CSV historique) et Wi-Fi (scans bruts). Le pilotage manuel ne dépend plus du succès de la localisation. Voir [les instructions et limites matérielles](docs/ACQUISITION_ET_DEPANNAGE.md). Le firmware reste inchangé ; USB et Wi-Fi nécessitent encore leurs programmes respectifs.

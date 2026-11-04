@@ -1,4 +1,7 @@
 """Figures à partir du CSV mesuré ; aperçu calculé sur les trois références."""
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # modules de l'application à la racine
 import csv
 from pathlib import Path
 import numpy as np
@@ -12,7 +15,7 @@ from localisation import points_filtres,transformer
 
 
 def produire():
-    base=Path(__file__).parent/'exemples';ls=list(csv.DictReader((base/'evaluation_tp_jour2.csv').open()))
+    base=Path(__file__).resolve().parents[1]/'exemples';ls=list(csv.DictReader((base/'evaluation_tp_jour2.csv').open()))
     couleurs={'Grille':'#3366aa','Carte vectorielle':'#d07a23','Scan':'#25845b'}
     fig,axes=plt.subplots(2,1,figsize=(7,5.7),sharex=True,constrained_layout=True)
     for ref,c in couleurs.items():

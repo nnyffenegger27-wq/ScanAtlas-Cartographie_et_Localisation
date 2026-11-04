@@ -86,8 +86,8 @@ Sur **cette exécution**, le calcul médian est environ neuf fois plus rapide.
 Ce résultat mesure le moteur de suivi, hors interface et hors réseau radio.
 Il ne prouve pas la précision réelle du LD06, ni la fréquence atteignable sur
 un autre PC. Le fichier `exemples/comparaison_suivi_continu.csv` contient les
-120 lignes détaillées. `comparer_suivi.py --ancienne CHEMIN` permet de répéter
-le banc avec une copie du module de la version initiale. `evaluer_wifi.py`
+120 lignes détaillées. `outils/comparer_suivi.py --ancienne CHEMIN` permet de répéter
+le banc avec une copie du module de la version initiale. `outils/evaluer_wifi.py`
 évalue séparément la version actuelle.
 
 ## Vérifications

@@ -1,7 +1,10 @@
 """Trajectoire simulée déterministe, bruit 15 mm, 20 % de pertes, 5 % d’aberrants.
-python evaluer_lot.py
+python outils/evaluer_lot.py
 La vérité n'entre jamais dans le recalage ; seul le premier scan fixe le repère.
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # modules de l'application à la racine
 import csv
 import numpy as np
 from cartographie import Scan, intersection

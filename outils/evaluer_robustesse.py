@@ -1,9 +1,12 @@
 """Banc MapTool reproductible : vérité utilisée uniquement pour les erreurs.
 
-python evaluer_robustesse.py chemin/ScanJules.zip
+python outils/evaluer_robustesse.py chemin/ScanJules.zip
 Trois perturbations identiques par scan, référence fixe = premier fichier ZIP.
 Aucune remise en ordre chronologique supposée. Réussite <=10 cm ET <=2 degrés.
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # modules de l'application à la racine
 import csv
 import sys
 import numpy as np

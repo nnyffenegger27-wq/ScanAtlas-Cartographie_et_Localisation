@@ -1,5 +1,5 @@
 /* ScanAtlas : ESP32 classique, Arduino-ESP32 2.0.17, Keyestudio Mecanum V2.
- * Le firmware de démonstration original reste inchangé dans MecanumCarV2/.
+ * Le firmware de démonstration original reste inchangé dans materiel/MecanumCarV2/.
  * Démarrage à l'arrêt. Un seul pilote. Les commandes n'ont pas d'odométrie.
  */
 #include <WiFi.h>

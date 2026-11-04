@@ -58,7 +58,7 @@ https://www.open3d.org/docs/release/tutorial/pipelines/icp_registration.html
 
 ```bash
 python -m unittest discover -s tests -v
-python evaluer_localisation.py --sortie exemples/resultats_icp.csv
+python outils/evaluer_localisation.py --sortie exemples/resultats_icp.csv
 ```
 
 La démo génère deux acquisitions de la même salle avec des poses différentes
@@ -123,7 +123,7 @@ L’annulation est vérifiée pendant la recherche et entre les raffinements.
 Pour reproduire la comparaison :
 
 ```bash
-python evaluer_localisation.py --comparer --sortie exemples/comparaison_localisation.csv
+python outils/evaluer_localisation.py --comparer --sortie exemples/comparaison_localisation.csv
 ```
 
 Même référence, mobile, filtres, neuf poses initiales et critères (0,10 m / 2°)
