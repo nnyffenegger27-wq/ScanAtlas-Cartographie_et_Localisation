@@ -1,12 +1,4 @@
-﻿/**
- * 文件：mecanumCar_v2.cpp
- * 功能：mecanum car v2控制源文件
- * 适用于raspberry pi pico
- * 作者：邓飞
- * 时间：2022.7.4
- */
-
-#include "MecanumCar_v2.h"
+﻿#include "MecanumCar_v2.h"
 #include "Arduino.h"
 
 uint8_t speed_Upper_L = 80;

@@ -1,11 +1,3 @@
-/**
-   名字：mecanumCar_v2.h
-   功能：实现自定义库头文件
-   适用于raspberry pi pico
-   作者：邓飞
-   时间：2021/7/4
-*/
-
 #ifndef _MecanumCar_v2_H__
 #define _MecanumCar_v2_H__
 

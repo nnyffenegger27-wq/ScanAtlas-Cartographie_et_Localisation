@@ -9,7 +9,7 @@
 #define MOTOR_DRIVER_PWM 1
 #define MOTOR_DRIVER_I2C 2
 #ifndef MOTOR_DRIVER  // Peut aussi être imposé par un drapeau de compilation (-DMOTOR_DRIVER=2).
-#define MOTOR_DRIVER MOTOR_DRIVER_PWM
+#define MOTOR_DRIVER MOTOR_DRIVER_I2C
 #endif
 
 // 2a) Profil PWM : utilisé seulement si MOTOR_DRIVER == MOTOR_DRIVER_PWM.
