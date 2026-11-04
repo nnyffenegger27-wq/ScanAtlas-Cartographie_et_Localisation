@@ -72,6 +72,20 @@ class Navigateur(unittest.TestCase):
         self.assertIsNone(self.app.session.demo)
         self.assertEqual(self.erreurs, [])
 
+    def test_choix_de_la_salle_simulee(self):
+        page = self.page()
+        page.goto(self.url+'#direct')
+        page.wait_for_function("document.querySelectorAll('#accueil .choix-salle option').length >= 3", timeout=5000)
+        page.select_option('#accueil .choix-salle', 'deux_pieces')
+        page.click('#accueil-demo')
+        page.wait_for_function("document.getElementById('etat-suivi-texte').textContent.includes('suivie')", timeout=20000)
+        self.assertEqual(self.app.session.demo['salle'], 'deux_pieces')
+        page.click('#puce-connexion')
+        self.assertEqual(page.locator('#popover-connexion .choix-salle').input_value(), 'deux_pieces')     # les deux listes restent synchronisées
+        page.click('#bouton-demo')
+        page.wait_for_function("document.getElementById('puce-texte').textContent.includes('Hors')", timeout=8000)
+        self.assertEqual(self.erreurs, [])
+
     def test_couches_replacer_et_exploration_depuis_l_interface(self):
         page = self.page()
         requetes = []

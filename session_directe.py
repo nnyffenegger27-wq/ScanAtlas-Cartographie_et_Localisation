@@ -17,6 +17,7 @@ from robot_wifi import RobotWifi, dernier
 from cartographie import mesures_valides
 from cartographie_direct import CarteDirecte
 from exploration import Explorateur
+from simulation import SALLES, SALLE_PAR_DEFAUT
 
 VALIDITE_CONSIGNE = .35
 ESSAIS_RECONNEXION = 8
@@ -140,7 +141,8 @@ class SessionDirecte:
             else:
                 connexion = 'connecte' if r.connecte.is_set() else 'connexion'
             restant = None if self.reconnexion_a is None else max(0., self.reconnexion_a-time.monotonic())
-            return dict(connexion=connexion, liaison=self.liaison, hote=self.hote, demo=self.demo is not None,
+            return dict(connexion=connexion, liaison=self.liaison, hote=self.hote, demo=self.demo is not None, salle_demo=None if self.demo is None else self.demo['salle'],
+                        salles=[dict(id=k, titre=v['titre']) for k, v in SALLES.items()],
                         pret=self.pret(), reglages=dict(self.reglages), message=self.message,
                         reconnexion=None if restant is None else dict(essai=self.tentatives, restant=round(restant, 1)),
                         suivi=None if etat is None else dict(actif=etat.accepte, message=etat.message),
@@ -349,7 +351,10 @@ class SessionDirecte:
             self.dire('Déconnecté. La carte reste disponible.')
         self.publier_etat()
 
-    def demarrer_demo(self):
+    def demarrer_demo(self, salle=None):
+        salle = salle or SALLE_PAR_DEFAUT
+        if salle not in SALLES:
+            raise ValueError('Salle simulée inconnue : %s.' % salle)
         with self.verrou:
             if self.demo is not None:
                 return
@@ -358,11 +363,11 @@ class SessionDirecte:
         self.doc.vider()
         self.carte, self.dernier_etat, self.dernier_scan = None, None, None
         script = Path(__file__).with_name('simuler_robot_wifi.py')
-        processus = subprocess.Popen([sys.executable, str(script)])
+        processus = subprocess.Popen([sys.executable, str(script), '--salle', salle])
         with self.verrou:
-            self.demo = dict(processus=processus, avant=avant)
+            self.demo = dict(processus=processus, avant=avant, salle=salle)
         self.liaison, self.hote = 'wifi', '127.0.0.1'
-        self.dire('Démonstration : robot simulé sur ce PC.')
+        self.dire('Démonstration : robot simulé sur ce PC (%s).' % SALLES[salle]['titre'])
         threading.Timer(.8, lambda: self._connecter_demo()).start()
 
     def _connecter_demo(self):

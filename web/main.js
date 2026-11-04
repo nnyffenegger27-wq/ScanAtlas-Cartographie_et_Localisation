@@ -52,9 +52,20 @@ $('bouton-connexion').onclick = async () => {
   if (r) ouvrirPop(false);
 };
 $('reco-auto').onchange = (e) => agir(appel('/api/reglages', { reconnexion_auto: e.target.checked }));
-$('bouton-demo').onclick = () => { ouvrirPop(false); agir(appel('/api/demo', { actif: !(etat && etat.demo) })); };
+const salles = () => Array.from(document.querySelectorAll('.choix-salle'));
+function remplirSalles(e) {
+  if (!e.salles || salles()[0].options.length === e.salles.length) return;
+  let memo = null; try { memo = localStorage.getItem('salle-demo'); } catch (_) { /* stockage indisponible */ }
+  for (const s of salles()) s.replaceChildren(...e.salles.map((x) => new Option(x.titre, x.id, false, x.id === memo)));
+}
+function salleChoisie() { const s = salles()[0]; return s ? s.value : undefined; }
+for (const s of salles()) s.onchange = () => {
+  for (const autre of salles()) autre.value = s.value;
+  try { localStorage.setItem('salle-demo', s.value); } catch (_) { /* facultatif */ }
+};
+$('bouton-demo').onclick = () => { ouvrirPop(false); agir(appel('/api/demo', { actif: !(etat && etat.demo), salle: salleChoisie() })); };
 $('accueil-connecter').onclick = () => { ouvrirPop(true); $('hote').focus(); };
-$('accueil-demo').onclick = () => agir(appel('/api/demo', { actif: true }));
+$('accueil-demo').onclick = () => agir(appel('/api/demo', { actif: true, salle: salleChoisie() }));
 
 function majConnexion(e) {
   etat = e;
@@ -65,6 +76,9 @@ function majConnexion(e) {
   t.textContent = textes[e.connexion];
   const actif = e.connexion !== 'hors_ligne';
   $('bouton-connexion').textContent = actif ? 'Déconnecter' : 'Connecter'; $('bouton-connexion').classList.toggle('primaire', !actif);
+  remplirSalles(e);
+  for (const s of salles()) { s.disabled = !!e.demo; if (e.demo && e.salle_demo) s.value = e.salle_demo; }
+  $('champ-salle').hidden = actif && !e.demo;
   $('bouton-demo').textContent = e.demo ? 'Quitter la démonstration' : 'Essayer avec un robot simulé';
   $('reco-auto').checked = e.reglages.reconnexion_auto;
   if (!pop.matches(':focus-within') && !actif) { if (e.liaison !== liaison) choisirLiaison(e.liaison, false); if (document.activeElement !== $('hote')) $('hote').value = e.hote; }

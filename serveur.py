@@ -237,7 +237,7 @@ def fabriquer_gestionnaire(app):
             elif chemin == '/api/deconnexion':
                 s.deconnecter()
             elif chemin == '/api/demo':
-                s.demarrer_demo() if d.get('actif', True) else s.quitter_demo()
+                s.demarrer_demo(d.get('salle')) if d.get('actif', True) else s.quitter_demo()
             elif chemin == '/api/pilote':
                 s.piloter(d.get('surge', 0), d.get('sway', 0), d.get('yaw', 0))
             elif chemin == '/api/arret':

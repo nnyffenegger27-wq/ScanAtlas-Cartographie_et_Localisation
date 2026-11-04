@@ -1,11 +1,12 @@
 """Exploration autonome en boucle fermée sur salles simulées (temps simulé : pas d'attente réelle)."""
+import os
 import unittest
 import numpy as np
 from cartographie import mesures_valides
 from cartographie_direct import CarteDirecte
 from exploration import Explorateur
 from localisation import erreur_pose
-from simulation import SalleVirtuelle, SALLE_DEMO, SALLE_DEUX_PIECES, distance_aux_murs
+from simulation import SalleVirtuelle, SALLE_DEMO, SALLE_DEUX_PIECES, SALLES, distance_aux_murs
 
 
 def points_locaux(etat):
@@ -74,6 +75,27 @@ class ExplorationComplete(unittest.TestCase):
         r = explorer(SALLE_DEMO, (-2.7, -1.7, 40.), duree_max=120.)       # presque dans un coin, cap quelconque
         self.assertEqual(r['ex'].etat, 'termine', r['ex'].message)
         self.assertGreater(r['ecart_min'], .12)
+
+
+class Appartement(unittest.TestCase):
+    """Salle de 16 m × 10 m avec couloir, portes de 90 cm et une vingtaine de meubles."""
+    murs, depart = SALLES['appartement']['murs'], SALLES['appartement']['depart']
+
+    def test_sortie_du_salon_par_la_porte_sans_toucher_un_meuble(self):
+        r = explorer(self.murs, self.depart, duree_max=100., puissance=100)
+        self.assertGreater(r['salle'].pose[1], 6.3)                # le robot est passé par la porte (y = 6) et est dans le couloir
+        self.assertGreater(r['ecart_min'], .15)
+        self.assertLess(r['erreur_max'], .12)       # pics de 9 cm à pleine vitesse près d'une table, sans dérive cumulée
+
+    @unittest.skipUnless(os.environ.get('SCANATLAS_LENT'), 'exploration complète (~1 min) : SCANATLAS_LENT=1')
+    def test_exploration_complete(self):
+        r = explorer(self.murs, self.depart, duree_max=600., puissance=100)
+        self.assertEqual(r['ex'].etat, 'termine', r['ex'].message)
+        self.assertGreater(r['ecart_min'], .15)
+        self.assertLess(r['erreur_max'], .12)       # pics de 9 cm à pleine vitesse près d'une table, sans dérive cumulée
+        g = r['carte'].grille
+        for monde in [(2., 4.6), (8., 3.), (14.8, 2.5), (.8, 6.6), (15.2, 6.6), (2.5, 8.2), (8.8, 8.5), (11., 8.7)]:
+            self.assertTrue(observe_libre(g, monde[0]-self.depart[0], monde[1]-self.depart[1]), monde)
 
 
 class Securites(unittest.TestCase):

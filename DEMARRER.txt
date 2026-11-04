@@ -4,7 +4,7 @@ SCANATLAS — DÉMARRAGE WINDOWS
 2. Double-clique sur installer_windows.bat (Python 3.10+ doit être installé).
 3. Double-clique sur lancer_windows.bat : ton navigateur s'ouvre sur ScanAtlas.
    (fenêtre noire = le serveur local ; la fermer quitte l'application)
-4. Sans robot : « Connexion » en haut à droite puis « Essayer avec un robot simulé ».
+4. Sans robot : « Essayer sans robot » sur l'écran d'accueil, ou « Connexion » en haut à droite puis « Essayer avec un robot simulé ». Une liste permet de choisir la salle (appartement, deux pièces, salle simple).
 
 Avec le robot : allume-le, connecte le PC à son Wi-Fi « ScanAtlas » (ou branche le câble USB,
 après avoir fermé le moniteur série Arduino), puis Connexion > Connecter.

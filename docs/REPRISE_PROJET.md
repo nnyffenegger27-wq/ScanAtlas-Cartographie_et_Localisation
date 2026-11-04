@@ -38,12 +38,12 @@ document_carte.py                carte partagée : scans, filtres, import/export
 robot_wifi.py, robot_usb.py      transports Wi-Fi (UDP commandes + TCP scans) et USB-série ; bail de commande
 cartographie_direct.py           CarteDirecte : suivi ICP, scans clés, carte incrémentale, replacement guidé (replacer)
 exploration.py                   exploration autonome : frontières, chemin (Dijkstra), commande avec évitement, détections
-simulation.py                    salles simulées (lidar, collisions, cinématique) pour le robot de démo et les tests
+simulation.py                    salles simulées (registre SALLES : appartement, deux pièces, salle simple ; constructeurs rectangle / polygone / cloison avec portes), lidar, collisions, cinématique
 suivi_lidar.py, localisation*.py ICP, localisation globale 360°, localisation TP
 cartographie.py, recalage_capture.py, assemblage_global.py   outils de carte (CSV, grille, segments, assemblage)
 evaluer_tp_jour2.py              comparaison TP des trois références (script, voir outils/)
 journal_direct.py                tours.jsonl, session_secours.json, evenements.log
-simuler_robot_wifi.py            robot simulé sur le PC (sans matériel)
+simuler_robot_wifi.py            robot simulé sur le PC (sans matériel) ; --salle appartement | deux_pieces | salle
 firmware/ScanAtlas_WiFi/         firmware ESP32 (voir §5)
 tests/                           voir §8
 docs/                            documentation (ce fichier, GUIDE_WEB, journal, archives Tk)

@@ -1,6 +1,7 @@
 """Session directe sans interface : reconnexion automatique, démonstration quittable, consignes de pilotage."""
 import time
 import unittest
+import numpy as np
 from unittest.mock import patch
 import session_directe
 from session_directe import SessionDirecte, Diffuseur, pourcentages
@@ -101,6 +102,30 @@ class Demonstration(Fixture):
         self.assertIsNone(s.robot)                                # et ne se reconnecte pas tout seul
 
 
+class ChoixDeLaSalle(Fixture):
+    def test_salle_inconnue_refusee(self):
+        with self.assertRaises(ValueError):
+            self.session.demarrer_demo('palais')
+        self.assertIsNone(self.session.demo)
+
+    def test_etat_public_liste_les_salles(self):
+        e = self.session.etat_public()
+        self.assertIn('appartement', [x['id'] for x in e['salles']])
+        self.assertIsNone(e['salle_demo'])
+
+    def test_l_appartement_est_la_salle_par_defaut_et_le_robot_y_est(self):
+        s = self.session
+        s.demarrer_demo()
+        s.fabrique_robot = SessionDirecte._fabrique_defaut
+        self.assertEqual(s.etat_public()['salle_demo'], 'appartement')
+        self.assertTrue(attendre(lambda: s.dernier_etat is not None, 15), s.message)
+        scan = s.dernier_etat.scan
+        angles = (scan.mesures[:, 0]-scan.angle_reference-180+180) % 360-180                # écart à la direction arrière
+        derriere = scan.mesures[np.argmin(np.abs(angles))]                                   # mesure à 180° : mur ouest
+        self.assertAlmostEqual(derriere[1], 2.0, delta=.1)           # départ en (2 ; 4,6) dans l'appartement (3 m dans la petite salle)
+        s.quitter_demo()
+
+
 class Pilotage(Fixture):
     def test_consigne_perimee_devient_un_arret(self):
         s = self.session
@@ -125,7 +150,7 @@ class Pilotage(Fixture):
 class ExplorationDansLaSession(Fixture):
     def demarrer(self):
         s = self.session
-        s.demarrer_demo()
+        s.demarrer_demo('salle')                                  # la petite salle : l'exploration y tient en temps réel
         s.fabrique_robot = SessionDirecte._fabrique_defaut       # vrai robot Wi-Fi simulé (processus + sockets)
         self.assertTrue(attendre(lambda: s.dernier_etat is not None and s.dernier_etat.accepte and s.pret(), 15), s.message)
         return s

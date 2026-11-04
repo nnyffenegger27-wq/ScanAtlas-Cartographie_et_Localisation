@@ -1,19 +1,24 @@
 """Robot Wi-Fi simulé sur le PC, sans moteurs : python simuler_robot_wifi.py.
 
-Dans l'onglet Robot Wi-Fi, adresse 127.0.0.1. Les touches déplacent le robot
-simulé dans une salle connue. Ceci ne valide ni le Wi-Fi radio ni le matériel.
+Dans l'application, « Essayer avec un robot simulé » le lance tout seul. À la main : adresse 127.0.0.1,
+et --salle appartement | deux_pieces | salle (voir simulation.SALLES). Le robot simulé se déplace dans une salle
+connue : ceci ne valide ni le Wi-Fi radio ni le matériel.
 """
+import argparse
 import socket
 import threading
 import time
 import numpy as np
 from robot_wifi import encoder_trame, COMMANDS
 
-from simulation import MURS, mesures_simulees, deplacer
+from simulation import SALLES, SALLE_PAR_DEFAUT, mesures_simulees, deplacer
 
 
 def main():
-    fin=threading.Event();lock=threading.Lock();pose=np.zeros(3)
+    ap=argparse.ArgumentParser(description=__doc__.split('\n')[0])
+    ap.add_argument('--salle',choices=sorted(SALLES),default=SALLE_PAR_DEFAUT)
+    salle=SALLES[ap.parse_args().salle];murs=salle['murs']
+    fin=threading.Event();lock=threading.Lock();pose=np.array(salle['depart'],float)
     state={'token':None,'adresse':None,'last':0.,'seq':0,'cmd':'STOP','pwm':65,'vecteur':(0,0,0)}
     udp=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);udp.bind(('127.0.0.1',4210));udp.settimeout(.02)
     server=socket.socket();server.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
@@ -59,12 +64,12 @@ def main():
                         p=pose.copy();allowed=token.decode().strip()==state['token']
                     if not allowed:break
                     sequence+=1
-                    client.sendall(encoder_trame(sequence,time.monotonic_ns()//1000,100000,mesures_simulees(p,rng)))
+                    client.sendall(encoder_trame(sequence,time.monotonic_ns()//1000,100000,mesures_simulees(p,rng,murs)))
             except (OSError,UnicodeError):pass
             finally:client.close()
     threads=[threading.Thread(target=f,daemon=True) for f in (commandes,scans)]
     for t in threads:t.start()
-    print('SIMULATION uniquement — adresse du robot : 127.0.0.1. Ctrl+C pour quitter.',flush=True)
+    print(f"SIMULATION uniquement ({salle['titre']}) — adresse du robot : 127.0.0.1. Ctrl+C pour quitter.",flush=True)
     last=time.monotonic()
     try:
         while not fin.wait(.02):
@@ -77,7 +82,7 @@ def main():
                     p=state['pwm']
                     avance,gauche=({'FORWARD':(p,0),'BACK':(-p,0),'STRAFE_L':(0,p),'STRAFE_R':(0,-p)}.get(cmd,(0,0)))
                     tourne=p*(1 if cmd=='LEFT' else -1 if cmd=='RIGHT' else 0)
-                pose[:]=deplacer(pose,avance,gauche,tourne,dt)
+                pose[:]=deplacer(pose,avance,gauche,tourne,dt,murs)
     except KeyboardInterrupt:pass
     finally:
         fin.set()

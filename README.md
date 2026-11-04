@@ -9,7 +9,7 @@ pip install -r requirements.txt
 python scanatlas.py
 ```
 
-Sous Windows : `installer_windows.bat` puis `lancer_windows.bat` (détails dans `DEMARRER.txt`). Sans robot, « Essayer avec un robot simulé » dans le menu de connexion.
+Sous Windows : `installer_windows.bat` puis `lancer_windows.bat` (détails dans `DEMARRER.txt`). Sans robot, « Essayer sans robot » (écran d'accueil du Direct) ou « Essayer avec un robot simulé » (menu de connexion) : trois salles au choix, dont un appartement de 16 m × 10 m avec couloir, cinq pièces et des meubles.
 
 ## Deux écrans
 
