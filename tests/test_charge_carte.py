@@ -123,6 +123,109 @@ class ToursReels(unittest.TestCase):
         self.assertLessEqual(len(carte.cles), 1+STATIQUES_MAX)
 
 
+def rejouer_fixture(nom, attendu):
+    """Rejoue un extrait de journal du robot avec l'horloge du lidar ; renvoie (taux accepté, carte)."""
+    import gzip
+    import cartographie_direct
+    from robot_wifi import TrameScan
+    horloge = [0.]
+    avant, cartographie_direct.perf_counter = cartographie_direct.perf_counter, lambda: horloge[0]
+    try:
+        carte, acceptes, n = CarteDirecte(), 0, 0
+        with gzip.open(Path(__file__).parent/'donnees'/nom, 'rt', encoding='utf-8') as f:
+            for ligne in f:
+                j = json.loads(ligne)
+                horloge[0] = j['fin_us']/1e6
+                etat = carte.traiter(TrameScan(j['sequence'], j['fin_us'], j['duree_us'], np.array(j['mesures'], float)))
+                n += 1
+                acceptes += bool(etat.accepte)
+    finally:
+        cartographie_direct.perf_counter = avant
+    assert n == attendu, n
+    return acceptes/n, carte
+
+
+class ToursReelsWifi(unittest.TestCase):
+    """420 tours enregistrés en Wi-Fi (450 points), robot immobile puis en mouvement, personnes et objets autour (4 nov. 2026, 16 h 40).
+    Avant correction : 7 % de scans acceptés sur la session entière (« 85 % à 12 cm, RMSE 0.103 m », jamais retrouvé) ; le RMSE
+    comptait les points sans correspondance (personne, objet déplacé) comme une imprécision de la pose."""
+    def test_les_points_sans_correspondance_ne_font_pas_perdre_le_suivi(self):
+        taux, _ = rejouer_fixture('lidar_wifi_personnes.jsonl.gz', 420)
+        self.assertGreaterEqual(taux, .9)
+
+
+class CriterePrecision(unittest.TestCase):
+    def test_suivi_fiable_ignore_les_points_sans_correspondance(self):
+        from cartographie_direct import suivi_fiable
+        base = dict(applicable=True, accord_fin=.8, rmse=.12)
+        self.assertTrue(suivi_fiable(SimpleNamespace(**base, rmse_fin=.04)))      # 20 % de points inconnus, alignement net
+        self.assertFalse(suivi_fiable(SimpleNamespace(**base, rmse_fin=.075)))    # alignement flou : refusé
+        self.assertFalse(suivi_fiable(SimpleNamespace(applicable=True, accord_fin=.6, rmse=.04, rmse_fin=.03)))   # trop peu de points concordants
+        self.assertFalse(suivi_fiable(SimpleNamespace(applicable=False, accord_fin=.9, rmse=.03, rmse_fin=.03)))
+
+
+def scans_bruites(n, decalage=.03, graine=4):
+    """n scans d'une salle depuis des poses voisines ; la pose enregistrée est fausse de `decalage` (dérive du suivi)."""
+    rng = np.random.default_rng(graine)
+    scans = []
+    for i in range(n):
+        vraie = (-1.5+3*rng.random(), -.8+1.6*rng.random(), 20*rng.normal())
+        trame = SalleVirtuelle(SALLE_DEMO, pose=vraie, bruit=.012, points=261, duree_tour=58000, graine=i).trame()
+        scan = trame.scan()
+        scan.pose = [vraie[0]+rng.normal(0, decalage), vraie[1]+rng.normal(0, decalage), vraie[2]+rng.normal(0, 1.)]
+        scans.append(scan)
+    return scans
+
+
+def paires_superposees(segments):
+    """Paires de segments à peu près parallèles (10°), à moins de 15 cm l'un de l'autre et qui se recouvrent."""
+    a = np.array([np.asarray(s, float).reshape(2, 2) for s in segments])
+    d = a[:, 1]-a[:, 0]
+    longueurs = np.linalg.norm(d, axis=1)
+    u = d/longueurs[:, None]
+    n = 0
+    for i in range(len(a)):
+        normale = np.array([-u[i, 1], u[i, 0]])
+        for j in range(i+1, len(a)):
+            if abs(u[i]@u[j]) < np.cos(np.deg2rad(10)):
+                continue
+            if max(abs((a[j, 0]-a[i, 0])@normale), abs((a[j, 1]-a[i, 0])@normale)) > .15:
+                continue
+            p, q = sorted((a[i, 0]@u[i], a[i, 1]@u[i])), sorted((a[j, 0]@u[i], a[j, 1]@u[i]))
+            if min(p[1], q[1])-max(p[0], q[0]) > .3*min(longueurs[i], longueurs[j]):
+                n += 1
+    return n
+
+
+class PlanSansDoublons(unittest.TestCase):
+    def test_un_mur_vu_cent_fois_reste_un_seul_segment(self):
+        scans = scans_bruites(60)
+        points, appuis, _ = CarteDirecte.construire(scans)
+        self.assertLessEqual(paires_superposees([s for s, _ in appuis]), 2)
+        self.assertLess(len(appuis), 40)                       # 4 murs, quelques objets : pas des centaines de morceaux
+
+    def test_session_ouverte_affichee_comme_le_direct_puis_scan_par_scan_apres_modification(self):
+        from journal_direct import serialiser_scan
+        scans = scans_bruites(45)
+        doc = DocumentCarte()
+        contenu = json.dumps(dict(version=2, parametres=dict(mini='0.05', maxi='12.0', intensite='0'),
+                                  scans=[serialiser_scan(s) for s in scans])).encode()
+        doc.importer('grosse.json', contenu)
+        self.assertTrue(doc.liste()['fusion'])
+        nuage = doc.nuage()
+        self.assertTrue(nuage['fusion'])
+        self.assertEqual(len(nuage['scans']), 1)
+        self.assertLess(paires_superposees(doc.plan()['segments']), 3)
+        doc.supprimer(0)                                       # toute modification : retour au calcul scan par scan
+        self.assertFalse(doc.liste()['fusion'])
+        self.assertGreater(len(doc.nuage()['scans']), 1)
+
+    def test_petite_session_reste_scan_par_scan(self):
+        doc = DocumentCarte()
+        doc.demonstration()
+        self.assertFalse(doc.liste()['fusion'])
+
+
 class PointsPerimes(unittest.TestCase):
     BOITE = (1.8, -1.2, 2.3, -.7)
 

@@ -157,7 +157,12 @@ def icp_droites(source, reference, initiale, annuler=None, iterations=30):
     else:raison='Concordance insuffisante.'
     initial = ecart_a_la_reference(reference,transformer(source,init));b = initial<.5
     erreur_init = float(np.sqrt(np.mean(initial[b]**2))) if b.any() else float('inf')
-    return ResultatICP(pose.tolist(),init.tolist(),erreur_init,rmse,float(bons.mean()),
+    resultat = ResultatICP(pose.tolist(),init.tolist(),erreur_init,rmse,float(bons.mean()),
         int(bons.sum()),k+1,perf_counter()-debut,converge,applicable,
         raison,
         methode='ICP point-vers-droite robuste',accord_fin=accord)
+    # Précision de l'alignement seule : RMSE des points qui concordent (≤ 12 cm). Le RMSE ci-dessus mêle cette précision
+    # et les points sans correspondance (personne, objet déplacé, zone jamais cartographiée), qui n'ont rien à voir avec la pose.
+    concordants = d[d<=.12]
+    resultat.rmse_fin = float(np.sqrt(np.mean(concordants**2))) if concordants.size else float('inf')
+    return resultat

@@ -493,7 +493,10 @@ class SessionDirecte:
                 self.derniere_carte_t = maintenant
                 if etat.cles != self.derniere_carte_cles:
                     self.derniere_carte_cles = etat.cles
-                    self.doc.remplacer_par_direct(list(etat.scans_cles), vue=dict(points=etat.points, appuis=self.carte.appuis, grille=etat.grille))
+                    carte = self.carte
+                    if carte is None:        # déconnexion pendant le calcul de ce scan : plus rien à publier
+                        return
+                    self.doc.remplacer_par_direct(list(etat.scans_cles), vue=dict(points=etat.points, appuis=carte.appuis, grille=etat.grille))
                     self.version_carte = self.doc.version
                 self.diffuseur.publier('carte', self._charge_carte(etat))
 

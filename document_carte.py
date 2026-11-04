@@ -16,9 +16,11 @@ from cartographie import (Scan, Grille, lire_csv, exporter_scan, demonstration, 
 from localisation import sous_carte, points_filtres
 from localisation_globale import localisation_globale
 from assemblage_global import assembler_scans
+from cartographie_direct import CarteDirecte
 
 FILTRES_DEFAUT = dict(mini=.05, maxi=12., intensite=0)
 RESOLUTIONS = (.02, .05, .10, .20)
+SEUIL_SESSION_FUSIONNEE = 30      # au-delà, une session ouverte s'affiche comme la carte du direct (fusionnée) tant qu'on n'y touche pas
 
 
 def _entier_mm(tableau):
@@ -74,6 +76,9 @@ class DocumentCarte:
         self.version = 0
         self.nom = 'Sans titre'
         self.vue_directe = None      # carte fusionnée du direct, valable tant que la version n'a pas changé
+        self.session_fusionnee = None   # version d'une grosse session ouverte, affichée fusionnée tant qu'on n'y touche pas
+        self._cache_vue = None
+        self._verrou_vue = threading.Lock()      # un seul calcul de la carte fusionnée à la fois (nuage, plan et grille la demandent ensemble)
 
     # -- état -----------------------------------------------------------------------------------
     def _change(self):
@@ -192,6 +197,7 @@ class DocumentCarte:
                 except (ValueError, TypeError):
                     pass
                 self._change()
+                self.session_fusionnee = self.version if sum(self.inclus) > SEUIL_SESSION_FUSIONNEE else None
             return f'Session « {Path(nom_fichier).stem} » ouverte : {len(scans)} scans.'
         if suffixe == '.zip':
             with tempfile.TemporaryDirectory() as dossier:
@@ -238,18 +244,45 @@ class DocumentCarte:
                                    points=len(s.mesures), etendue=round(float(d['etendue']), 1), etat=d['etat'],
                                    recalage=(s.suivi_recalage or {}).get('message')))
             return dict(version=self.version, nom=self.nom, scans=sortie, filtres=dict(self.filtres),
-                        resolution=self.resolution, fusion=self._vue() is not None)
+                        resolution=self.resolution, fusion=self.fusion_active())
 
     def _vue(self):
+        """Carte fusionnée déjà prête (celle du direct), sinon None. Ne calcule rien."""
         v = self.vue_directe
         return v if v is not None and v['version'] == self.version else None
 
+    def fusion_active(self):
+        with self.verrou:
+            return self._vue() is not None or self.session_fusionnee == self.version
+
+    def vue_courante(self):
+        """La carte fusionnée affichée (points, segments, grille) ou None : celle du direct, ou, pour une grosse session
+        ouverte et pas encore modifiée, celle que le direct aurait construite avec ces scans (mise en cache, calculée
+        hors du verrou du document : quelques secondes pour des centaines de scans)."""
+        with self._verrou_vue:
+            with self.verrou:
+                v = self._vue()
+                if v is not None:
+                    return v
+                if self.session_fusionnee != self.version:
+                    return None
+                if self._cache_vue is not None and self._cache_vue['version'] == self.version:
+                    return self._cache_vue
+                version, filtres, resolution = self.version, dict(self.filtres), self.resolution
+                scans = [s for s, oui in zip(self.scans, self.inclus) if oui]
+            points, appuis, grille = CarteDirecte.construire(scans, filtres, resolution)
+            vue = dict(points=points, appuis=appuis, grille=grille, version=version)
+            with self.verrou:
+                if self.version == version:
+                    self._cache_vue = vue
+            return vue
+
     def nuage(self):
         """Points locaux (mm) de chaque scan et sa pose : le navigateur place, déplace et dessine."""
+        vue = self.vue_courante()
+        if vue is not None:            # carte fusionnée : un seul nuage, déjà dans le repère de la carte
+            return dict(version=vue['version'], fusion=True, scans=[dict(id=-1, pose=[0., 0., 0.], pts=_entier_mm(vue['points']))])
         with self.verrou:
-            vue = self._vue()
-            if vue is not None:        # carte du direct : un seul nuage fusionné, déjà dans le repère de la carte
-                return dict(version=self.version, fusion=True, scans=[dict(id=-1, pose=[0., 0., 0.], pts=_entier_mm(vue['points']))])
             sortie = []
             for i, (s, vis) in enumerate(zip(self.scans, self.visibles)):
                 if not vis:
@@ -263,8 +296,7 @@ class DocumentCarte:
 
     def grille(self):
         """Carte d'occupation des scans inclus : 0 = inconnu, 1 à 255 = probabilité d'occupation."""
-        with self.verrou:
-            vue = self._vue()
+        vue = self.vue_courante()
         if vue is not None and vue['grille'] is not None:
             return grille_vers_json(vue['grille'])
         scans = self.scans_inclus()
@@ -277,8 +309,7 @@ class DocumentCarte:
 
     def plan(self):
         """Carte vectorielle : segments fusionnés des scans inclus."""
-        with self.verrou:
-            vue = self._vue()
+        vue = self.vue_courante()
         if vue is not None:
             return dict(segments=[[round(float(v), 3) for v in np.asarray(seg).ravel()] for seg, _ in vue['appuis']])
         scans = self.scans_inclus()

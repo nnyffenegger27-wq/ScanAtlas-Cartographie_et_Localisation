@@ -172,7 +172,14 @@ class SuiviDirect(unittest.TestCase):
     def test_trou_temporel_refuse_et_scan_brut_inchange(self):
         c=CarteDirecte();tr=trame_pose([0,0,0],1);brut=tr.mesures.copy();c.traiter(tr)
         np.testing.assert_array_equal(brut,tr.mesures)
-        self.assertFalse(c.traiter(trame_pose([0,0,0],2,5_000_000)).accepte)
+        self.assertFalse(c.traiter(trame_pose([0,0,0],2,12_000_000)).accepte)     # trou de 12 s : position inconnue
+
+    def test_trou_de_liaison_court_n_est_pas_une_perte_de_position(self):
+        # Wi-Fi : 1,5 à 8 s sans tour (le firmware a arrêté les moteurs) ; le robot n'a pas bougé : le suivi continue,
+        # sous surveillance (pas de scan clé pendant la vérification).
+        c=CarteDirecte();c.traiter(trame_pose([0,0,0],1))
+        e=c.traiter(trame_pose([0,0,0],2,5_000_000))
+        self.assertTrue(e.accepte,e.message)
 
 
 class FauxRobot:

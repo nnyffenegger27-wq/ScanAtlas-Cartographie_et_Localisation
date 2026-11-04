@@ -4,7 +4,10 @@ Les threads réseau ne touchent jamais Tk. Le bail UI et le délai des scans
 interdisent qu'un heartbeat réseau seul entretienne une ancienne commande.
 """
 from dataclasses import dataclass
+import os
 import queue
+import re
+import subprocess
 import secrets
 import socket
 import struct
@@ -19,6 +22,18 @@ POINT = struct.Struct('<HHB')
 # Le firmware garde la session 6 s sans commande (moteurs coupés dès 300 ms) : le PC patiente un peu moins.
 DELAI_SANS_REPONSE = 5.
 COMMANDS = frozenset(('STOP', 'FORWARD', 'BACK', 'LEFT', 'RIGHT', 'STRAFE_L', 'STRAFE_R', 'DRIVE'))
+
+
+def lire_signal_wifi(texte):
+    """(signal en %, canal, SSID) d'après la sortie de `netsh wlan show interfaces` (Windows, français ou anglais)."""
+    def champ(*noms):
+        m = re.search(r'^\s*(?:%s)\s*:\s*(.+?)\s*$' % '|'.join(noms), texte, re.M)
+        return m.group(1) if m else None
+    signal, canal, ssid = champ('Signal'), champ('Canal', 'Channel'), champ('SSID')
+    try:
+        return int(signal.rstrip('% ')), int(canal) if canal else None, ssid
+    except (AttributeError, ValueError):
+        return None
 
 
 @dataclass
@@ -164,6 +179,8 @@ class RobotWifi:
         self.effective = "EN ATTENTE"
         self.date_ack = 0.
         self.journal = None
+        self.signal = None        # (signal %, canal, SSID) relevé par Windows, pour expliquer les pauses de la liaison
+        self.retard_pc = 0.       # plus long retard du fil de commande du PC depuis la dernière pause notée
 
     def diagnostic_commande(self):
         with self.lock:
@@ -173,7 +190,7 @@ class RobotWifi:
     def demarrer(self):
         if self.threads:
             raise RuntimeError('Client déjà démarré.')
-        for fonction in (self._commandes, self._scans):
+        for fonction in (self._commandes, self._scans, self._surveiller_signal):
             thread = threading.Thread(target=fonction, daemon=True)
             self.threads.append(thread)
             thread.start()
@@ -188,9 +205,34 @@ class RobotWifi:
 
     def _noter_pause(self, nom, ecart, seuil=.5):
         """Une coupure brève de la liaison n'est plus fatale (le firmware garde la session 6 s) : on la note
-        dans le journal pour pouvoir mesurer sa durée et ses causes."""
+        dans le journal pour pouvoir mesurer sa durée et ses causes : le PC était-il lui-même bloqué (retard du fil
+        de commande) ou la radio a-t-elle coupé ? Et quel était le signal Wi-Fi ?"""
         if ecart > seuil and self.journal is not None:
-            self.journal.evenement(f'Pause de {ecart:.1f} s sans {nom} ; la liaison a repris sans reconnexion.')
+            retard, self.retard_pc = self.retard_pc, 0.
+            cause = f'PC bloqué {retard:.1f} s' if retard > .3 else 'PC réactif'
+            signal = '' if self.signal is None else f', Wi-Fi {self.signal[0]} % canal {self.signal[1]}'
+            self.journal.evenement(f'Pause de {ecart:.1f} s sans {nom} ({cause}{signal}) ; la liaison a repris sans reconnexion.')
+
+    def _surveiller_signal(self):
+        """Windows seulement : relève le signal et le canal du Wi-Fi toutes les 3 s (journal, pas d'effet sur le robot)."""
+        if os.name != 'nt' or self.hote.startswith('127.'):
+            return
+        drapeaux = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+        derniere = None
+        while not self.arret.wait(3.):
+            try:
+                sortie = subprocess.run(['netsh', 'wlan', 'show', 'interfaces'], capture_output=True, timeout=5,
+                                        creationflags=drapeaux).stdout.decode('cp850', errors='replace')
+            except (OSError, subprocess.SubprocessError):
+                return
+            lu = lire_signal_wifi(sortie)
+            if lu is None:
+                continue
+            self.signal = lu
+            if derniere is None or abs(lu[0]-derniere[0]) >= 15 or lu[1] != derniere[1]:
+                derniere = lu
+                if self.journal is not None:
+                    self.journal.evenement(f'Wi-Fi du PC : signal {lu[0]} %, canal {lu[1]}, réseau {lu[2]}.')
 
     def commander(self, commande='STOP', pwm=65):
         self.bail.actualiser(commande, pwm)
@@ -208,8 +250,12 @@ class RobotWifi:
         envois, acquitte = {}, 0
         try:
             sock.connect((self.hote, self.port_commande))
+            precedent = time.monotonic()
             while not self.arret.is_set():
                 t = time.monotonic()
+                if t-precedent > .25:          # ce fil n'a pas tourné : c'est le PC (calcul, verrou, GIL), pas la radio
+                    self.retard_pc = max(self.retard_pc, t-precedent)
+                precedent = t
                 if not self.connecte.is_set():
                     sock.send(f'HELLO {self.session}\n'.encode('ascii'))
                 else:

@@ -92,6 +92,22 @@ CLE_DELAI_STATIQUE_US = 1_000_000
 SEUIL_PERIME = -.8
 
 
+# Un recalage est fiable quand 75 % des points tombent à 12 cm de la carte ET que ces points concordants sont alignés à
+# 6 cm RMSE (un alignement faux mais « à peu près dans le couloir » donne ~7 cm). Les points sans correspondance
+# (personne autour du robot, objet déplacé) baissent la concordance mais ne comptent plus deux fois dans le RMSE.
+CONCORDANCE_MIN = .75
+# Fusion des segments : un mur revu par un nouveau scan prolonge le segment existant s'il est à peu près parallèle et
+# proche ; 90 % des mesures réunies doivent rester à FUSION_RESIDU de la droite ajustée, toutes à FUSION_RESIDU_MAX.
+FUSION_ANGLE, FUSION_DISTANCE, FUSION_RESIDU, FUSION_RESIDU_MAX = 8., .25, .08, .20
+TROU_MAX = 8.       # trou de liaison toléré entre deux tours (s) avant de déclarer la position inconnue
+RMSE_CONCORDANTS_MAX = .06
+
+
+def suivi_fiable(resultat):
+    return bool(resultat.applicable and resultat.accord_fin >= CONCORDANCE_MIN and
+                getattr(resultat, 'rmse_fin', resultat.rmse) <= RMSE_CONCORDANTS_MAX)
+
+
 class CarteDirecte:
     def __init__(self, filtres=None, scans=None, segments=None, resolution=.1):
         self.filtres = dict(filtres or dict(mini=.05, maxi=12., intensite=0))
@@ -199,6 +215,7 @@ class CarteDirecte:
         accepte = False
         message = ''
         rmse, methode = float('nan'), 'Ancrage'
+        trou = 0.                  # durée du trou de liaison qui précède ce tour (s), 0 sinon
         sous_surveillance = False  # ce scan vient d'une récupération ou suit un trou : pas de scan clé
         try:
             if guide is None and self.localisation_globale_requise and debut < self.prochain_global:
@@ -225,7 +242,7 @@ class CarteDirecte:
                 # position trouvée, sinon le suivi reperd aussitôt le robot.
                 autour=self._reference_autour(resultat.pose)
                 affine=icp_droites(pts,autour,resultat.pose,self.annuler)
-                if not affine.applicable or affine.accord_fin<.75 or affine.rmse>.10:
+                if not suivi_fiable(affine):
                     raise ValueError('Position globale non confirmée par la géométrie locale.')
                 self.reference_locale=autour
                 sous_surveillance=True
@@ -243,7 +260,13 @@ class CarteDirecte:
                 accepte = True
                 score = 100.
             else:
-                dt = .1 if recuperation else (trame.fin_us-self.fin_us)/1e6
+                ecart = (trame.fin_us-self.fin_us)/1e6
+                if not recuperation and 1.5 < ecart <= TROU_MAX:
+                    # Trou de liaison (Wi-Fi) : le robot s'est arrêté (le firmware coupe les moteurs sans données depuis 600 ms).
+                    # Ce n'est pas une perte de position : on cherche autour de la dernière pose, fenêtre élargie avec le temps.
+                    recuperation = True
+                    trou = ecart
+                dt = .1 if recuperation else ecart
                 if not 0 < dt <= 1.5:
                     raise ValueError('Scans trop espacés : carte en pause, nouvel essai automatique.')
                 # Index et normales réutilisés entre scans clés ; aucun recalcul intégral par tour.
@@ -303,9 +326,12 @@ class CarteDirecte:
                     ecoule = max(0., debut-self.accepte_t)
                     limites = (1.2, 35.) if explicite else (min(1.5, .25+1.0*ecoule), min(60., 8.+100.*ecoule))
                     plausible = ep <= limites[0] and ea <= limites[1]
-                accepte = bool(resultat.applicable and resultat.accord_fin >= .75 and
-                               resultat.rmse <= .10 and plausible and not self.annuler.is_set())
+                accepte = bool(suivi_fiable(resultat) and plausible and not self.annuler.is_set())
                 if not accepte:
+                    if trou and self.perdu_t is None:
+                        # Le robot a pu tourner ou rouler avant que le firmware coupe les moteurs : la recherche élargie
+                        # démarre tout de suite au lieu d'attendre 1 s de plus.
+                        self.perdu_t = debut-min(trou, 4.)
                     secours = self._recuperer(scan, pts, trame, debut)
                     if secours is None:
                         raison = '' if resultat.applicable else ' '+resultat.message
@@ -342,13 +368,8 @@ class CarteDirecte:
             if cle:
                 if len(self.cles) >= 2000:
                     raise ValueError('Limite de 2000 scans clés : enregistrer la carte.')
-                # Copie à l'insertion seulement : l'UI ne lit jamais une grille en mutation.
-                nouvelle_grille = deepcopy(self.grille) if self.grille is not None else Grille.creer([scan],self.resolution,**self.filtres)
-                nouvelle_grille.mettre_a_jour(scan,**self.filtres)
-                # Ce que ce scan a vu traverser disparaît de la carte (objet déplacé, porte refermée, personne passée).
-                anciens = self.points[self._log_odds(nouvelle_grille, self.points) > SEUIL_PERIME]
-                nouveaux_points = reduire(np.vstack([anciens, transformer(pts, scan.pose)]))
-                nouveaux_appuis = self._ajouter_segments(scan, self._appuis_valides(nouvelle_grille))
+                # Copie de la grille à l'insertion seulement : l'UI ne lit jamais une grille en mutation.
+                nouveaux_points, nouveaux_appuis, nouvelle_grille = self._integrer(scan, pts, self.points, self.appuis, self.grille)
                 # Seuls les huit derniers scans clés validés servent au suivi local.
                 # La référence garde aussi la couverture de la carte importée.
                 proches = nouveaux_points[np.linalg.norm(nouveaux_points-np.asarray(scan.pose[:2]),axis=1)<14.]
@@ -436,7 +457,7 @@ class CarteDirecte:
             affine = icp_droites(pts, self.reference_locale, r.pose, self.annuler)
         except (ValueError, RuntimeError):
             return None
-        if not affine.applicable or affine.accord_fin < .75 or affine.rmse > .10:
+        if not suivi_fiable(affine):
             return None
         return affine
 
@@ -446,6 +467,44 @@ class CarteDirecte:
         self.reprise = True
         self.historique_poses = []
         self.probation = PROBATION_SCANS
+
+    def _integrer(self, scan, pts, points, appuis, grille, copier=True):
+        """Ajoute un scan (poses connues) à la carte : grille d'occupation, points périmés retirés, points réduits,
+        segments fusionnés. Sert au direct (un scan clé après l'autre) et à la reconstruction d'une session chargée."""
+        if grille is None:
+            grille = Grille.creer([scan], self.resolution, **self.filtres)
+        elif copier:
+            grille = deepcopy(grille)
+        grille.mettre_a_jour(scan, **self.filtres)
+        # Ce que ce scan a vu traverser disparaît de la carte (objet déplacé, porte refermée, personne passée).
+        anciens = points[self._log_odds(grille, points) > SEUIL_PERIME]
+        nouveaux_points = reduire(np.vstack([anciens, transformer(pts, scan.pose)]))
+        nouveaux_appuis = self._ajouter_segments(scan, self._appuis_valides(grille, appuis))
+        return nouveaux_points, nouveaux_appuis, grille
+
+    @classmethod
+    def construire(cls, scans, filtres=None, resolution=.1, annuler=None):
+        """Carte complète d'une liste de scans déjà placés : mêmes règles de fusion que le direct."""
+        carte = cls(filtres, resolution=resolution)
+        scans = list(scans)
+        points, appuis = np.empty((0, 2)), []
+        grille = Grille.creer(scans, resolution, **carte.filtres) if scans else None
+        derniere = None
+        for scan in scans:
+            if annuler is not None and annuler.is_set():
+                raise ValueError('Calcul annulé.')
+            # Un scan presque à la même pose que le précédent n'apporte rien à la carte (anciennes sessions : un scan
+            # clé toutes les 2 s à l'arrêt) : on ne le rejoue pas.
+            if derniere is not None:
+                ep, ea = erreur_pose(scan.pose, derniere)
+                if ep < .05 and ea < 2.:
+                    continue
+            pts = points_filtres(scan, carte.filtres, locaux=True)
+            if len(pts) < 5:
+                continue
+            points, appuis, grille = carte._integrer(scan, pts, points, appuis, grille, copier=False)
+            derniere = scan.pose
+        return points, appuis, grille
 
     @staticmethod
     def _log_odds(grille, points):
@@ -460,10 +519,10 @@ class CarteDirecte:
         lo[dedans] = np.where(grille.observe[ij[:, 1], ij[:, 0]], grille.log_odds[ij[:, 1], ij[:, 0]], np.inf)
         return lo
 
-    def _appuis_valides(self, grille):
+    def _appuis_valides(self, grille, appuis=None):
         """Segments de la carte sans ceux dont la majorité des mesures sources a été traversée par de nouveaux rayons."""
         gardes = []
-        for segment, supports in self.appuis:
+        for segment, supports in (self.appuis if appuis is None else appuis):
             if np.mean(self._log_odds(grille, supports) <= SEUIL_PERIME) < .5:
                 gardes.append((segment, supports))
         return gardes
@@ -478,9 +537,9 @@ class CarteDirecte:
                 fusionne = False
                 # Préfiltre vectorisé (angle et écart latéral des extrémités) : seuls les voisins plausibles passent
                 # par le test exact `proches`.
-                for i in self._voisins(tableau, nouveau, 6., .10)[::-1]:
+                for i in self._voisins(tableau, nouveau, FUSION_ANGLE, FUSION_DISTANCE)[::-1]:
                     ancien, appuis_i = carte[i]
-                    if not proches(ancien, nouveau, angle_max=6., distance_max=.10):
+                    if not proches(ancien, nouveau, angle_max=FUSION_ANGLE, distance_max=FUSION_DISTANCE):
                         continue
                     supports = reduire(np.vstack([appuis_i, pts]), pas=.025, maximum=10000)
                     # Appuis bornés par segment, régulièrement répartis dans l'ordre projeté.
@@ -491,7 +550,8 @@ class CarteDirecte:
                     if longueur(fusion) <= 1e-8:
                         continue
                     u = (fusion[1]-fusion[0])/longueur(fusion)
-                    if np.max(np.abs((supports-fusion[0])@np.array([-u[1],u[0]]))) <= .05:
+                    residus = np.abs((supports-fusion[0])@np.array([-u[1],u[0]]))
+                    if residus.max() <= FUSION_RESIDU_MAX and np.percentile(residus, 90) <= FUSION_RESIDU:
                         nouveau, pts = fusion, supports
                         carte.pop(i)
                         tableau = np.delete(tableau, i, axis=0)

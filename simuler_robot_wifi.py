@@ -5,6 +5,7 @@ et --salle appartement | deux_pieces | salle (voir simulation.SALLES). Le robot 
 connue : ceci ne valide ni le Wi-Fi radio ni le matériel.
 """
 import argparse
+import os
 import socket
 import threading
 import time
@@ -17,9 +18,16 @@ from simulation import SALLES, SALLE_PAR_DEFAUT, mesures_simulees, deplacer
 def main():
     ap=argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('--salle',choices=sorted(SALLES),default=SALLE_PAR_DEFAUT)
-    salle=SALLES[ap.parse_args().salle];murs=salle['murs']
+    ap.add_argument('--coupures',default=os.environ.get('SCANATLAS_SIM_COUPURES',''),
+                    help='PERIODE,DUREE en secondes : coupe la liaison (commandes et scans) comme un trou Wi-Fi, pour tester la reprise')
+    args=ap.parse_args()
+    salle=SALLES[args.salle];murs=salle['murs']
+    periode,duree_coupure=(float(x) for x in args.coupures.split(',')) if args.coupures else (0.,0.)
+    debut_sim=time.monotonic()
+    def coupee():
+        return periode>0 and (time.monotonic()-debut_sim)%periode>periode-duree_coupure
     fin=threading.Event();lock=threading.Lock();pose=np.array(salle['depart'],float)
-    state={'token':None,'adresse':None,'last':0.,'seq':0,'cmd':'STOP','pwm':65,'vecteur':(0,0,0)}
+    state={'token':None,'adresse':None,'last':0.,'seq':0,'cmd':'STOP','pwm':65,'vecteur':(0,0,0),'dernier_scan':0.}
     udp=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);udp.bind(('127.0.0.1',4210));udp.settimeout(.02)
     server=socket.socket();server.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
     server.bind(('127.0.0.1',4211));server.listen(1);server.settimeout(.1)
@@ -27,6 +35,7 @@ def main():
         while not fin.is_set():
             try:raw,addr=udp.recvfrom(256)
             except socket.timeout:continue
+            if coupee():continue                  # trou de liaison : le paquet n'arrive pas
             p=raw.decode('ascii',errors='ignore').split();now=time.monotonic();rep=''
             with lock:
                 # comme le firmware : silence > 300 ms = moteurs coupés ; > 6 s = session perdue ; > 1 s = une autre session peut la reprendre
@@ -46,6 +55,7 @@ def main():
                     except ValueError:continue
                     if seq>state['seq'] and all(abs(x)<=100 for x in v) and (state['seq'] or not any(v)):
                         etat='DRIVE' if any(v) else 'STOP'
+                        if now-state['last']>.3:etat,v='STOP',(0,0,0)       # comme le firmware : la première commande après une coupure est appliquée comme STOP
                         state.update(seq=seq,last=now,cmd=etat,pwm=max(map(abs,v)),vecteur=v);rep=f"SA1 {p[1]} {seq} {etat}"
             if rep:udp.sendto((rep+'\n').encode(),addr)
     def scans():
@@ -65,7 +75,9 @@ def main():
                     with lock:
                         p=pose.copy();allowed=token.decode().strip()==state['token']
                     if not allowed:break
-                    sequence+=1
+                    sequence+=1                       # le lidar continue de tourner pendant un trou, les tours sont perdus
+                    if coupee():continue
+                    with lock:state['dernier_scan']=time.monotonic()
                     client.sendall(encoder_trame(sequence,time.monotonic_ns()//1000,100000,mesures_simulees(p,rng,murs)))
             except (OSError,UnicodeError):pass
             finally:client.close()
@@ -77,7 +89,7 @@ def main():
         while not fin.wait(.02):
             now=time.monotonic();dt=min(.1,now-last);last=now
             with lock:
-                cmd=state['cmd'] if now-state['last']<.3 else 'STOP'
+                cmd=state['cmd'] if now-state['last']<.3 and now-state['dernier_scan']<.6 else 'STOP'
                 if cmd=='DRIVE':
                     avance,gauche,tourne=state['vecteur']
                 else:

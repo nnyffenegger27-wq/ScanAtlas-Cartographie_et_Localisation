@@ -126,6 +126,44 @@ class ChoixDeLaSalle(Fixture):
         s.quitter_demo()
 
 
+class CoupuresDeLiaison(Fixture):
+    """Trous de liaison Wi-Fi simulés (1,4 s toutes les 4 s) : le robot repart seul si la touche reste tenue, la pause est
+    expliquée dans le journal (PC réactif ou bloqué) et le suivi n'est pas déclaré perdu pour longtemps."""
+    def test_le_pilotage_reprend_seul_apres_chaque_trou(self):
+        import os
+        s = self.session
+        with patch.dict(os.environ, {'SCANATLAS_SIM_COUPURES': '4,1.4'}):
+            s.demarrer_demo('salle')
+        s.fabrique_robot = SessionDirecte._fabrique_defaut
+        try:
+            self.assertTrue(attendre(lambda: s.pret(), 20), s.message)
+            s.reglages['puissance'] = 40
+            debut, positions = time.monotonic(), []
+            while time.monotonic()-debut < 14:
+                s.piloter(0, 1 if int(time.monotonic()-debut) % 8 < 4 else -1, 0)       # va-et-vient, touche toujours tenue
+                time.sleep(.06)
+                if s.dernier_etat is not None:
+                    positions.append((time.monotonic()-debut, s.dernier_etat.scan.pose[1]))
+            for t0 in (6., 10.):                         # après le deuxième et le troisième trou, le robot avance de nouveau
+                fenetre = [y for t, y in positions if t0 <= t <= t0+2.]
+                self.assertGreater(max(fenetre)-min(fenetre), .1, t0)
+            journal = (s.journal.dossier/'evenements.log').read_text(encoding='utf-8')
+            self.assertIn('PC réactif', journal)
+            self.assertNotIn('Robot sans réponse', journal)
+        finally:
+            s.quitter_demo()
+
+
+class LectureDuSignalWifi(unittest.TestCase):
+    def test_netsh_en_francais_et_en_anglais(self):
+        from robot_wifi import lire_signal_wifi
+        fr = "    Nom                    : Wi-Fi\n    SSID                   : ScanAtlas\n    Canal                  : 6\n    Signal                 : 74%\n"
+        en = "    SSID                   : ScanAtlas\n    Channel                : 11\n    Signal                 : 100%\n"
+        self.assertEqual(lire_signal_wifi(fr), (74, 6, 'ScanAtlas'))
+        self.assertEqual(lire_signal_wifi(en), (100, 11, 'ScanAtlas'))
+        self.assertIsNone(lire_signal_wifi('pas de réseau'))
+
+
 class Pilotage(Fixture):
     def test_consigne_perimee_devient_un_arret(self):
         s = self.session
