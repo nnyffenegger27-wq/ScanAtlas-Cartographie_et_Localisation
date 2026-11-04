@@ -21,7 +21,21 @@ Pour reprendre une carte enregistrée :
 3. Dans Robot en direct, choisir **Scans cochés Carte** comme carte de départ. Cliquer sur Nouvelle carte si une carte directe précédente existe, puis connecter.
 4. Rester immobile pendant la première recherche. La position n'a pas besoin d'être renseignée : recherche globale sur 360° et la carte, puis confirmation point-vers-droite. Une scène ambiguë ou insuffisante est refusée.
 
-Les mesures, poses et éventuels segments construits sur exactement les scans cochés sont copiés. Les originaux de Cartographie restent indépendants. Une reconnexion demande aussi une localisation globale ; aucun déplacement nul n'est supposé entre deux connexions. **Rechercher ma position · 360°** permet de relancer cette recherche après un déplacement inconnu.
+Les mesures, poses et éventuels segments construits sur exactement les scans cochés sont copiés. Les originaux de Cartographie restent indépendants. Une reconnexion reprend d'abord près de la dernière pose (le robot n'a en général pas bougé) ; si cela échoue, la récupération automatique ci-dessous prend le relais. **Position 360°** (ou **Me retrouver**, près de la carte) lance à la main une recherche sur toute la carte après un déplacement inconnu.
+
+### Quand le robot se perd
+
+Le suivi se perd quand un recalage est refusé (rotation rapide, mur unique ou couloir, obstacle mobile). Le bandeau indique alors `SUIVI PERDU · RECHERCHE EN COURS` ; la carte est conservée, le scan non accepté s'affiche en rouge à la dernière pose et le pilotage reste possible. La case **Me retrouver automatiquement si je suis perdu** (activée par défaut) enchaîne :
+
+1. nouveaux essais près de la dernière pose, avec une fenêtre qui s'élargit avec le temps écoulé (le robot continue de rouler pendant la perte) ;
+2. après 1 s, recherche élargie autour de la dernière pose, **tous angles**, rayon de 1,5 m grandissant jusqu'à 5 m ;
+3. après 6 s, recherche sur **toute la carte**, relancée toutes les 3 s.
+
+Chaque solution doit confirmer à 75 % à 12 cm sur la géométrie locale (RMSE ≤ 10 cm), sinon elle est refusée. Pour aider : ramener le robot face à une zone déjà cartographiée, avec des murs dans plusieurs directions. Dans un couloir ou devant un mur unique, la position est ambiguë et aucune recherche ne peut la trancher ; le message du refus le dit.
+
+### Après une coupure (batteries, câble, Wi-Fi)
+
+La case **Reconnecter automatiquement après une coupure** (activée par défaut) relance la connexion 3 s après une coupure subie, jusqu'à 8 essais, avec la même carte. En USB, le port met quelques secondes à revenir quand l'ESP32 redémarre (« Accès refusé ») : l'ouverture est réessayée pendant 8 s. Un clic sur **Déconnecter** annule la reconnexion automatique.
 
 Une recherche globale est plus coûteuse qu'un suivi local. En cas d'échec, elle est retentée au plus toutes les cinq secondes. Ce n'est pas une garantie de retrouver n'importe quelle position : il faut du recouvrement et une géométrie suffisamment distinctive. Le suivi courant utilise l'ICP point-vers-droite et une référence mise en cache ; aucune odométrie n'est inventée depuis les touches.
 

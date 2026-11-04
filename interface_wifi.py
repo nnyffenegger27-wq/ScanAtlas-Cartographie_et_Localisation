@@ -66,6 +66,9 @@ class InterfaceWifi:
         self.wifi_actif=tk.BooleanVar(value=False)
         self.wifi_manette_active=tk.BooleanVar(value=False)
         self.wifi_rb_precedent=False
+        self.wifi_auto_recup=tk.BooleanVar(value=True)
+        self.wifi_auto_connexion=tk.BooleanVar(value=True)
+        self.wifi_tentatives=0;self.wifi_relance=None
         self.wifi_mode=tk.StringVar(value='Cartographier')
         self.wifi_reference=tk.StringVar(value='Nouvelle carte')
         self.wifi_vue=tk.StringVar(value='Vectorielle')
@@ -124,6 +127,7 @@ class InterfaceWifi:
         for texte,var in [('Scan courant',self.wifi_voir_scan),('Segments',self.wifi_voir_segments),('Trajectoire centrée',self.wifi_suivre)]:
             ttk.Checkbutton(affichage,text=texte,variable=var,command=self.wifi_actualiser_vue).pack(side='left',padx=(0,10))
         ttk.Button(affichage,text='Vue complète',command=self.wifi_centrer).pack(side='right')
+        ttk.Button(affichage,text='Me retrouver',command=self.wifi_relocaliser).pack(side='right',padx=(0,6))
         ttk.Button(affichage,text='Agrandir',command=self.wifi_agrandir).pack(side='right',padx=6)
         fig=Figure(figsize=(10,7),dpi=100,facecolor=SURFACE,constrained_layout=True)
         self.wifi_axes=fig.add_subplot(111)
@@ -136,13 +140,17 @@ class InterfaceWifi:
         ttk.Combobox(bloc,textvariable=self.wifi_reference,values=['Nouvelle carte','Scans cochés Carte'],state='readonly',width=26).pack(fill='x')
         modes=ttk.Combobox(bloc,textvariable=self.wifi_mode,values=['Cartographier','Localisation seule'],state='readonly')
         modes.pack(fill='x',pady=(8,6));modes.bind('<<ComboboxSelected>>',lambda e:self.wifi_mode_changer())
-        ttk.Button(bloc,text='Rechercher ma position · 360°',command=self.wifi_relocaliser).pack(fill='x',pady=(0,4))
-        ttk.Button(bloc,text='Reprendre près de la dernière pose',command=self.wifi_reprendre).pack(fill='x')
+        ttk.Checkbutton(bloc,text='Me retrouver automatiquement si je suis perdu',variable=self.wifi_auto_recup,style='Card.TCheckbutton',
+                        command=self.wifi_option_recup).pack(anchor='w')
+        ttk.Checkbutton(bloc,text='Reconnecter automatiquement après une coupure',variable=self.wifi_auto_connexion,style='Card.TCheckbutton').pack(anchor='w',pady=(0,6))
+        boutons=ttk.Frame(bloc,style='Card.TFrame');boutons.pack(fill='x')
+        ttk.Button(boutons,text='Position 360°',command=self.wifi_relocaliser).pack(side='left',fill='x',expand=True,padx=(0,3))
+        ttk.Button(boutons,text='Reprendre ici',command=self.wifi_reprendre).pack(side='left',fill='x',expand=True,padx=(3,0))
         bloc=carte_ui(fixe,'Pilotage',fill='x',pady=(0,6))
         choix=ttk.Frame(bloc,style='Card.TFrame');choix.pack(fill='x')
         ttk.Checkbutton(choix,text='Clavier actif',variable=self.wifi_actif,command=self.wifi_activer,style='Card.TCheckbutton').pack(side='left')
         ttk.Checkbutton(choix,text='Manette Xbox',variable=self.wifi_manette_active,command=self.wifi_activer_manette,style='Card.TCheckbutton').pack(side='left',padx=(14,0))
-        ttk.Label(bloc,text='Manette : stick gauche = surge + sway, stick droit = yaw · RB cartographie · B arrêt',
+        ttk.Label(bloc,text='Manette : sticks · RB cartographie · B arrêt',
                   style='Card.TLabel',wraplength=262).pack(anchor='w',pady=(2,4))
         self.wifi_encart=EncartCommandes(bloc);self.wifi_encart.pack(fill='x',pady=(0,6))
         self.wifi_zone=tk.Label(bloc,text='Clique ici puis : Z S avancer / reculer · Q D gauche / droite · A E tourner',takefocus=True,
@@ -262,7 +270,10 @@ class InterfaceWifi:
             return
         if self.wifi_carte is not None:
             self.wifi_carte.annuler.clear()
-            self.wifi_global.set()  # Position inconnue après reconnexion.
+            self.wifi_carte.recup_auto=self.wifi_auto_recup.get()
+            # Après une reconnexion le robot est en général au même endroit : reprise près de la dernière
+            # pose ; si elle échoue, la récupération automatique élargit puis cherche sur toute la carte.
+            self.wifi_reprise.set()
         from journal_direct import JournalDirect
         try:self.wifi_journal=JournalDirect()
         except OSError as exc:
@@ -275,11 +286,14 @@ class InterfaceWifi:
         # Captures locales : un ancien worker ne peut publier dans une nouvelle carte.
         stop, reprise, resultats, carte = self.wifi_stop, self.wifi_reprise, self.wifi_resultats, self.wifi_carte
         journal=self.wifi_journal
+        recup=self.wifi_auto_recup.get()  # Lu ici : un thread de calcul ne doit pas toucher aux variables Tk.
         def calculer():
             nonlocal carte
             if carte is None:
                 try:
+                    if sources:robot._etat(f'Chargement de la carte de départ ({len(sources)} scans)… la position est cherchée ensuite sur toute la carte.')
                     carte=CarteDirecte(filtres,scans=sources,segments=vecteurs)
+                    carte.recup_auto=recup
                     if stop.is_set() or robot.arret.is_set():return
                     self.wifi_carte=carte
                 except Exception as exc:
@@ -316,7 +330,20 @@ class InterfaceWifi:
         if self.wifi_robot is not None:
             self.wifi_robot.commander('STOP')
 
-    def wifi_deconnecter(self):
+    def wifi_option_recup(self):
+        if self.wifi_carte is not None:
+            self.wifi_carte.recup_auto=self.wifi_auto_recup.get()
+
+    def wifi_reconnecter(self):
+        self.wifi_relance=None
+        if self.wifi_robot is None and self.wifi_auto_connexion.get() and self.wifi_tentatives<=8:
+            self.wifi_connecter()
+
+    def wifi_deconnecter(self, automatique=False):
+        if not automatique:
+            self.wifi_tentatives=0
+            if self.wifi_relance is not None:
+                self.after_cancel(self.wifi_relance);self.wifi_relance=None
         self.wifi_arreter()
         self.wifi_stop.set()
         if self.wifi_carte is not None:
@@ -433,8 +460,13 @@ class InterfaceWifi:
                 messages = []
                 while not robot.etats.empty():
                     messages.append(robot.etats.get_nowait())
-                self.wifi_deconnecter()
-                self.wifi_info.set(messages[-1] if messages else 'Connexion perdue ; moteurs arrêtés.')
+                self.wifi_deconnecter(automatique=True)
+                perte=messages[-1] if messages else 'Connexion perdue ; moteurs arrêtés.'
+                self.wifi_info.set(perte)
+                if self.wifi_auto_connexion.get() and self.wifi_tentatives<8 and self.wifi_relance is None and not self.travail:
+                    self.wifi_tentatives+=1
+                    self.wifi_info.set(f'{perte} Reconnexion automatique dans 3 s (essai {self.wifi_tentatives}/8) ; la carte est conservée.')
+                    self.wifi_relance=self.after(3000,self.wifi_reconnecter)
             else:
                 while not robot.etats.empty():
                     self.wifi_info.set(robot.etats.get_nowait())
@@ -448,6 +480,7 @@ class InterfaceWifi:
                     if self.wifi_journal is not None and (precedent is None or precedent.accepte != etat.accepte):
                         self.wifi_journal.evenement('Suivi actif.' if etat.accepte else 'Suivi perdu : '+etat.message)
                     self.wifi_dernier_resultat = time.monotonic()
+                    if etat.accepte:self.wifi_tentatives=0
                     self.wifi_info.set(f'{etat.message} {etat.cles} scans clés · {len(etat.segments)} segments · calcul {1000*etat.duree:.0f} ms · {robot.recus} tours reçus. {self.wifi_journal.erreur if self.wifi_journal else ""}')
                     pose=etat.trajectoire[-1] if len(etat.trajectoire) else np.zeros(3)
                     self.wifi_metriques['pose'].set(f'{pose[0]:.2f} / {pose[1]:.2f}')
@@ -455,7 +488,7 @@ class InterfaceWifi:
                     self.wifi_metriques['concordance'].set(f'{etat.concordance:.0f} %' if np.isfinite(etat.concordance) else '--')
                     self.wifi_metriques['calcul'].set(f'{etat.duree*1000:.0f} ms')
                     self.wifi_metriques['carte'].set(f'{len(etat.segments)} segments')
-                    self.wifi_badge.configure(text='SUIVI ACTIF' if etat.accepte else 'CARTE EN PAUSE · PILOTAGE MANUEL DISPONIBLE',foreground=SUCCES if etat.accepte else DANGER)
+                    self.wifi_badge.configure(text='SUIVI ACTIF' if etat.accepte else 'SUIVI PERDU · RECHERCHE EN COURS',foreground=SUCCES if etat.accepte else DANGER)
                     if ((precedent is None or precedent.accepte != etat.accepte or time.monotonic()-self.wifi_dernier_dessin >= .25) and
                         str(self.onglets.select())==str(self.wifi_cadre)):
                         self.wifi_dessiner(etat)

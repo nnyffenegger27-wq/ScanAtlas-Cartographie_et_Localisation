@@ -55,7 +55,7 @@ def icp_droites(source, reference, initiale, annuler=None, iterations=30):
     debut = perf_counter();pose = np.asarray(initiale,float).copy()
     source = np.asarray(source,float)
     if len(source)>600:source=source[np.linspace(0,len(source)-1,600).astype(int)]
-    init = pose.copy();converge=False;geometrie=False;nombre=0
+    init = pose.copy();converge=False;geometrie=False;nombre=0;dernier_pas=(np.inf,np.inf)
     for k in range(iterations):
         if annuler is not None and annuler.is_set():break
         monde = transformer(source,pose)
@@ -79,6 +79,7 @@ def icp_droites(source, reference, initiale, annuler=None, iterations=30):
         pas = np.linalg.solve(H+np.eye(3)*1e-8,-J.T@(poids*residus))
         facteur = min(1.,.25/max(np.linalg.norm(pas[:2]),1e-9),np.deg2rad(12)/max(abs(pas[2]),1e-9))
         pas *= facteur
+        dernier_pas=(float(np.linalg.norm(pas[:2])),abs(float(np.rad2deg(pas[2]))))
         pose[:2] += pas[:2];pose[2] = (pose[2]+np.rad2deg(pas[2])+180)%360-180
         if np.linalg.norm(pas[:2])<.0002 and abs(pas[2])<.0001 and k>=4:
             converge=True;break
@@ -86,11 +87,20 @@ def icp_droites(source, reference, initiale, annuler=None, iterations=30):
     d = reference.distance(transformer(source,pose));bons = d<.5
     accord = float(np.mean(d<=.12))
     rmse = float(np.sqrt(np.mean(d[bons]**2))) if bons.any() else float('inf')
-    applicable = bool(converge and geometrie and accord>=.65 and nombre>=20 and
+    # Un suivi dont le dernier pas est déjà de moins de 3 mm et 0,05° est stable même si le seuil
+    # strict n'est pas atteint en 30 itérations (robot en mouvement, bruit du lidar) : l'ancien critère
+    # refusait des recalages à 99 % de concordance.
+    stable = converge or (dernier_pas[0]<.003 and dernier_pas[1]<.05)
+    applicable = bool(stable and geometrie and accord>=.65 and nombre>=20 and
                       not (annuler is not None and annuler.is_set()))
+    if applicable:raison='Suivi point-vers-droite validé.'
+    elif nombre<20:raison='Trop peu de points communs avec la carte.'
+    elif not geometrie:raison='Géométrie insuffisante (mur unique ou couloir : une direction non contrainte).'
+    elif not stable:raison='Recalage non stabilisé.'
+    else:raison='Concordance insuffisante.'
     initial = reference.distance(transformer(source,init));b = initial<.5
     erreur_init = float(np.sqrt(np.mean(initial[b]**2))) if b.any() else float('inf')
     return ResultatICP(pose.tolist(),init.tolist(),erreur_init,rmse,float(bons.mean()),
         int(bons.sum()),k+1,perf_counter()-debut,converge,applicable,
-        'Suivi point-vers-droite validé.' if applicable else 'Recalage ou géométrie insuffisants.',
+        raison,
         methode='ICP point-vers-droite robuste',accord_fin=accord)

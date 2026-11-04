@@ -43,7 +43,7 @@ journal_direct.py                tours.jsonl, session_secours.json, evenements.l
 encart_commandes.py, apparence.py, manette.py   pavé de commandes, palette, manette XInput
 simuler_robot_wifi.py            robot simulé sur le PC (sans matériel)
 firmware/ScanAtlas_WiFi/         firmware ESP32 (voir §5)
-tests/                           208 tests, voir §8
+tests/                           215 tests, voir §8
 docs/                            documentation (ce fichier, guide, journal, etc.)
 outils/                          scripts d'évaluation reproductibles (python outils/<nom>.py)
 materiel/                        firmware de démonstration d'origine du châssis, test lidar, CAO
@@ -58,6 +58,8 @@ Les modules Python sont à plat à la racine (imports simples, tests sans instal
 3. `interface_wifi.wifi_poll` (tâche Tk, boucle régulière) prend le dernier tour, le confie à un calcul hors thread UI (`CarteDirecte.traiter`), dessine la carte (Matplotlib) et envoie la commande de pilotage.
 4. `CarteDirecte.traiter` : prédiction SE(2), ICP robuste point-vers-droite (`suivi_lidar`), contrôle d'acceptation (erreur résiduelle, recouvrement), création de scans clés (déplacement ≥ 0,15 m, 5° ou 2 s), carte vectorielle et grille. Modes : Cartographie + localisation, Localisation seule (carte figée), localisation globale 360° si position inconnue.
 5. `journal_direct` enregistre chaque tour (`tours.jsonl`), une session de secours et les événements (`evenements.log` : suivi actif / perdu, états de liaison).
+
+Perte de suivi (`CarteDirecte.traiter`, `_recuperer`) : refus d'un recalage → état perdu ; fenêtre de retour proportionnelle au temps écoulé ; après 1 s recherche élargie autour de la dernière pose (`localisation_globale(centre, rayon)`), après 6 s recherche sur toute la carte toutes les 3 s. Cache du champ de distances et de la grille libre sur la sous-carte. Reconnexion automatique dans `interface_wifi.py` (`wifi_poll`, `wifi_reconnecter`) et nouvel essai d'ouverture du port dans `robot_usb.py`.
 
 Localisation seule avec carte vide : le premier scan sert de référence (origine fixe), les suivants sont localisés sans enrichir la carte. Un scan non accepté est dessiné en rouge à la dernière pose connue (ne rien afficher était le défaut constaté).
 
@@ -85,7 +87,7 @@ Compilation : Arduino IDE, carte « ESP32 Dev Module », Arduino-ESP32 2.0.17, o
 ## 7. Limites et inconnues
 
 - Rien du firmware n'a été vérifié sur ESP32 réel : seulement tests C++ sur ordinateur et compilation syntaxique contre de faux en-têtes. Mode filaire, vraie manette et rendu Windows non essayés.
-- Cause des « suspensions » (flux qui s'arrête) non démontrée ; hypothèse BROWNOUT. Pour trancher : ouvrir le moniteur série à 115200 au démarrage et lire la raison du dernier reset (`resetName`), lire `evenements.log` de la session, tester avec les 18650 branchées et chargées.
+- Les coupures (ESP32 qui redémarre, port USB qui disparaît : `GetOverlappedResult failed` dans `evenements.log`) viennent très probablement de l'alimentation : les 18650 ne semblent pas fournir le courant, la carte vit sur l'USB. Non confirmé par la raison de reset ; hypothèse BROWNOUT. Pour trancher : ouvrir le moniteur série à 115200 au démarrage et lire la raison du dernier reset (`resetName`), lire `evenements.log` de la session, tester avec les 18650 branchées et chargées.
 - Les sens des roues I2C et PWM sont à valider avec `MOTOR_DIAGNOSTIC=true` (roues levées).
 - Pas d'odométrie : aucun codeur confirmé.
 - Une exécution complète des tests a échoué une seule fois sans reproduction (non identifiée).
@@ -93,7 +95,7 @@ Compilation : Arduino IDE, carte « ESP32 Dev Module », Arduino-ESP32 2.0.17, o
 ## 8. Tester
 
 ```
-python -m unittest discover -s tests          # 208 tests, ~45 s
+python -m unittest discover -s tests          # 215 tests, ~45 s
 ```
 
 Tk est nécessaire pour les tests d'interface (Linux sans écran : `xvfb-run -a python -m unittest discover -s tests`). Le test `tests/test_usb_direct.py` contient de faux en-têtes Arduino pour vérifier la syntaxe du `.ino` avec g++. Les tests moteurs compilent les vrais en-têtes du firmware avec g++ (`tests/test_motor_*.py`). Banc de suivi : `python outils/evaluer_wifi.py`. Robot simulé : `python simuler_robot_wifi.py`.

@@ -124,8 +124,9 @@ class DemuxFlux:
 class RobotUsb(RobotWifi):
     """Robot relié par câble : même interface que RobotWifi, `hote` désigne le port (« COM8 » ou « auto »)."""
 
-    def __init__(self, port='auto', debit=DEBIT_DIRECT, ouvrir=None, delai_connexion=6.):
+    def __init__(self, port='auto', debit=DEBIT_DIRECT, ouvrir=None, delai_connexion=6., attente_port=8.):
         super().__init__(hote=port)
+        self.attente_port = attente_port
         self.debit = debit
         self._ouvrir = ouvrir or ouvrir_serie
         self.delai_connexion = delai_connexion
@@ -163,9 +164,7 @@ class RobotUsb(RobotWifi):
     def _boucle(self):
         liaison, seq = None, 0
         try:
-            port = self._trouver()
-            self._etat(f'Ouverture de {port}…')
-            liaison = self._ouvrir(port)
+            liaison = self._ouvrir_avec_attente()
             flux = DemuxFlux()
             self._poignee_de_main(liaison, flux)
             if self.debit != DEBIT_INITIAL:
@@ -236,6 +235,25 @@ class RobotUsb(RobotWifi):
 
     def _trouver(self):
         return trouver_port(self.hote)
+
+    def _ouvrir_avec_attente(self):
+        """Ouvre le port ; après une coupure, Windows met quelques secondes à le rendre (« Accès refusé »,
+        port absent le temps que l'ESP32 redémarre) : on réessaie plutôt que d'échouer tout de suite."""
+        fin = time.monotonic()+self.attente_port
+        premier = True
+        while True:
+            try:
+                port = self._trouver()
+                if premier:
+                    self._etat(f'Ouverture de {port}…')
+                return self._ouvrir(port)
+            except OSError as exc:
+                if self.arret.is_set() or time.monotonic() >= fin:
+                    raise
+                if premier:
+                    self._etat('Port USB pas encore disponible (le robot redémarre ?) : nouvel essai automatique…')
+                    premier = False
+                self.arret.wait(.5)
 
     def _ligne_commande(self, seq, t):
         cmd, pwm, vecteur = self.bail.lire_complet(t)

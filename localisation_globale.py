@@ -14,7 +14,9 @@ METHODE_GLOBALE = 'Carte cumulée · recherche globale 360°'
 
 
 def localisation_globale(mobile, reference, pose_initiale=None, mini=.05, maxi=12., intensite=0,
-                         distance_max=.5, iterations_max=80, annuler=None, progression=None, concordance_min=.65):
+                         distance_max=.5, iterations_max=80, annuler=None, progression=None, concordance_min=.65,
+                         centre=None, rayon=None):
+    """Recherche sur toute la carte ; `centre` et `rayon` (m) bornent les positions testées (recherche élargie)."""
     debut=perf_counter()
     valeurs=np.array([mini,maxi,intensite,distance_max,iterations_max],float)
     if (not np.isfinite(concordance_min) or not .3<=concordance_min<=.95 or mobile is reference or not np.isfinite(valeurs).all() or not 0<=mini<maxi or
@@ -33,16 +35,26 @@ def localisation_globale(mobile, reference, pose_initiale=None, mini=.05, maxi=1
     bas=cible.min(axis=0)-rayon;haut=cible.max(axis=0)+rayon
     petits=source[np.linspace(0,len(source)-1,min(160,len(source)),dtype=int)]
     limite=max(.65,min(1.,distance_max*2))
-    origine,resolution,champ=champ_distances(cible,limite,resolution=.075)
-    # Les impacts dans une zone déjà vue libre contredisent la carte.
-    # Cela évite de ne noter que les murs superposables d'une salle symétrique.
-    references=(reference,) if isinstance(reference,Scan) else getattr(reference,'sources',())
-    libre=None
-    if references:
-        libre=Grille.creer(references,resolution=.075,**filtres)
-        for scan in references:
-            if annuler is not None and annuler.is_set(): break
-            libre.mettre_a_jour(scan,**filtres)
+    # Champ de distances et zones libres : calculés une fois par carte (la recherche est relancée
+    # toutes les quelques secondes quand le robot est perdu), puis gardés sur l'objet de référence.
+    cle_cache=(round(limite,4),mini,maxi,intensite,len(cible),round(float(cible.sum()),6))
+    cache=None if isinstance(reference,Scan) else getattr(reference,'_cache_globale',None)
+    if cache is not None and cache[0]==cle_cache:
+        origine,resolution,champ,libre=cache[1:]
+    else:
+        origine,resolution,champ=champ_distances(cible,limite,resolution=.075)
+        # Les impacts dans une zone déjà vue libre contredisent la carte.
+        # Cela évite de ne noter que les murs superposables d'une salle symétrique.
+        references=(reference,) if isinstance(reference,Scan) else getattr(reference,'sources',())
+        libre=None
+        if references:
+            libre=Grille.creer(references,resolution=.075,**filtres)
+            for scan in references:
+                if annuler is not None and annuler.is_set(): break
+                libre.mettre_a_jour(scan,**filtres)
+        if not isinstance(reference,Scan) and (annuler is None or not annuler.is_set()):
+            try:reference._cache_globale=(cle_cache,origine,resolution,champ,libre)
+            except AttributeError:pass
     def conflits(x,y,distances_carrees):
         if libre is None: return np.zeros(np.shape(x),bool)
         ix=np.floor((x-libre.origine[0])/libre.resolution).astype(int)
@@ -81,6 +93,10 @@ def localisation_globale(mobile, reference, pose_initiale=None, mini=.05, maxi=1
         # visités. Le pas ne s'élargit pas quand la carte grandit.
         xs=np.arange(bas[0],haut[0]+.4,.4);ys=np.arange(bas[1],haut[1]+.4,.4)
         xy=np.array(np.meshgrid(xs,ys,indexing='ij')).reshape(2,-1).T
+        if centre is not None and rayon is not None:
+            # Recherche élargie : seules les positions proches du dernier point connu (tous les angles).
+            proche=np.linalg.norm(xy-np.asarray(centre,float),axis=1)<=float(rayon)+.3
+            if proche.any():xy=xy[proche]
         graines=[]
         for k,angle in enumerate(np.arange(-180.,180.,4.)):
             verifier()

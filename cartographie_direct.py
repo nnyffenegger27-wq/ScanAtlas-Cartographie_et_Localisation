@@ -86,6 +86,14 @@ class CarteDirecte:
         self.grille = None
         self.localisation_globale_requise = False
         self.prochain_global = 0.
+        # Récupération automatique : après 1 s sans suivi, recherche élargie autour de la dernière pose
+        # (tous les angles, rayon croissant), puis recherche sur toute la carte après 6 s.
+        self.recup_auto = True
+        self.perdu_t = None      # heure (horloge du PC) du début de la perte ; l'horloge du lidar repart à zéro si l'ESP32 redémarre
+        self.accepte_t = 0.
+        self.prochain_auto = 0.
+        self._ref_recherche = None
+        self._ref_n = -1
         if scans:
             self.charger_reference(scans, segments)
 
@@ -146,7 +154,7 @@ class CarteDirecte:
             if len(pts) < 30 or np.linalg.norm(np.ptp(pts, axis=0)) < 1.:
                 raise ValueError('Pas assez de géométrie après filtrage ; carte en pause.')
             if self.localisation_globale_requise:
-                self.prochain_global=debut+5.
+                self.prochain_global=debut+3.
                 resultat=localisation_globale(scan,self.reference_globale,annuler=self.annuler,**self.filtres)
                 methode,rmse,score=resultat.methode,resultat.rmse,100*resultat.accord_fin
                 if not resultat.applicable:
@@ -194,13 +202,26 @@ class CarteDirecte:
                 # Déplacement physiquement plausible au PWM limité, avec marge de bruit.
                 plausible = ep <= .20+1.2*dt and ea <= 10.+150.*dt
                 if recuperation:
-                    plausible = ep <= (1.2 if explicite else .25) and ea <= (35. if explicite else 8.)
+                    # Fenêtre qui s'élargit avec le temps écoulé depuis la dernière pose validée : un robot
+                    # qui continue de rouler ou de tourner pendant la perte ne revient pas dans 8°.
+                    ecoule = max(0., debut-self.accepte_t)
+                    limites = (1.2, 35.) if explicite else (min(1.5, .25+1.0*ecoule), min(60., 8.+100.*ecoule))
+                    plausible = ep <= limites[0] and ea <= limites[1]
                 accepte = bool(resultat.applicable and resultat.accord_fin >= .75 and
                                resultat.rmse <= .10 and plausible and not self.annuler.is_set())
                 if not accepte:
-                    raise ValueError(f'Recalage refusé : {score:.0f} % à 12 cm, RMSE {rmse:.3f} m, déplacement {ep:.2f} m / {ea:.1f}°. Carte conservée ; nouvel essai automatique.')
-                scan.pose = list(resultat.pose)
-                message = f'Suivi accepté : {score:.0f} % à 12 cm ; RMSE {resultat.rmse:.3f} m.'
+                    secours = self._recuperer(scan, pts, trame, debut)
+                    if secours is None:
+                        raison = '' if resultat.applicable else ' '+resultat.message
+                        raise ValueError(f'Recalage refusé : {score:.0f} % à 12 cm, RMSE {rmse:.3f} m, déplacement {ep:.2f} m / {ea:.1f}°.{raison} Carte conservée ; nouvel essai automatique.')
+                    resultat = secours
+                    methode, rmse, score = 'Recherche élargie autour de la dernière pose', resultat.rmse, 100*resultat.accord_fin
+                    scan.pose = list(resultat.pose)
+                    message = f'Position retrouvée près de la dernière pose : {score:.0f} % à 12 cm.'
+                    recuperation = True
+                else:
+                    scan.pose = list(resultat.pose)
+                    message = f'Suivi accepté : {score:.0f} % à 12 cm ; RMSE {resultat.rmse:.3f} m.'
             if self.annuler.is_set():
                 raise ValueError('Cartographie arrêtée.')
             ep, ea = erreur_pose(scan.pose, self.pose_cle)
@@ -233,6 +254,8 @@ class CarteDirecte:
             if recuperation:
                 self.historique_poses = []
             self.perdu = False
+            self.perdu_t = None
+            self.accepte_t = debut
             self.dernier_refus = ""
             self.historique_poses.append((trame.fin_us,self.pose.copy()))
             self.historique_poses = self.historique_poses[-2:]
@@ -242,14 +265,51 @@ class CarteDirecte:
         except (ValueError, RuntimeError) as exc:
             accepte = False
             self.perdu = True
+            if self.perdu_t is None and self.fin_us is not None:
+                self.perdu_t = debut
             self.reprise = False
             message = self.dernier_refus = str(exc)
+            if self.perdu_t is not None:
+                message = f'Perdu depuis {debut-self.perdu_t:.0f} s, recherche automatique en cours : {message}'
         return self.etat(scan,accepte,message,score,debut,rmse,methode)
 
     def etat(self,scan,accepte,message,score,debut,rmse,methode):
         return EtatDirect(scan,accepte,message,score,perf_counter()-debut,self.points.copy(),
                           self.segments,np.asarray(self.trajectoire),len(self.cles),tuple(self.cles),
                           rmse,methode,self.grille,self.enrichir)
+
+    def _recuperer(self, scan, pts, trame, debut):
+        """Recherche élargie autour de la dernière pose, tous angles ; None si rien de sûr.
+
+        Les résultats passent par les mêmes contrôles que la localisation globale : concordance fine
+        sur la référence locale (75 % à 12 cm, RMSE 10 cm). Au bout de 6 s, bascule sur la recherche
+        sur toute la carte, relancée toutes les 3 s.
+        """
+        if not (self.recup_auto and len(self.points) and self.perdu_t is not None and self.reference_locale is not None):
+            return None
+        perdu = debut-self.perdu_t
+        if perdu < 1. or debut < self.prochain_auto:
+            return None
+        self.prochain_auto = debut+1.
+        if self._ref_recherche is None or self._ref_n != len(self.cles):
+            self._ref_recherche = sous_carte(self.cles, self.filtres)
+            self._ref_n = len(self.cles)
+        if perdu >= 6.:
+            self.reference_globale = self._ref_recherche
+            self.localisation_globale_requise = True
+            self.prochain_global = 0.
+            return None
+        try:
+            r = localisation_globale(scan, self._ref_recherche, annuler=self.annuler, centre=self.pose[:2],
+                                     rayon=min(5., 1.5+perdu), **self.filtres)
+            if not r.applicable:
+                return None
+            affine = icp_droites(pts, self.reference_locale, r.pose, self.annuler)
+        except (ValueError, RuntimeError):
+            return None
+        if not affine.applicable or affine.accord_fin < .75 or affine.rmse > .10:
+            return None
+        return affine
 
     def reprendre(self):
         """Autorisation explicite près de la dernière pose validée ; carte conservée."""
