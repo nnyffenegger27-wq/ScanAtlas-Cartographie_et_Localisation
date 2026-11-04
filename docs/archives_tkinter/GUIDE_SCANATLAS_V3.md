@@ -1,4 +1,4 @@
-> **Note (interface web).** Les écrans, onglets et fichiers Tkinter cités ici (`app.py`, `interface_wifi.py`, `interface_tp.py`…) ont été remplacés par l'interface web : voir [GUIDE_WEB.md](GUIDE_WEB.md). Les principes, calculs et résultats décrits restent valables.
+> **Note (interface web).** Les écrans, onglets et fichiers Tkinter cités ici (`app.py`, `interface_wifi.py`, `interface_tp.py`…) ont été remplacés par l'interface web : voir [GUIDE_WEB.md](../GUIDE_WEB.md). Les principes, calculs et résultats décrits restent valables.
 
 # ScanAtlas — Interface et robot en direct
 

@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+# Les lanceurs doivent garder leurs fins de ligne meme dans un ZIP telecharge depuis GitHub
+*.bat text eol=crlf
+*.sh text eol=lf

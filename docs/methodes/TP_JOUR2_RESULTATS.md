@@ -1,4 +1,4 @@
-> **Note (interface web).** Les écrans, onglets et fichiers Tkinter cités ici (`app.py`, `interface_wifi.py`, `interface_tp.py`…) ont été remplacés par l'interface web : voir [GUIDE_WEB.md](GUIDE_WEB.md). Les principes, calculs et résultats décrits restent valables.
+> **Note (interface web).** Les écrans, onglets et fichiers Tkinter cités ici (`app.py`, `interface_wifi.py`, `interface_tp.py`…) ont été remplacés par l'interface web : voir [GUIDE_WEB.md](../GUIDE_WEB.md). Les principes, calculs et résultats décrits restent valables.
 
 # TP Jour 2 — trois localisations et évaluation chiffrée
 
@@ -27,7 +27,7 @@ Ce mode TP suppose une pose approchée et permet d’évaluer la sensibilité à
 
 ## Utilisation étape par étape
 
-Après mise à jour, relancer **installer_windows.bat** : SciPy est une nouvelle dépendance. Puis lancer l’application.
+Après mise à jour, relancer **lancer_windows.bat** (il réinstalle les dépendances manquantes) : SciPy est une nouvelle dépendance. Puis lancer l’application.
 
 1. Importer les scans ou charger la démonstration.
 2. Pour une carte de référence, cocher uniquement les scans fixes dans Carte, en excluant le futur mobile. Construire la grille dans Grille et la carte de segments dans Carte vectorielle.

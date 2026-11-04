@@ -233,7 +233,7 @@ Les sessions existantes restent intactes et consultables. La référence reste 2
 
 Difficultés : conflits avec Pan/Zoom, sélection de nuages superposés, instabilité
 près du pivot, discontinuité ±180°, cartes périmées après déplacement.
-Solutions et limites décrites dans [ANALYSE_SCANS_ET_SOURIS.md](ANALYSE_SCANS_ET_SOURIS.md).
+Solutions et limites décrites dans [ANALYSE_SCANS_ET_SOURIS.md](methodes/ANALYSE_SCANS_ET_SOURIS.md).
 
 Pistes matérielles non résolues : vitesse réelle absente du JSON, interpolation
 ESP32 différente du manuel (diviseur 12 au lieu de 11 et demi-pas), pertes
@@ -842,3 +842,17 @@ Validation : 216 tests réussis (nouveaux : `tests/test_charge_carte.py` — `re
 **TP intégrés.** Écran Carte : menu *Recalage sur…* (toute la carte, ou grille / plan / scan × locale / multi-résolution, point de départ = pose actuelle) et bouton *Évaluer les méthodes (TP)* (42 essais, tableau de synthèse, CSV). Backend : `DocumentCarte.localiser_tp` et `evaluer_tp`, points d'accès `/api/carte/localiser`, `/api/carte/evaluer_tp`, `/api/carte/evaluation_{synthese,essais}.csv`. Le banc ne modifie pas la carte. Tests : `tests/test_tp_web.py` et un parcours navigateur.
 
 **Reste à traiter.** `WinError 10051` / reconnexion, écart de 89° (orientation du lidar), dérive du sway, vitesse d'exploration / pas de 50 cm, démarrage à froid (~75 % les premières secondes), perte longue après coupure avec forte rotation (~120°/s). Rien de tout cela n'est validé sur mouvement réel du robot.
+
+## 4 novembre 2026 (18 h) — rangement du dépôt, README, versions expliquées, onglet « Le projet » complété
+
+**Demande de l'utilisateur :** ranger le dossier ; un README qui explique comment utiliser le projet et quel fichier lance l'application ; donner accès à la version `main` d'avant le web (le professeur a accès au dépôt et pourra la télécharger) en expliquant clairement ce qui est quoi ; dans l'onglet « Le projet » (écrit en premier jet par ChatGPT), expliquer le fil de la réflexion, les buts, les problèmes et les solutions.
+
+**Rangement.** `docs/` : guides actuels à la racine (`GUIDE_WEB`, `REPRISE_PROJET`, `JOURNAL_PROJET`, `GUIDE_GITHUB`), méthodes du TP dans `docs/methodes/`, anciens modes d'emploi Tkinter dans `docs/archives_tkinter/`, `docs/README.md` comme index ; tous les liens internes recalculés et vérifiés (aucun lien cassé). `Cartes/README.md` et `exemples/README.md` décrivent chaque fichier. Les modules Python restent à plat à la racine : les déplacer demandait de changer tous les imports des tests pour un gain faible (le plan du dépôt est dans le README).
+
+**Lancement.** `lancer_windows.bat` crée l'environnement et installe les dépendances au premier lancement (il remplace `installer_windows.bat` et `DEMARRER.txt`, supprimés) ; `lancer_mac_linux.sh` fait la même chose ailleurs (testé : le serveur démarre et répond). `.gitattributes` impose les fins de ligne CRLF aux `.bat` et LF aux `.sh` : un ZIP téléchargé depuis GitHub gardait sinon des `.bat` en LF, qui peuvent mal gérer les étiquettes `goto`. Le `.bat` n'a pas pu être essayé sous Windows.
+
+**README et versions.** Le README décrit les trois branches : `main` (première version complète, Tkinter, TP Jour 1 et 2), `claude/commandes-combinees` (Tkinter la plus avancée) et `claude/interface-web` (version finale), avec liens, ZIP, commandes `git`, démarrage sans robot en 2 minutes et avec robot. Les README de `main` et `commandes-combinees` reçoivent un encadré qui renvoie vers la version finale.
+
+**Onglet « Le projet ».** Ajouts : les buts (TP, but personnel, critères de réussite, ordre de travail), les trois versions du dépôt, l'exploration autonome et le replacement, un tableau problème → cause → solution → résultat pour tout ce qui a été trouvé sur le vrai robot (suivi perdu, rotation rapide, déconnexions, gel, vecteurs superposés, régression du suivi, coupures Wi-Fi), le « cas à retenir » (une simulation propre ne remplace pas de vraies données), la suite, le bilan mis à jour. Retiré : le lien « Principes Cartographer » (consigne du dépôt : pas de projet extérieur comme source d'inspiration) et la référence à un commit. Les chiffres reprennent ceux de ce journal ; rien de nouveau n'a été mesuré.
+
+**Limites.** Le gel Wi-Fi de 5 s n'est toujours pas corrigé ; le `.bat` n'est pas essayé sous Windows ; la page n'a été vérifiée que sous Chromium (bureau et téléphone, sans erreur JS).

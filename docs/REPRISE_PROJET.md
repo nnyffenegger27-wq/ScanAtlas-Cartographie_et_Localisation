@@ -1,6 +1,6 @@
 # Reprise du projet — état, architecture, décisions, suite
 
-Document écrit pour qu'un nouvel intervenant (personne ou assistant) reprenne le travail sans l'historique des conversations. À lire en premier ; le détail daté des essais est dans [JOURNAL_PROJET.md](JOURNAL_PROJET.md), l'usage dans [GUIDE_SCANATLAS_V3.md](GUIDE_SCANATLAS_V3.md).
+Document écrit pour qu'un nouvel intervenant (personne ou assistant) reprenne le travail sans l'historique des conversations. À lire en premier ; le détail daté des essais est dans [JOURNAL_PROJET.md](JOURNAL_PROJET.md), l'usage dans [GUIDE_WEB.md](GUIDE_WEB.md).
 
 Mis à jour le 4 novembre 2026 (interface web, branche `claude/interface-web`). Ce qui n'a pas été essayé sur le vrai robot est signalé comme tel : aucun test matériel n'a pu être fait par l'assistant, seulement des tests sur ordinateur.
 
@@ -8,7 +8,7 @@ Mis à jour le 4 novembre 2026 (interface web, branche `claude/interface-web`). 
 
 ScanAtlas : application (serveur Python local + interface web dans le navigateur) qui reçoit en direct les tours d'un lidar LD06 monté sur un robot Keyestudio Mecanum Car V2 (carte ESP32), pilote le robot au clavier ou à la manette Xbox, et construit une carte 2D tout en localisant le robot dessus (SLAM 2D par recalage de scans).
 
-- Dépôt : `nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation`, branches : `claude/commandes-combinees` (dernière version avec l'interface Tkinter) et `claude/interface-web` (interface web, sans Tkinter ni Matplotlib).
+- Dépôt : `nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation`, branches : `main` (première version, interface Tkinter), `claude/commandes-combinees` (dernière version avec l'interface Tkinter) et `claude/interface-web` (**version finale**, interface web, sans Tkinter ni Matplotlib) ; le « qui est quoi » est dans le README.
 - Poste de l'utilisateur : Windows ; dossier `C:\Users\nyffe\Documents\GitHub\LD06-Cartographie_et_Localisation`. Journaux de l'application : `C:\Users\nyffe\AppData\Local\ScanAtlas\journaux\`.
 - Langue du projet, des messages et des échanges : français.
 - But final demandé par l'utilisateur : un SLAM temps réel sur le robot, « comme dans la vidéo » https://www.youtube.com/watch?v=Pq5y7eDiReU (titre : solution SLAM exécutée sur un microcontrôleur de type Arduino). **La vidéo n'a pas pu être regardée** ; seule la notion « cartographie et localisation en direct pendant que le robot roule » est retenue. À préciser avec l'utilisateur (2 ou 3 comportements attendus) avant d'investir dans une grosse refonte.
@@ -30,7 +30,8 @@ Alimentation : les moteurs doivent être alimentés par les piles 18650 (interru
 ## 3. Organisation du dépôt
 
 ```
-README.md, DEMARRER.txt, *.bat   démarrage Windows (installer_windows.bat puis lancer_windows.bat)
+README.md                        présentation, démarrage, qui est quoi (branches)
+lancer_windows.bat, lancer_mac_linux.sh   lanceurs : installent les dépendances au premier lancement
 scanatlas.py, serveur.py         point d'entrée ; serveur HTTP local (127.0.0.1, jeton, REST + flux SSE)
 web/                             interface : index.html, style.css, modules JS (main, direct, carte, vue, pilotage, api)
 session_directe.py               connexion, pilotage, reconnexion, démo, suivi en direct (sans interface)
@@ -46,7 +47,8 @@ journal_direct.py                tours.jsonl, session_secours.json, evenements.l
 simuler_robot_wifi.py            robot simulé sur le PC (sans matériel) ; --salle appartement | deux_pieces | salle
 firmware/ScanAtlas_WiFi/         firmware ESP32 (voir §5)
 tests/                           voir §8
-docs/                            documentation (ce fichier, GUIDE_WEB, journal, archives Tk)
+docs/                            documentation : voir docs/README.md (guide, reprise, journal, methodes/, archives_tkinter/)
+Cartes/, exemples/               données réelles et résultats d'évaluation (un README dans chaque dossier)
 outils/                          scripts d'évaluation reproductibles (python outils/<nom>.py)
 materiel/                        firmware de démonstration d'origine du châssis, test lidar, CAO
 ```

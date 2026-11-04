@@ -2,7 +2,7 @@
 
 ## Lancer
 
-`python scanatlas.py` (ou `lancer_windows.bat`). Le navigateur s'ouvre sur `http://127.0.0.1:8765/`. Le terminal reste ouvert : c'est le serveur ; Ctrl+C ou la fermeture de la fenêtre quitte tout (moteurs arrêtés). Options : `--port N`, `--sans-navigateur`. Aucun accès Internet n'est nécessaire : polices et scripts sont locaux.
+`python scanatlas.py` (Windows : double-clic sur `lancer_windows.bat` ; macOS / Linux : `./lancer_mac_linux.sh`). Le navigateur s'ouvre sur `http://127.0.0.1:8765/`. Le terminal reste ouvert : c'est le serveur ; Ctrl+C ou la fermeture de la fenêtre quitte tout (moteurs arrêtés). Options : `--port N`, `--sans-navigateur`. Aucun accès Internet n'est nécessaire : polices et scripts sont locaux.
 
 ## Écran Direct
 

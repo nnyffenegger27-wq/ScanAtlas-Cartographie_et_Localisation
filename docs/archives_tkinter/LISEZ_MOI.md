@@ -1,4 +1,4 @@
-> **Note (interface web).** Les écrans, onglets et fichiers Tkinter cités ici (`app.py`, `interface_wifi.py`, `interface_tp.py`…) ont été remplacés par l'interface web : voir [GUIDE_WEB.md](GUIDE_WEB.md). Les principes, calculs et résultats décrits restent valables.
+> **Note (interface web).** Les écrans, onglets et fichiers Tkinter cités ici (`app.py`, `interface_wifi.py`, `interface_tp.py`…) ont été remplacés par l'interface web : voir [GUIDE_WEB.md](../GUIDE_WEB.md). Les principes, calculs et résultats décrits restent valables.
 
 > **Version du 4 novembre 2026** — Interface en trois espaces, carte reprise, localisation seule, grille en direct, PWM et USB/Wi-Fi réunis. Consulter [le guide actuel](GUIDE_SCANATLAS_V3.md). Les descriptions antérieures ci-dessous peuvent correspondre à une version précédente.
 
@@ -308,7 +308,7 @@ Recalculer ensuite les cartes et enregistrer la session.
 Le diagnostic du scan sélectionné signale les tours multiples et les grandes
 lacunes. Les blocs de plusieurs tours sont conservés ; leur étendue est indiquée à titre informatif. Un scan de 305 points
 couvrant 360° ne prouve pas que toutes les mesures ont été reçues.
-Voir [l'analyse des acquisitions et des difficultés](ANALYSE_SCANS_ET_SOURIS.md).
+Voir [l'analyse des acquisitions et des difficultés](../methodes/ANALYSE_SCANS_ET_SOURIS.md).
 
 
 ## Grille conforme au parcours du TP
@@ -376,7 +376,7 @@ explicite sans réécrire les paramètres des anciennes sessions.
 La carte vectorielle fusionne sur les points d'origine avec contrôle de l'erreur
 de droite, puis traite prudemment les anciennes formes traversées par au moins
 trois nouveaux rayons de directions distinctes. Voir les méthodes, limites
-et trois essais dans [SEGMENTS_MULTISCANS_ET_VECTORIELLE.md](SEGMENTS_MULTISCANS_ET_VECTORIELLE.md).
+et trois essais dans [SEGMENTS_MULTISCANS_ET_VECTORIELLE.md](../methodes/SEGMENTS_MULTISCANS_ET_VECTORIELLE.md).
 
 
 ## Acquisition et pilotage manuel

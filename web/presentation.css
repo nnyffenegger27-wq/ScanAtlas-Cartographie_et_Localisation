@@ -10,3 +10,13 @@ html:has(body.presentation){height:auto;scroll-behavior:smooth;scroll-padding-to
 
 /* Première étape du TP : conversion polaire vers cartésien. */
 .polaire-disposition{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}.polaire-disposition h4{font-size:16px;font-weight:600;margin:16px 0 8px}.polaire-disposition p{font-size:14px;color:var(--encre-2)}.formules-polaires{display:flex;gap:20px;flex-wrap:wrap;padding:18px 0;border-top:1px solid var(--trait);border-bottom:1px solid var(--trait);margin:20px 0;color:var(--accent-fort);font:19px var(--mono)}.schema-polaire{background:var(--surface);border:1px solid var(--trait);border-radius:12px;padding:20px}.schema-polaire svg{display:block;width:100%;height:auto;overflow:visible}.schema-polaire figcaption{font-size:11px}.axes-polaires{fill:none;stroke:var(--encre-2);stroke-width:1.3;color:var(--encre-2)}.projections-polaires{fill:none;stroke:var(--encre-3);stroke-width:1.3;stroke-dasharray:5 5}.rayon-polaire{fill:none;stroke:var(--accent);stroke-width:3}.angle-polaire{fill:none;stroke:var(--accent);stroke-width:1.5}.origine-polaire{fill:var(--encre)}.point-polaire{fill:var(--accent)}.texte-polaire{fill:var(--encre-2);font:12px var(--texte)}@media(max-width:800px){.polaire-disposition{grid-template-columns:1fr;gap:20px}.schema-polaire{max-width:560px}.formules-polaires{font-size:17px}}@media print{.schema-polaire,.formules-polaires{break-inside:avoid}}
+/* Tableau « problème → cause → solution → résultat » et cartes des trois versions */
+.table-problemes .resultats{white-space:normal}
+.table-problemes .resultats th,.table-problemes .resultats td{padding:14px 16px;vertical-align:top;font-size:13px;line-height:1.55;min-width:190px}
+.table-problemes .resultats tbody th{min-width:210px}
+.versions-depot code,.problemes code,.buts code{font-size:.92em}
+.versions-depot article p{font-size:14px;color:var(--encre-2)}
+.problemes .erreur-instructive{margin:34px 0}
+.buts .choix-grille h4{margin-top:6px}
+@media print{.table-problemes .resultats th,.table-problemes .resultats td{min-width:0}}
+.table-problemes .resultats td{font-family:var(--texte)}
