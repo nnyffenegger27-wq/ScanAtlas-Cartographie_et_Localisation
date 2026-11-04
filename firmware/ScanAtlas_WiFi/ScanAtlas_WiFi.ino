@@ -6,13 +6,13 @@
 #include <WiFiUdp.h>
 #include <esp_timer.h>
 #include <freertos/semphr.h>
-#include "motor_pwm.h"
+#include "motor_driver.h"
 #include "protocol.h"
 
 const char *AP_SSID="ScanAtlas";
 const char *AP_PASSWORD="ScanAtlas2026"; // Modifier ici avant flash si souhaité.
 const uint16_t COMMAND_PORT=4210,SCAN_PORT=4211;
-MotorPWM car;  // PWM direct ; profil dans motor_config.h.
+MotorDriver car;  // PWM ou I2C : choix et profil dans motor_config.h.
 WiFiUDP udp;
 WiFiServer server(SCAN_PORT);
 QueueHandle_t scans,scansUSB;
@@ -131,9 +131,10 @@ void usbTask(void *) {
 
 void setup(){
   Serial.begin(115200);
-  if(!car.begin()){Serial.println("Profil PWM invalide : verifier motor_config.h");while(true)delay(1000);}
+  if(!car.begin()){Serial.print("Profil moteur invalide (pilote ");Serial.print(MotorDriver::name());Serial.println(") : verifier motor_config.h");while(true)delay(1000);}
+  Serial.print("Pilote moteur : ");Serial.println(MotorDriver::name());
   car.stop();
-  if(MOTOR_DIAGNOSTIC){Serial.println("Test PWM : 1..4 sens A ; a..d sens B ; espace STOP. Impulsions 250 ms / PWM 50.");return;}
+  if(MOTOR_DIAGNOSTIC){Serial.println("Test moteurs : 1..4 un sens ; a..d l'autre sens ; espace STOP. Impulsions 250 ms / puissance 50.");return;}
   pinMode(32,OUTPUT);digitalWrite(32,HIGH);
   Serial2.setRxBufferSize(8192);Serial2.begin(230400,SERIAL_8N1,33,-1);
   ownerMutex=xSemaphoreCreateMutex();scans=xQueueCreate(1,sizeof(ScanFrame));scansUSB=xQueueCreate(1,sizeof(ScanFrame));

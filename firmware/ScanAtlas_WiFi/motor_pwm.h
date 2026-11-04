@@ -2,9 +2,10 @@
 #include <Arduino.h>
 #include <esp_arduino_version.h>
 #include "motor_config.h"
-#include "protocol.h"
+#include "motor_common.h"
 
-class MotorPWM {
+// Pilote PWM direct : huit sorties LEDC sur les entrées M1A..M4B de la carte moteur.
+class MotorPWM : public MotorDrive<MotorPWM> {
   bool ready=false;
   void write(unsigned channel,unsigned duty){
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
@@ -14,17 +15,12 @@ class MotorPWM {
 #endif
   }
 public:
+  static const char *name(){return "PWM";}
+  static int motorOf(int wheel){return WHEEL_MOTOR[wheel];}
+  static int signOf(int wheel){return WHEEL_SIGN[wheel];}
   bool begin(){
-    for(int i=0;i<8;++i){
-      int p=MOTOR_PINS[i];
-      bool gpio=p==0||p==2||p==4||p==5||(p>=12&&p<=19)||(p>=21&&p<=23)||(p>=25&&p<=27);
-      if(!gpio)return false; // ESP32 classique, hors flash, console et lidar.
-      for(int j=0;j<i;++j)if(p==MOTOR_PINS[j])return false;
-    }
-    for(int i=0;i<4;++i){
-      if(WHEEL_MOTOR[i]<0||WHEEL_MOTOR[i]>3||(WHEEL_SIGN[i]!=1&&WHEEL_SIGN[i]!=-1))return false;
-      for(int j=0;j<i;++j)if(WHEEL_MOTOR[i]==WHEEL_MOTOR[j])return false;
-    }
+    if(!motorPinsValid(MOTOR_PINS,8))return false;
+    if(!motorWheelMapValid(WHEEL_MOTOR,WHEEL_SIGN))return false;
     for(int i=0;i<8;++i){
       pinMode(MOTOR_PINS[i],OUTPUT);digitalWrite(MOTOR_PINS[i],LOW);
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
@@ -44,18 +40,5 @@ public:
     write(a,0);write(b,0);
     if(power>0)write(a,min(power,255));
     else if(power<0)write(b,min(-power,255));
-  }
-  // Commande combinée : chaque roue reçoit son pourcentage mélangé (vx, vy, w).
-  void drive(int vx,int vy,int w){
-    int mixed[4];mecanumMix(vx,vy,w,mixed);
-    for(int i=0;i<4;++i)wheel(WHEEL_MOTOR[i],mixed[i]*WHEEL_SIGN[i]);
-  }
-  void apply(Motion m,unsigned pwm){
-    // Roues mecanum en X : FL FR RL RR. Profil et polarités configurables.
-    static const int signs[7][4]={{0,0,0,0},{1,1,1,1},{-1,-1,-1,-1},
-       {-1,1,-1,1},{1,-1,1,-1},{-1,1,1,-1},{1,-1,-1,1}};
-    if(unsigned(m)>6){stop();return;}
-    pwm=min(pwm,100u);  // Même plafond que le protocole et l'application.
-    for(int i=0;i<4;++i)wheel(WHEEL_MOTOR[i],signs[m][i]*WHEEL_SIGN[i]*int(pwm));
   }
 };

@@ -50,23 +50,30 @@ Le journal ne contient pas le jeton d'authentification réseau. Un problème d'�
 
 ## Clavier et manette Xbox
 
-L'encart **Commandes** du panneau Pilotage montre en direct les trois axes : **Surge** (avancer / reculer), **Sway** (gauche / droite) et **Yaw** (rotation). Chaque axe a deux cases ; une case se remplit en vert depuis le centre, proportionnellement à la puissance commandée, en pourcentage du réglage PWM. Au clavier le remplissage est fixe (tout ou rien, égal au réglage PWM) ; à la manette il suit l'inclinaison du stick. Le fond de l'encart est beige tant que le robot n'est pas connecté et vert pâle une fois connecté et le flux lidar reçu.
+L'encart **Commandes** du panneau Pilotage affiche en direct les commandes de deux façons. À gauche, un **pavé 3 × 3** : rotation gauche, avance, rotation droite ; gauche, croix, droite ; recul. Une case devient verte quand la commande est active (plus franchement quand la puissance est forte) ; **la croix centrale est verte quand le robot est à l'arrêt**. À droite, trois axes avec leur pourcentage : **Surge** (avancer / reculer), **Sway** (gauche / droite) et **Yaw** (rotation). Chaque axe a deux cases qui se remplissent en vert depuis le centre, en pourcentage du réglage PWM. Au clavier le remplissage est fixe (tout ou rien, égal au réglage PWM) ; à la manette il suit l'inclinaison du stick. Le fond de l'encart est beige tant que le robot n'est pas connecté et vert pâle une fois connecté et le flux lidar reçu.
 
 **Le pilotage se teste sans robot** : cocher Clavier actif ou Manette Xbox sans être connecté affiche l'encart exactement comme avec un robot, mais **aucune commande n'est envoyée**. Avec un robot connecté, les commandes ne partent que si le flux lidar est récent (comme avant).
 
-Clavier : cliquer dans la zone de commandes, puis ↑ ↓ (surge), A D (sway : A = gauche, D = droite), ← → (yaw). **Les touches se combinent** (↑ + A + ← donne avance, gauche et rotation à gauche en même temps) ; deux touches opposées d'un même axe s'annulent. La localisation peut être en échec sans bloquer le pilotage manuel, tant que connexion et flux lidar sont récents.
+Clavier AZERTY : cliquer dans la zone de commandes, cocher **Clavier actif**, puis :
 
-Sous Windows, connecter une manette reconnue par XInput puis cocher **Manette Xbox** :
+| Mouvement | Touches |
+|---|---|
+| Surge : avancer / reculer | **Z** / **S** |
+| Sway : gauche / droite | **Q** / **D** |
+| Yaw : tourner à gauche / à droite | **A** / **E** |
+
+Les flèches haut/bas (surge) et gauche/droite (yaw) restent acceptées comme équivalents. **Les touches se combinent** (Z + D + E : avancer en diagonale à droite en tournant à droite) ; deux touches opposées d'un même axe s'annulent. La localisation peut être en échec sans bloquer le pilotage manuel, tant que connexion et flux lidar sont récents.
+
+Sous Windows, connecter une manette reconnue par XInput puis cocher **Manette Xbox** (il n'y a plus de bouton à maintenir : l'activation se fait à l'écran) :
 
 | Entrée | Action |
 |---|---|
 | Stick gauche | Surge (haut / bas) et sway (gauche / droite) en même temps, proportionnels |
 | Stick droit, axe horizontal | Yaw (rotation) |
-| **LB maintenu** | Autorise le mouvement (homme mort) ; relâché = STOP |
 | **RB** (un appui) | Bascule la cartographie : activée ↔ en pause (localisation seule). Le mouvement n'est pas touché |
-| **B** | STOP immédiat |
+| **B** (ou **Espace**) | STOP immédiat **et désactivation** du pilotage : il faut recocher Clavier actif ou Manette Xbox pour reprendre. Le lidar et la localisation continuent |
 
-Zone morte 22 % (radiale sur le stick gauche), puissance proportionnelle plafonnée par le curseur PWM. Il faut conserver le focus dans la bande de pilotage.
+Recentrer les sticks ou relâcher les touches arrête déjà le mouvement. Zone morte 22 % (radiale sur le stick gauche), puissance proportionnelle plafonnée par le curseur PWM. Il faut conserver le focus dans la bande de pilotage : **perdre le focus de l'application arrête les moteurs** (évite qu'une commande reste active pendant qu'on écrit ailleurs). En revanche, une **localisation perdue ne bloque pas le pilotage** : seul l'ajout de points à la carte est suspendu.
 
 **Protocole.** Un mouvement sur un seul axe part toujours en `SA1` (identique à avant, compatible avec l'ancien firmware). Un mouvement combiné part en `SA2 jeton séquence vx vy w` avec trois pourcentages signés (-100 à 100 ; positifs = avance, gauche, rotation à gauche). Le firmware mélange les quatre roues mécanum et, si une roue dépasserait 100, réduit toutes les roues ensemble : la direction est conservée, seule la vitesse baisse. Le firmware annonce `READY jeton SA2` ; **il faut le reflasher pour les mouvements combinés**. Avec l'ancien firmware, l'application garde l'axe dominant et affiche « Reflasher ScanAtlas_WiFi » plutôt que de perdre la liaison.
 
@@ -74,11 +81,21 @@ Espace, Échap, perte de focus, changement d'espace, disparition de la manette e
 
 La démonstration lance le simulateur local sans matériel. Les touches y déplacent un robot virtuel. Elle permet de tester la carte et les contrôles, sans valider les moteurs ou la radio.
 
-## Firmware PWM et câblage
+## Firmware moteurs : choix PWM ou I2C
 
-Sketch : `firmware/ScanAtlas_WiFi/ScanAtlas_WiFi.ino`. Cible compilée : ESP32 classique, Arduino-ESP32 **2.0.17**. Le pilote prévoit aussi les appels LEDC 3.x, testés sur une API simulée ; une compilation réelle 3.x n'est pas revendiquée.
+Sketch : `firmware/ScanAtlas_WiFi/ScanAtlas_WiFi.ino`. Cible compilée : ESP32 classique, Arduino-ESP32 **2.0.17**. Le pilote PWM prévoit aussi les appels LEDC 3.x, testés sur une API simulée ; une compilation réelle 3.x n'est pas revendiquée.
 
-Le programme utilise maintenant huit sorties PWM directes. L'ancienne bibliothèque `MecanumCar_v2` et les exemples d'origine restent dans le dépôt pour référence, mais le sketch ScanAtlas ne les utilise plus.
+**Tous les réglages moteurs sont dans un seul fichier : `firmware/ScanAtlas_WiFi/motor_config.h`.** Les robots n'étant pas tous câblés pareil, le firmware sait piloter la carte moteur de deux manières ; on choisit à la compilation (puis on téléverse) :
+
+```cpp
+#define MOTOR_DRIVER MOTOR_DRIVER_PWM   // ou MOTOR_DRIVER_I2C
+```
+
+Le protocole Wi-Fi (SA1 / SA2), l'interface, le mélange mecanum et le mode diagnostic sont identiques avec les deux pilotes ; seule la façon d'écrire sur la carte moteur change. Au démarrage, le moniteur série à 115200 affiche `Pilote moteur : PWM` ou `Pilote moteur : I2C`. Une configuration incohérente (broche inutilisable, doublon, roue affectée deux fois) affiche `Profil moteur invalide (pilote ...)` et bloque le démarrage moteur.
+
+### Pilote PWM (`MOTOR_DRIVER_PWM`)
+
+Huit sorties PWM directes (LEDC, 20 kHz) vers les entrées de la carte moteur.
 
 | Entrée moteur | GPIO proposé |
 | --- | ---: |
@@ -87,9 +104,24 @@ Le programme utilise maintenant huit sorties PWM directes. L'ancienne bibliothè
 | M3A / M3B | 2 / 4 |
 | M4A / M4B | 16 / 17 |
 
-Ce relevé reste à confirmer sur chaque robot. Modifier **motor_config.h** : `MOTOR_PINS` fixe les GPIO de ces entrées ; `WHEEL_MOTOR` associe M1..M4 aux roues avant gauche, avant droite, arrière gauche et arrière droite ; `WHEEL_SIGN` inverse une polarité si nécessaire. L'affectation physique et les polarités sont provisoires. Les GPIO de la console et du lidar sont réservés ; une configuration incohérente refuse le démarrage moteur.
+Ce relevé reste à confirmer sur chaque robot. Réglages : `MOTOR_PINS` fixe les GPIO de ces entrées ; `WHEEL_MOTOR` associe M1..M4 aux roues avant gauche, avant droite, arrière gauche et arrière droite ; `WHEEL_SIGN` inverse une polarité si nécessaire ; `MOTOR_PWM_HZ` règle la fréquence.
 
-Pour vérifier une roue : passer `MOTOR_DIAGNOSTIC=true`, téléverser, ouvrir le moniteur série à 115200, roues levées. `1` à `4` donnent une impulsion dans un sens sur M1..M4 ; `a` à `d` dans l'autre sens. Impulsion de 250 ms à PWM 50 ; espace arrête. Ce mode ne démarre ni Wi-Fi ni lidar. Remettre la valeur à false et téléverser pour piloter normalement. Ces essais n'ont pas été réalisés physiquement ici.
+### Pilote I2C (`MOTOR_DRIVER_I2C`)
+
+La carte moteur est pilotée par un bus I2C logiciel (bibliothèque `MecanumCar_v2` fournie dans le dossier du sketch, adresse 0x30 fixée dans `MecanumCar_v2.cpp`). Réglages : `I2C_SDA_PIN` / `I2C_SCL_PIN` (19 / 21 par défaut, comme le firmware de démonstration d'origine) ; `I2C_WHEEL_MOTOR` associe les roues aux moteurs I2C ; `I2C_WHEEL_SIGN` inverse une polarité.
+
+| Moteur I2C | Canaux | Roue par défaut |
+| --- | --- | --- |
+| Upper_R | 1 / 2 | avant droite |
+| Upper_L | 3 / 4 | avant gauche |
+| Lower_R | 5 / 6 | arrière droite |
+| Lower_L | 7 / 8 | arrière gauche |
+
+Une puissance positive agit sur le canal pair (2, 4, 6, 8), comme « avancer » dans la bibliothèque d'origine. Le sens d'avance de chaque roue reste à vérifier sur chaque robot.
+
+### Vérifier les roues (les deux pilotes)
+
+Passer `MOTOR_DIAGNOSTIC=true`, téléverser, ouvrir le moniteur série à 115200, roues levées. `1` à `4` donnent une impulsion dans un sens sur le moteur 1..4 (M1..M4 en PWM ; Upper_R, Upper_L, Lower_R, Lower_L en I2C) ; `a` à `d` dans l'autre sens. Impulsion de 250 ms à puissance 50 ; espace arrête. Ce mode ne démarre ni Wi-Fi ni lidar. Remettre la valeur à false et téléverser pour piloter normalement. Les GPIO de la console et du lidar sont réservés. Ces essais n'ont pas été réalisés physiquement ici.
 
 ## USB et Wi-Fi avec le même programme
 

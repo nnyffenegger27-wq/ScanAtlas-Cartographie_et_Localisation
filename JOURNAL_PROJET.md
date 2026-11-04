@@ -631,3 +631,22 @@ Difficultés : (1) un nouveau PC avec un ancien firmware aurait perdu la liaison
 
 Validation : 161 tests existants et 16 nouveaux passent sous Python 3.13 avec Tk et écran virtuel, dont l'encart dessiné réellement, le mode test sans robot, RB, la liaison avec un faux robot et l'ancien firmware, la capture depuis Localisation et la compilation hôte du firmware. Captures de contrôle de l'écran virtuel relues. **Non vérifié sur le matériel** : le mixage sur les vraies roues (signes et emplacement des moteurs toujours à confirmer), la manette physique (lecture XInput simulée), le Wi-Fi radio, et la nouvelle disposition sous Windows. À tester roues levées d'abord, puis au sol à faible PWM.
 
+## 4 novembre 2026 — Choix du pilote moteur PWM ou I2C
+
+Demande : les robots n'étant pas câblés de la même façon, pouvoir choisir entre la carte moteur pilotée en PWM direct et en I2C, et savoir où régler les broches. Tous les réglages sont regroupés dans `firmware/ScanAtlas_WiFi/motor_config.h` : `MOTOR_DRIVER` (PWM par défaut, surchargeable par `-DMOTOR_DRIVER=2`), le profil PWM (`MOTOR_PINS`, `WHEEL_MOTOR`, `WHEEL_SIGN`, `MOTOR_PWM_HZ`) et le profil I2C (`I2C_SDA_PIN`, `I2C_SCL_PIN`, `I2C_WHEEL_MOTOR`, `I2C_WHEEL_SIGN`).
+
+Structure : `motor_common.h` (validation des broches et du plan de roues, mélange commun `drive` / `apply` en classe modèle), `motor_pwm.h` (pilote PWM, comportement inchangé), `motor_i2c.h` (nouveau pilote par `mecanumCar::PWM_OUT`, canaux 1..8) et `motor_driver.h` (sélection à la compilation, erreur si la valeur est inconnue). Le sketch n'utilise plus qu'un type `MotorDriver` ; protocole, bail de sécurité et mode diagnostic sont inchangés. Le démarrage affiche le pilote actif.
+
+Choix : la sélection est faite à la compilation et non à l'exécution, car une mauvaise sélection à chaud pourrait envoyer des signaux sur des broches utilisées par l'autre carte. Le pilote I2C met le canal opposé à zéro avant d'activer un sens, comme le PWM. L'association par défaut des roues I2C reprend celle du firmware de démonstration d'origine.
+
+Validation : tests hôte sur la vraie classe `mecanumCar` (canaux, sens, ordre d'écriture, arrêt, plafond), sélection des deux pilotes avec les API 2.x et 3.x simulées, refus d'un pilote inconnu, validation des broches. Limites : le .ino n'a pas été compilé pour un ESP32 ici, et rien n'a été essayé sur un robot réel (sens des roues I2C à vérifier avec le mode diagnostic).
+
+## 4 novembre 2026 — Alignement sur les derniers échanges : AZERTY, plus de LB, pavé de commandes
+
+Les derniers échanges avec ChatGPT, transmis ensuite, fixaient des choix que le code ne suivait pas encore : clavier AZERTY (Z/S surge, Q/D sway, A/E yaw), plus de LB à maintenir (activation à l'écran), B ou Espace coupant le pilotage jusqu'à sa réactivation sans toucher au lidar ni à la localisation, pilotage conservé même si la localisation est perdue, arrêt si le focus de l'application est perdu. Les images jointes montraient aussi le pavé visuel (flèches, rotations, croix d'arrêt, case verte active).
+
+Modifications : `manette.py` (plus de LB ; `EtatManette` sans champ `lb`), `interface_wifi.py` (touches AZERTY, flèches conservées comme équivalents, B désarme le pilotage avec message, textes d'aide), `encart_commandes.py` (pavé 3 × 3 dessiné en polygones et polylignes, sans glyphes de police ; croix verte à l'arrêt ; barres en pourcentage conservées à droite), aide intégrée et guide.
+
+Difficulté : les anciennes touches A/D (sway) changent de sens : A devient le yaw gauche. Les flèches restent donc la voie la plus sûre pour qui a l'habitude de l'ancienne disposition. Une exécution complète de la suite a échoué une fois sans qu'on puisse le reproduire (quatre exécutions suivantes propres) ; le test concerné n'a pas été identifié.
+
+Validation : 185 tests réussis sous Python 3.13 avec Tk et écran virtuel, dont l'encart dessiné (pavé et barres), les touches AZERTY, B qui désarme, RB qui bascule la cartographie. Non essayé avec une vraie manette ni sur Windows. Idée gardée pour plus tard, comme convenu : prédire le mouvement à partir des commandes pour initialiser le recalage lidar, avec recherche élargie si le lidar contredit la prédiction.

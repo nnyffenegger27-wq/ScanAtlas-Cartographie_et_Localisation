@@ -9,43 +9,44 @@ from types import MethodType, SimpleNamespace
 from unittest.mock import MagicMock, patch
 import numpy as np
 from cartographie import demonstration
-from manette import (vecteur_manette, EtatManette, BOUTON_LB, BOUTON_RB, BOUTON_B)
-from encart_commandes import pourcentages, remplissages
+from manette import vecteur_manette, EtatManette, BOUTON_RB, BOUTON_B
+from encart_commandes import pourcentages, remplissages, cellules_pave, teinte, CASE, VERT
 from test_interface_sans_ecran import Variable
 
-LB, RB, B = BOUTON_LB, BOUTON_RB, BOUTON_B
+RB, B = BOUTON_RB, BOUTON_B
 
 
 class ManetteCombinee(unittest.TestCase):
-    def test_lb_obligatoire_et_b_arrete_tout(self):
-        self.assertEqual(vecteur_manette(0, 1, 1, 0), (0, 0, 0))
-        self.assertEqual(vecteur_manette(.8, .8, .8, LB | B), (0, 0, 0))
-        self.assertEqual(vecteur_manette(0, 1, 0, RB), (0, 0, 0))  # RB seul n'autorise pas le mouvement.
+    def test_aucun_bouton_a_maintenir_et_b_arrete_tout(self):
+        self.assertEqual(vecteur_manette(0, 1, 1, 0), (1, 0, -1))   # sticks seuls : pas de LB requis
+        self.assertEqual(vecteur_manette(.8, .8, .8, B), (0, 0, 0))
+        self.assertEqual(vecteur_manette(.8, .8, .8, RB | B), (0, 0, 0))
+        self.assertEqual(vecteur_manette(0, 1, 0, RB), (1, 0, 0))   # RB bascule la cartographie sans toucher au mouvement
 
     def test_axes_et_signes(self):
-        self.assertEqual(vecteur_manette(0, 1, 0, LB), (1, 0, 0))     # stick gauche en haut : avance
-        self.assertEqual(vecteur_manette(0, -1, 0, LB), (-1, 0, 0))   # en bas : recule
-        self.assertEqual(vecteur_manette(-1, 0, 0, LB), (0, 1, 0))    # à gauche : sway gauche (+)
-        self.assertEqual(vecteur_manette(1, 0, 0, LB), (0, -1, 0))    # à droite : sway droite (-)
-        self.assertEqual(vecteur_manette(0, 0, -1, LB), (0, 0, 1))    # stick droit à gauche : yaw gauche (+)
-        self.assertEqual(vecteur_manette(0, 0, 1, LB), (0, 0, -1))    # à droite : yaw droite (-)
+        self.assertEqual(vecteur_manette(0, 1, 0, 0), (1, 0, 0))     # stick gauche en haut : avance
+        self.assertEqual(vecteur_manette(0, -1, 0, 0), (-1, 0, 0))   # en bas : recule
+        self.assertEqual(vecteur_manette(-1, 0, 0, 0), (0, 1, 0))    # à gauche : sway gauche (+)
+        self.assertEqual(vecteur_manette(1, 0, 0, 0), (0, -1, 0))    # à droite : sway droite (-)
+        self.assertEqual(vecteur_manette(0, 0, -1, 0), (0, 0, 1))    # stick droit à gauche : yaw gauche (+)
+        self.assertEqual(vecteur_manette(0, 0, 1, 0), (0, 0, -1))    # à droite : yaw droite (-)
 
     def test_combinaison_surge_sway_yaw(self):
-        surge, sway, yaw = vecteur_manette(-.6, .6, -.7, LB)
+        surge, sway, yaw = vecteur_manette(-.6, .6, -.7, 0)
         self.assertGreater(surge, 0); self.assertGreater(sway, 0); self.assertGreater(yaw, 0)
         self.assertAlmostEqual(surge, sway)
 
     def test_zone_morte_et_proportionnalite(self):
-        self.assertEqual(vecteur_manette(.15, .15, .2, LB), (0, 0, 0))
-        self.assertAlmostEqual(vecteur_manette(0, .61, 0, LB)[0], .5, places=2)
-        self.assertAlmostEqual(vecteur_manette(0, 0, -.61, LB)[2], .5, places=2)
+        self.assertEqual(vecteur_manette(.15, .15, .2, 0), (0, 0, 0))
+        self.assertAlmostEqual(vecteur_manette(0, .61, 0, 0)[0], .5, places=2)
+        self.assertAlmostEqual(vecteur_manette(0, 0, -.61, 0)[2], .5, places=2)
 
     def test_sorties_toujours_bornees_et_sans_zero_negatif(self):
         rng = np.random.default_rng(3)
         for lx, ly, rx in rng.uniform(-1.2, 1.2, (500, 3)):
-            v = vecteur_manette(lx, ly, rx, LB)
+            v = vecteur_manette(lx, ly, rx, 0)
             self.assertTrue(all(-1 <= x <= 1 for x in v), v)
-        self.assertEqual([str(x) for x in vecteur_manette(0, 0, 0, LB)], ['0.0', '0.0', '0.0'])
+        self.assertEqual([str(x) for x in vecteur_manette(0, 0, 0, 0)], ['0.0', '0.0', '0.0'])
 
 
 class EncartCalculs(unittest.TestCase):
@@ -61,6 +62,24 @@ class EncartCalculs(unittest.TestCase):
         self.assertEqual(remplissages(-100, True), (0., 1.))
         self.assertEqual(remplissages(150, False), (0., 1.))
         self.assertEqual(remplissages(0, True), (0., 0.))
+
+
+class PaveCalculs(unittest.TestCase):
+    def test_cellules_du_pave(self):
+        self.assertEqual(cellules_pave(0, 0, 0)['arret'], 1.)
+        self.assertEqual(sum(v for k, v in cellules_pave(0, 0, 0).items() if k != 'arret'), 0.)
+        c = cellules_pave(50, -25, 100)
+        self.assertEqual((c['avance'], c['recul'], c['droite'], c['gauche'], c['rot_g'], c['rot_d'], c['arret']),
+                         (.5, 0., .25, 0., 1., 0., 0.))
+        c = cellules_pave(-100, 100, -10)
+        self.assertEqual((c['recul'], c['gauche'], c['rot_d']), (1., 1., .1))
+        self.assertEqual(cellules_pave(300, 0, 0)['avance'], 1.)   # borné
+
+    def test_teinte_blanc_vers_vert(self):
+        self.assertEqual(teinte(0), CASE)
+        self.assertEqual(teinte(1), VERT)
+        self.assertNotEqual(teinte(.05), CASE)                      # une commande faible reste visible
+        self.assertNotEqual(teinte(.5), teinte(1))
 
 
 class FausseManette:
@@ -83,13 +102,17 @@ class InterfacePilotageReelle(unittest.TestCase):
         try:
             e = EncartCommandes(racine); e.pack(fill='x'); racine.update()
             def vertes():
-                return [e.coords(i) for i in e.find_all() if e.type(i) == 'rectangle' and e.itemcget(i, 'fill') == VERT]
+                return [e.coords(i) for i in e.find_withtag('rempli')]
+            def pave_actif():
+                return [e.coords(i) for i in e.find_withtag('pave') if e.type(i) == 'rectangle' and e.itemcget(i, 'fill') != CASE]
             e.afficher(0, 0, 0, False); racine.update_idletasks()
             self.assertEqual(vertes(), [])
+            self.assertEqual(len(pave_actif()), 1)          # À l'arrêt : seule la croix centrale est verte.
             self.assertEqual(e.cget('background'), FOND_HORS_LIGNE)
             e.afficher(100, 0, 0, True); racine.update_idletasks()
             self.assertEqual(e.cget('background'), FOND_CONNECTE)
             plein = vertes(); self.assertEqual(len(plein), 1)
+            self.assertEqual(len(pave_actif()), 1)          # Avance : la flèche haute remplace la croix.
             largeur_case = plein[0][2]-plein[0][0]
             self.assertGreater(largeur_case, 100)
             e.afficher(-50, 0, 0, True); racine.update_idletasks()
@@ -98,6 +121,7 @@ class InterfacePilotageReelle(unittest.TestCase):
             self.assertLess(demi[0][0], plein[0][0])
             e.afficher(30, -30, 30, True, 'note'); racine.update_idletasks()
             self.assertEqual(len(vertes()), 3)
+            self.assertEqual(len(pave_actif()), 3)          # avance, droite, rotation à gauche
             textes = [e.itemcget(i, 'text') for i in e.find_all() if e.type(i) == 'text']
             self.assertIn('30 %', textes); self.assertIn('note', textes)
         finally:
@@ -113,14 +137,14 @@ class InterfacePilotageReelle(unittest.TestCase):
             app.wifi_pwm.set(60)
             app.wifi_actif.set(True); app.wifi_activer(); app.wifi_zone.focus_force(); app.update()
             self.assertTrue(app.wifi_actif.get())          # Activable sans robot.
-            for touche in ('Up', 'a', 'Left'):
+            for touche in ('z', 'q', 'a'):
                 app.wifi_zone.event_generate(f'<KeyPress-{touche}>')
             app.update(); app.wifi_pilotage()
             self.assertEqual(app.wifi_encart._valeurs, (60, 60, 60))
             self.assertFalse(app.wifi_encart._connecte)
             self.assertEqual(app.wifi_encart.cget('background'), FOND_HORS_LIGNE)
             self.assertIn('rien n’est envoyé', app.wifi_commande.get())
-            app.wifi_zone.event_generate('<KeyRelease-Up>'); app.update(); app.wifi_pilotage()
+            app.wifi_zone.event_generate('<KeyRelease-z>'); app.update(); app.wifi_pilotage()
             self.assertEqual(app.wifi_encart._valeurs, (0, 60, 60))
             app.wifi_zone.event_generate('<FocusOut>'); app.update()
             self.assertFalse(app.wifi_actif.get())          # Perte de focus : entrées désarmées.
@@ -129,12 +153,12 @@ class InterfacePilotageReelle(unittest.TestCase):
 
             # Manette : stick gauche + stick droit proportionnels, RB bascule la cartographie.
             app.manette = FausseManette([
-                EtatManette(True, .5, .0, -1., True, False, False),
-                EtatManette(True, 0., 0., 0., True, True, False),      # RB pressé : pause
-                EtatManette(True, 0., 0., 0., True, True, False),      # RB maintenu : rien de plus
-                EtatManette(True, 0., 0., 0., True, False, False),     # relâché
-                EtatManette(True, 0., 0., 0., True, True, False),      # RB pressé : reprise
-                EtatManette(True, 0., 0., 0., False, False, False),    # sans LB
+                EtatManette(True, .5, .0, -1., False, False),
+                EtatManette(True, 0., 0., 0., True, False),            # RB pressé : pause
+                EtatManette(True, 0., 0., 0., True, False),            # RB maintenu : rien de plus
+                EtatManette(True, 0., 0., 0., False, False),           # relâché
+                EtatManette(True, 0., 0., 0., True, False),            # RB pressé : reprise
+                EtatManette(True, .5, 0., 0., False, True),            # B : coupe et désactive
                 EtatManette(False)])                                   # manette débranchée
             app.wifi_manette_active.set(True); app.wifi_activer_manette(); app.wifi_zone.focus_force(); app.update()
             self.assertTrue(app.wifi_manette_active.get())
@@ -146,8 +170,14 @@ class InterfacePilotageReelle(unittest.TestCase):
             app.wifi_pilotage(); self.assertEqual(app.wifi_mode.get(), 'Localisation seule')
             app.wifi_pilotage(); app.wifi_pilotage()
             self.assertEqual(app.wifi_mode.get(), 'Cartographier'); self.assertTrue(app.wifi_cartographier.is_set())
-            app.wifi_pilotage()
-            self.assertIn('LB', app.wifi_encart._note)
+            app.wifi_pilotage()                              # B : arrêt immédiat, pilotage désactivé
+            self.assertFalse(app.wifi_manette_active.get())
+            self.assertEqual(app.wifi_encart._valeurs, (0, 0, 0))
+            self.assertIn('Manette B', app.wifi_info.get())
+            self.assertEqual(app.wifi_mode.get(), 'Cartographier')   # B ne touche ni la cartographie ni la localisation
+            app.wifi_pilotage()                              # inactive : le stick n'a plus d'effet
+            self.assertEqual(app.wifi_encart._valeurs, (0, 0, 0))
+            app.wifi_manette_active.set(True); app.wifi_activer_manette(); app.wifi_zone.focus_force(); app.update()
             app.wifi_pilotage()
             self.assertFalse(app.wifi_manette_active.get())  # Manette absente : désarmée.
             self.assertEqual(app.wifi_encart._valeurs, (0, 0, 0))
@@ -176,14 +206,14 @@ class InterfacePilotageReelle(unittest.TestCase):
                 attendre(lambda: app.wifi_etat is not None and app.wifi_etat.accepte)
                 app.wifi_pwm.set(70)
                 app.wifi_actif.set(True); app.wifi_activer(); app.wifi_zone.focus_force(); app.update()
-                app.wifi_zone.event_generate('<KeyPress-Up>'); app.wifi_zone.event_generate('<KeyPress-Right>')
+                app.wifi_zone.event_generate('<KeyPress-z>'); app.wifi_zone.event_generate('<KeyPress-e>')
                 attendre(lambda: (70, 0, -70) in fake.vecteurs)
                 self.assertTrue(app.wifi_encart._connecte)
                 self.assertEqual(app.wifi_encart.cget('background'), FOND_CONNECTE)
                 self.assertEqual(app.wifi_encart._valeurs, (70, 0, -70))
-                app.wifi_zone.event_generate('<KeyRelease-Right>')
+                app.wifi_zone.event_generate('<KeyRelease-e>')
                 attendre(lambda: any(c == 'FORWARD' for _, c in fake.commandes[-3:]))   # Reste un seul axe : SA1 compatible.
-                app.wifi_zone.event_generate('<KeyRelease-Up>')
+                app.wifi_zone.event_generate('<KeyRelease-z>')
                 attendre(lambda: fake.commandes[-1][1] == 'STOP')
         finally:
             app.wifi_deconnecter(); app.destroy(); fake.fermer()

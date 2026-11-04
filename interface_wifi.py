@@ -17,10 +17,13 @@ from cartographie import mesures_valides
 from apparence import curseur, FOND, SURFACE, ENCRE, SECONDAIRE, ACCENT
 from encart_commandes import EncartCommandes, pourcentages
 
-TOUCHES = {'Up':'FORWARD', 'Down':'BACK', 'Left':'LEFT', 'Right':'RIGHT',
-           'a':'STRAFE_L', 'd':'STRAFE_R'}
+# Clavier AZERTY : Z/S = surge, Q/D = sway, A/E = yaw. Les flèches restent un équivalent
+# (haut/bas = surge, gauche/droite = yaw).
+TOUCHES = {'z':'FORWARD', 's':'BACK', 'q':'STRAFE_L', 'd':'STRAFE_R', 'a':'LEFT', 'e':'RIGHT',
+           'Up':'FORWARD', 'Down':'BACK', 'Left':'LEFT', 'Right':'RIGHT'}
 # (axe, signe) : axe 0 = surge (avance +), 1 = sway (gauche +), 2 = yaw (rotation gauche +).
-AXES_CLAVIER = {'Up':(0, 1), 'Down':(0, -1), 'a':(1, 1), 'd':(1, -1), 'Left':(2, 1), 'Right':(2, -1)}
+AXES_CLAVIER = {'z':(0, 1), 's':(0, -1), 'q':(1, 1), 'd':(1, -1), 'a':(2, 1), 'e':(2, -1),
+                'Up':(0, 1), 'Down':(0, -1), 'Left':(2, 1), 'Right':(2, -1)}
 
 
 class ClavierRobot:
@@ -124,11 +127,11 @@ class InterfaceWifi:
         ttk.Separator(panneau).pack(fill='x',pady=12)
         ttk.Label(panneau,text='Pilotage',style='Section.TLabel').pack(anchor='w')
         ttk.Checkbutton(panneau,text='Clavier actif',variable=self.wifi_actif,command=self.wifi_activer).pack(anchor='w')
-        ttk.Checkbutton(panneau,text='Manette Xbox · maintenir LB',variable=self.wifi_manette_active,command=self.wifi_activer_manette).pack(anchor='w')
-        ttk.Label(panneau,text='Stick gauche : surge + sway · stick droit : yaw\nRB : cartographie activée / en pause · B : arrêt',
+        ttk.Checkbutton(panneau,text='Manette Xbox',variable=self.wifi_manette_active,command=self.wifi_activer_manette).pack(anchor='w')
+        ttk.Label(panneau,text='Stick gauche : surge + sway · stick droit : yaw\nRB : cartographie activée / en pause · B ou Espace : arrêt et désactivation',
                   style='SousTitre.TLabel',wraplength=270).pack(anchor='w',pady=(2,4))
         self.wifi_encart=EncartCommandes(panneau);self.wifi_encart.pack(fill='x',pady=(2,6))
-        self.wifi_zone=tk.Label(panneau,text='Clique ici puis : ↑ ↓ avancer · ← → tourner · A D latéral',takefocus=True,
+        self.wifi_zone=tk.Label(panneau,text='Clique ici puis : Z S avancer / reculer · Q D gauche / droite · A E tourner',takefocus=True,
             background=FOND,foreground=SECONDAIRE,pady=8,wraplength=270)
         self.wifi_zone.pack(fill='x')
         self.wifi_zone.bind('<Button-1>',lambda e:self.wifi_zone.focus_set())
@@ -466,8 +469,11 @@ class InterfaceWifi:
                 self.wifi_info.set('Manette Xbox absente ; pilotage arrêté. Windows / XInput requis.')
             else:
                 niveaux=(etat.surge,etat.sway,etat.yaw)
-                if not etat.lb:note='Maintiens LB pour autoriser le mouvement.'
-                if etat.rb and not self.wifi_rb_precedent:self.wifi_basculer_cartographie()
+                if etat.stop:
+                    self.wifi_arreter()  # B : arrêt immédiat, pilotage désactivé jusqu'à réactivation.
+                    niveaux=(0,0,0)
+                    self.wifi_info.set('Manette B : pilotage coupé. Recocher la manette ou le clavier pour reprendre ; lidar et localisation continuent.')
+                elif etat.rb and not self.wifi_rb_precedent:self.wifi_basculer_cartographie()
                 self.wifi_rb_precedent=etat.rb
         elif self.wifi_actif.get():
             niveaux=self.wifi_clavier.vecteur()

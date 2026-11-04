@@ -61,9 +61,9 @@ class ModesDirects(unittest.TestCase):
             self.assertEqual(data['version'],2);self.assertEqual(len(data['scans']),1)
             self.assertFalse((j.dossier/'session_secours.json.tmp').exists())
 
-    def test_manette_zone_morte_lb_et_arret_b(self):
+    def test_manette_zone_morte_et_arret_b(self):
         self.assertEqual(ctypes.sizeof(State),16)
-        self.assertEqual(commande_axes(0,1,0,0),('STOP',0))
+        self.assertEqual(commande_axes(0,1,0,0),('FORWARD',1))   # plus de bouton à maintenir
         self.assertEqual(commande_axes(0,.1,0,0x100),('STOP',0))
         self.assertEqual(commande_axes(0,1,0,0x100),('FORWARD',1))
         self.assertEqual(commande_axes(-.7,0,0,0x100),('STRAFE_L',.7))

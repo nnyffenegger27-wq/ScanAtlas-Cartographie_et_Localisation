@@ -78,7 +78,8 @@ Nouvelle carte fixe l'origine au premier scan valide. Scans cochés Carte copie
 une référence depuis Cartographie ; une recherche globale retrouve la pose.
 Localisation seule poursuit le suivi sans enrichir les points, la grille ou les segments.
 Points / Grille / Vectorielle sont trois affichages de la même carte.
-Clavier : flèches et A/D. Manette Xbox sous Windows : maintenir LB.
+Clavier AZERTY : Z S avancer / reculer, Q D gauche / droite, A E tourner (les flèches restent possibles).
+Manette Xbox sous Windows : stick gauche et droit, B ou Espace pour arrêter.
 Enregistrer la session directe conserve les scans clés ; Dossier des essais ouvre
 le journal brut et la sauvegarde de secours. Démonstration utilise un robot simulé.
 
