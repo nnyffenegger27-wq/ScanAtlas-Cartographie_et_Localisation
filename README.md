@@ -1,3 +1,17 @@
+> ## Vous êtes sur la branche `main` — version 1 sur 3 du projet ScanAtlas
+>
+> **Ceci est une version précédente (interface Tkinter), conservée volontairement.** La **version finale** est sur la branche [`claude/interface-web`](https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation/tree/claude/interface-web) : c'est elle qu'il faut lancer et présenter (son README explique comment, sans robot comme avec).
+>
+> | Version | Branche | Contenu | Télécharger |
+> | --- | --- | --- | --- |
+> | 1 | [`main`](https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation/tree/main) ← **ici** | **La première version complète (TP)** — interface Tkinter. Acquisition USB, import CSV / MapTool, nuages, grille d'occupation, segments, carte vectorielle, recalage ICP, TP Jour 1 et Jour 2, premier pilotage Wi-Fi. | [ZIP](https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation/archive/refs/heads/main.zip) |
+> | 2 | [`claude/commandes-combinees`](https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation/tree/claude/commandes-combinees) | **La version Tkinter la plus avancée** — commandes combinées, pilote moteur PWM ou I2C, USB direct, reprise automatique du suivi et reconnexion, redressement du tour en rotation. | [ZIP](https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation/archive/refs/heads/claude/commandes-combinees.zip) |
+> | 3 | [`claude/interface-web`](https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation/tree/claude/interface-web) | **La version finale** — interface web (écrans Direct et Carte, onglet « Le projet »), SLAM en direct, exploration autonome, replacement guidé, salles simulées, TP Jour 2 intégré. **C'est celle à lancer et à présenter.** | [ZIP](https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation/archive/refs/heads/claude/interface-web.zip) |
+>
+> Les trois versions partagent les mêmes méthodes de calcul du TP (grille, segments, carte vectorielle, ICP, localisation sur trois références). Le raisonnement, les problèmes rencontrés et les solutions sont expliqués dans l'onglet « Le projet » de la version finale.
+
+---
+
 > **Version du 4 novembre 2026** — Interface en trois espaces, carte reprise, localisation seule, grille en direct, PWM et USB/Wi-Fi réunis. Consulter [le guide actuel](GUIDE_SCANATLAS_V3.md). Les descriptions antérieures ci-dessous peuvent correspondre à une version précédente.
 
 # LD06 Atelier
