@@ -194,12 +194,24 @@ class SessionDirecte:
         with self.verrou:
             self.consigne, self.consigne_t = vecteur, time.monotonic()
 
-    def arreter(self):
+    def arreter(self, silencieux=False):
         self.arreter_auto('Arrêt : exploration autonome arrêtée.')
         with self.verrou:
             self.consigne, self.consigne_t = (0., 0., 0.), 0.
         if self.robot is not None:
             self.robot.commander('STOP')
+        if not silencieux:       # arrêt demandé par l'utilisateur (Espace, bouton) : on confirme ; pas lors d'un simple changement d'écran
+            self.dire('Arrêt : moteurs coupés.' if self.robot is not None else 'Arrêt demandé : le robot n’est pas connecté, rien ne bouge.')
+
+    def prendre_scan(self):
+        """Scan manuel : ajoute à la carte le prochain tour, à la position suivie (en mode Localiser aussi)."""
+        with self.verrou:
+            carte, etat = self.carte, self.dernier_etat
+            if self.robot is None or carte is None or not self.pret():
+                raise ValueError('Connecte le robot (ou la démonstration) et attends le premier tour du lidar avant de prendre un scan.')
+            if etat is None or not etat.accepte:
+                raise ValueError('Position non suivie : attends que le suivi soit actif (ou replace le robot) avant de prendre un scan.')
+            carte.demander_scan_manuel()
 
     # -- exploration autonome ---------------------------------------------------------------------
     def demarrer_auto(self):
@@ -450,6 +462,14 @@ class SessionDirecte:
                 robot.arret.set()
                 break
             etat.scan.nom = f'Direct {robot.session[:6]} / {trame.sequence}'
+            if carte.manuel_dernier is not None:
+                carte.manuel_dernier.nom = f'Manuel {carte.nb_manuels} / {trame.sequence}'
+                x, y, cap = carte.manuel_dernier.pose
+                self.dire(f'Scan manuel {carte.nb_manuels} ajouté à la carte (x {x:.2f} m, y {y:.2f} m, cap {cap:.1f}°).')
+                carte.manuel_dernier = None
+            if carte.manuel_erreur:
+                self.dire(carte.manuel_erreur, grave=True)
+                carte.manuel_erreur = ''
             self._publier_scan(etat, robot, trame.sequence)
 
     def _charge_carte(self, etat):

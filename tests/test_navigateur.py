@@ -49,6 +49,32 @@ class Navigateur(unittest.TestCase):
         self.assertGreater(sombres, 50)                      # des points sont dessinés
         self.assertEqual(self.erreurs, [])
 
+    def test_un_scan_importe_est_cadre_et_dessine(self):
+        """Régression : après un import, la vue restait là où elle était (scan hors écran) quand l'événement du document
+        arrivait avant la fin de l'import."""
+        self.app.doc.vider()
+        page = self.page()
+        page.goto(self.url+'#carte')
+        page.click('#vide-exemple')
+        page.wait_for_selector('#liste-scans li')
+        page.wait_for_timeout(500)
+        session = json.loads(self.app.doc.session_json())
+        for sc in session['scans']:
+            sc['pose'] = [sc['pose'][0]+35., sc['pose'][1]-22., sc['pose'][2]]       # très loin de la vue actuelle
+        def retarder(route):                                   # la réponse de l'import arrive après l'événement « document » (SSE)
+            rep = route.fetch(); page.wait_for_timeout(900); route.fulfill(response=rep)
+        page.route('**/api/carte/importer*', retarder)
+        for i in range(3):
+            page.set_input_files('#fichier', dict(name='loin.json', mimeType='application/json', buffer=json.dumps(session).encode()))
+            page.wait_for_function("document.getElementById('carte-nom').textContent.includes('loin')", timeout=5000)
+            page.wait_for_timeout(2500)
+            sombres = page.evaluate("""() => { const c = document.getElementById('toile-carte'); const d = c.getContext('2d').getImageData(0,0,c.width,c.height).data;
+                let n = 0; for (let i = 0; i < d.length; i += 4*37) if (d[i+3] && (d[i] < 120)) n++; return n; }""")
+            self.assertGreater(sombres, 50, 'import n°%d : la carte importée n\'est pas visible' % (i+1))
+            for sc in session['scans']:
+                sc['pose'] = [sc['pose'][0]-60., sc['pose'][1]+40., sc['pose'][2]]   # et encore ailleurs au tour suivant
+        self.assertEqual(self.erreurs, [])
+
     def test_clavier_pilote_et_espace_arrete(self):
         page = self.page()
         envois = []
@@ -111,6 +137,68 @@ class Navigateur(unittest.TestCase):
         page.click('#tp-lancer')
         page.wait_for_function("document.querySelectorAll('#tp-table tbody tr').length === 6", timeout=120000)
         self.assertTrue(page.locator('#tp-synthese').is_visible())
+        self.assertEqual(self.erreurs, [])
+
+    def test_connecter_de_l_accueil_se_connecte_et_le_menu_reste_ouvrable(self):
+        page = self.page()
+        envois = []
+        page.route('**/api/connexion', lambda route: (envois.append(json.loads(route.request.post_data or '{}')), route.fulfill(status=200, content_type='application/json', body='{"ok":true}')))
+        page.goto(self.url+'#direct')
+        page.wait_for_selector('#accueil-connecter', state='visible')
+        page.click('#accueil-liaison')                                   # ouvre le menu et ne le referme pas aussitôt
+        self.assertTrue(page.locator('#popover-connexion').is_visible())
+        page.click('#accueil-connecter')                                 # envoie la connexion avec l'adresse du menu
+        page.wait_for_function("true"); page.wait_for_timeout(300)
+        self.assertEqual(len(envois), 1)
+        self.assertEqual(envois[0]['liaison'], 'wifi')
+        self.assertEqual(envois[0]['hote'], '192.168.4.1')
+        self.assertEqual(self.erreurs, [])
+
+    def test_espace_arrete_meme_avec_le_focus_sur_un_curseur_ou_une_touche_maintenue(self):
+        page = self.page()
+        page.goto(self.url+'#direct')
+        page.click('#accueil-demo')
+        page.wait_for_function("document.getElementById('etat-suivi-texte').textContent.includes('suivie')", timeout=20000)
+        page.click('#bouton-auto')
+        page.wait_for_function("document.getElementById('bouton-auto').textContent.includes('Arrêter')", timeout=5000)
+        page.focus('#puissance')                                         # le focus est resté sur un curseur
+        page.keyboard.press(' ')
+        page.wait_for_function("document.getElementById('bouton-auto').textContent.includes('Explorer')", timeout=5000)
+        self.assertFalse(self.app.session.explorateur.actif)
+        # touche de déplacement maintenue (répétition clavier) puis Espace : le robot reste arrêté jusqu'au relâchement
+        page.evaluate("document.activeElement.blur()")
+        page.keyboard.down('z'); page.wait_for_timeout(300)
+        self.assertGreater(self.app.session.consigne[0], 0)
+        page.keyboard.press(' ')
+        for _ in range(4):
+            page.keyboard.down('z'); page.wait_for_timeout(120)         # répétitions de la touche enfoncée
+        self.assertEqual(self.app.session.consigne, (0., 0., 0.))
+        page.keyboard.up('z'); page.wait_for_timeout(150)
+        page.keyboard.down('z'); page.wait_for_timeout(300)             # une nouvelle pression repart
+        self.assertGreater(self.app.session.consigne[0], 0)
+        page.keyboard.up('z')
+        page.click('#puce-connexion'); page.click('#bouton-demo')
+        page.wait_for_function("document.getElementById('puce-texte').textContent.includes('Hors')", timeout=8000)
+        self.assertEqual(self.erreurs, [])
+
+    def test_prendre_un_scan_depuis_le_direct(self):
+        page = self.page()
+        page.goto(self.url+'#direct')
+        self.assertTrue(page.locator('#bouton-scan').is_disabled())     # hors connexion : rien à prendre
+        page.click('#accueil-demo')
+        page.wait_for_function("document.getElementById('etat-suivi-texte').textContent.includes('suivie')", timeout=20000)
+        page.click('#seg-mode button[data-mode=localiser]')             # la carte ne grossit plus toute seule
+        page.wait_for_function("!document.getElementById('bouton-scan').disabled", timeout=5000)
+        avant = len(self.app.session.carte.cles)
+        page.click('#bouton-scan')
+        page.wait_for_function("document.getElementById('bandeau').textContent.includes('Scan manuel 1')", timeout=8000)
+        self.assertEqual(len(self.app.session.carte.cles), avant+1)
+        page.goto(self.url+'#carte')
+        page.wait_for_selector('#liste-scans li')
+        self.assertIn('Manuel 1', page.inner_text('#liste-scans'))
+        page.goto(self.url+'#direct')
+        page.click('#puce-connexion'); page.click('#bouton-demo')
+        page.wait_for_function("document.getElementById('puce-texte').textContent.includes('Hors')", timeout=8000)
         self.assertEqual(self.erreurs, [])
 
     def test_couches_replacer_et_exploration_depuis_l_interface(self):

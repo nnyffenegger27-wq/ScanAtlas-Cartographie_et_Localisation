@@ -15,6 +15,8 @@ const pilotage = new Pilotage({
   surMode: () => agir(appel('/api/reglages', { mode: etat && etat.reglages.mode === 'cartographier' ? 'localiser' : 'cartographier' })),
 });
 
+$('bouton-stop').onclick = () => pilotage.arretUrgence();     // même effet que la touche Espace
+
 // ---- écrans
 function afficher() {
   const nom = location.hash === '#carte' ? 'carte' : 'direct';
@@ -22,7 +24,7 @@ function afficher() {
   for (const a of document.querySelectorAll('.onglets a')) a.classList.toggle('actif', a.dataset.vue === nom);
   $('vue-direct').hidden = nom !== 'direct'; $('vue-carte').hidden = nom !== 'carte';
   direct.montrer(nom === 'direct'); carte.montrer(nom === 'carte');
-  if (nom !== 'direct') agir(appel('/api/arret'));
+  if (nom !== 'direct') appel('/api/arret', { silencieux: true }).catch(() => {});
 }
 window.addEventListener('hashchange', afficher);
 
@@ -46,10 +48,14 @@ for (const b of document.querySelectorAll('#seg-liaison button')) b.onclick = ()
 function ouvrirPop(oui) { pop.hidden = !oui; $('puce-connexion').setAttribute('aria-expanded', String(oui)); }
 $('puce-connexion').onclick = (e) => { e.stopPropagation(); ouvrirPop(pop.hidden); };
 document.addEventListener('click', (e) => { if (!pop.contains(e.target) && e.target !== $('puce-connexion')) ouvrirPop(false); });
-$('bouton-connexion').onclick = async () => {
-  if (etat && etat.connexion !== 'hors_ligne') { await agir(appel('/api/deconnexion')); return; }
+async function connecter() {
+  if (etat && etat.connexion !== 'hors_ligne') return;
   const r = await agir(appel('/api/connexion', { liaison, hote: $('hote').value }));
   if (r) ouvrirPop(false);
+}
+$('bouton-connexion').onclick = async () => {
+  if (etat && etat.connexion !== 'hors_ligne') { await agir(appel('/api/deconnexion')); return; }
+  await connecter();
 };
 $('reco-auto').onchange = (e) => agir(appel('/api/reglages', { reconnexion_auto: e.target.checked }));
 const salles = () => Array.from(document.querySelectorAll('.choix-salle'));
@@ -64,7 +70,9 @@ for (const s of salles()) s.onchange = () => {
   try { localStorage.setItem('salle-demo', s.value); } catch (_) { /* facultatif */ }
 };
 $('bouton-demo').onclick = () => { ouvrirPop(false); agir(appel('/api/demo', { actif: !(etat && etat.demo), salle: salleChoisie() })); };
-$('accueil-connecter').onclick = () => { ouvrirPop(true); $('hote').focus(); };
+// Connecter se connecte vraiment (avec la liaison et l'adresse du menu) ; « Régler la liaison » ouvre le menu.
+$('accueil-connecter').onclick = connecter;
+$('accueil-liaison').onclick = (e) => { e.stopPropagation(); ouvrirPop(true); $('hote').focus(); };
 $('accueil-demo').onclick = () => agir(appel('/api/demo', { actif: true, salle: salleChoisie() }));
 
 function majConnexion(e) {
@@ -79,6 +87,7 @@ function majConnexion(e) {
   remplirSalles(e);
   for (const s of salles()) { s.disabled = !!e.demo; if (e.demo && e.salle_demo) s.value = e.salle_demo; }
   $('champ-salle').hidden = actif && !e.demo;
+  $('accueil-cible').textContent = e.liaison === 'usb' ? `câble USB (${e.hote || 'auto'})` : `Wi-Fi, ${e.hote || '192.168.4.1'}`;
   $('bouton-demo').textContent = e.demo ? 'Quitter la démonstration' : 'Essayer avec un robot simulé';
   $('reco-auto').checked = e.reglages.reconnexion_auto;
   if (!pop.matches(':focus-within') && !actif) { if (e.liaison !== liaison) choisirLiaison(e.liaison, false); if (document.activeElement !== $('hote')) $('hote').value = e.hote; }

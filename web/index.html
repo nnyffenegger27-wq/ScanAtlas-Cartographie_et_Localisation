@@ -81,7 +81,7 @@
     <h2>Cartographier en roulant</h2>
     <ol>
       <li>Allume le robot et connecte le PC à son Wi-Fi <b>ScanAtlas</b> (ou branche le câble USB).</li>
-      <li>Clique <b>Connecter</b> en haut à droite.</li>
+      <li>Clique <b>Connecter</b>. Liaison actuelle : <span id="accueil-cible">Wi-Fi, 192.168.4.1</span> — <button class="lien" id="accueil-liaison">régler la liaison</button> (USB, autre adresse).</li>
       <li>Pilote avec <kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd> et <kbd>A</kbd><kbd>E</kbd> (ou la manette), ou clique <b>Explorer seul</b> : le robot choisit où aller et dessine la pièce.</li>
     </ol>
     <div class="rangee">
@@ -97,6 +97,7 @@
         <button data-mode="cartographier" class="actif" title="Ajoute des scans à la carte (RB sur la manette)">Cartographier</button>
         <button data-mode="localiser" title="Se positionne sans modifier la carte (RB sur la manette)">Localiser</button>
       </div>
+      <button id="bouton-scan" disabled title="Ajoute à la carte le tour lidar actuel, à la position suivie. En mode Localiser, la carte ne grossit que par ce bouton.">Prendre un scan</button>
       <button id="bouton-auto" class="primaire" title="Le robot choisit seul où aller pour compléter la carte">Explorer seul</button>
       <button id="bouton-replacer" title="Indique sur la carte où est le robot et vers où il regarde">Replacer</button>
       <button id="bouton-retrouver" title="Cherche la position sur toute la carte, sans indice">Me retrouver</button>

@@ -85,6 +85,7 @@ IMMOBILE_DISTANCE, IMMOBILE_ANGLE = .04, 1.5
 # fait grimper le RMSE au-dessus du seuil et le suivi se perd à l'arrêt). Au-delà, plus rien n'est ajouté tant que
 # le robot ne s'est pas déplacé : la carte ne grossit pas pendant une pause.
 STATIQUES_MAX = 12
+DELAI_SCAN_MANUEL = 4.      # s : un scan manuel demandé dont la position n'est pas suivie dans ce délai est abandonné
 CLE_DELAI_STATIQUE_US = 1_000_000
 
 # Un point de la carte est périmé quand les rayons d'un nouveau scan l'ont traversé assez souvent : son
@@ -120,6 +121,9 @@ class CarteDirecte:
         self.fin_us = None
         self.fin_cle = 0
         self.statiques = 0       # scans clés consécutifs pris à l'arrêt (plafonnés par STATIQUES_MAX)
+        # Scan manuel : l'utilisateur demande d'ajouter le prochain tour suivi à la carte (même en « Localisation seule »).
+        self.manuel_demande, self.manuel_t = False, 0.
+        self.nb_manuels, self.manuel_dernier, self.manuel_erreur = 0, None, ''
         self.perdu = False
         self.reprise = False
         self.annuler = threading.Event()
@@ -204,9 +208,17 @@ class CarteDirecte:
     def segments(self):
         return [s.copy() for s, _ in self.appuis]
 
+    def demander_scan_manuel(self):
+        """Le prochain tour dont la position est suivie devient un scan clé, quels que soient le mode et le déplacement."""
+        self.manuel_demande, self.manuel_t, self.manuel_erreur = True, perf_counter(), ''
+
     def traiter(self, trame, enrichir=None):
         if enrichir is not None:self.enrichir = bool(enrichir)
         debut = perf_counter()
+        if self.manuel_demande and debut-self.manuel_t > DELAI_SCAN_MANUEL:
+            self.manuel_demande = False
+            self.manuel_erreur = 'Scan manuel abandonné : la position n’est pas suivie. Replace le robot ou attends le suivi.'
+        manuel = self.manuel_demande
         scan = trame.scan()
         score = float('nan')
         recuperation = self.perdu or self.reprise
@@ -360,7 +372,7 @@ class CarteDirecte:
                 declencheur = self.statiques < STATIQUES_MAX and ecoule >= CLE_DELAI_STATIQUE_US
             else:
                 declencheur = ep >= CLE_DISTANCE or ea >= CLE_ANGLE or ecoule >= CLE_DELAI_US
-            cle = (self.enrichir or amorce) and (self.fin_us is None or (not surveille and declencheur))
+            cle = manuel or ((self.enrichir or amorce) and (self.fin_us is None or (not surveille and declencheur)))
             if surveille and self.enrichir and self.fin_us is not None:
                 message += ' Carte non enrichie pendant la vérification de la position.'
             if amorce:
@@ -379,7 +391,10 @@ class CarteDirecte:
                 self.points, self.appuis, self.grille = nouveaux_points, nouveaux_appuis, nouvelle_grille
                 self.reference_locale = nouvelle_reference
                 self.cles.append(scan)
-                self.statiques = self.statiques+1 if immobile and self.fin_us is not None else 0
+                if manuel:
+                    self.manuel_demande, self.manuel_dernier, self.nb_manuels = False, scan, self.nb_manuels+1
+                    message += ' Scan manuel ajouté à la carte.'
+                self.statiques = self.statiques+1 if immobile and self.fin_us is not None and not manuel else 0
                 self.pose_cle, self.fin_cle = np.array(scan.pose), trame.fin_us
             self.localisation_globale_requise = False
             if sous_surveillance:
@@ -401,6 +416,9 @@ class CarteDirecte:
         except (ValueError, RuntimeError) as exc:
             accepte = False
             self.perdu = True
+            if manuel:
+                self.manuel_demande = False
+                self.manuel_erreur = 'Scan manuel refusé, position non suivie : '+str(exc)
             if guide is not None:
                 guide['essais'] += 1
                 if guide['essais'] >= 5 or perf_counter()-guide['debut'] > 12.:

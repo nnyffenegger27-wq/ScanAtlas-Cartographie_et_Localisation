@@ -11,12 +11,13 @@ export function creerCarte() {
   vue.surSurvol = ([x, y]) => { $('coordonnees').textContent = `x ${x.toFixed(2)} m   y ${y.toFixed(2)} m`; };
 
   // ---------------------------------------------------------------- chargement
-  let dernierRechargement = 0, rechargementPlanifie = null;
+  let dernierRechargement = 0, rechargementPlanifie = null, rang = 0;
   async function recharger() {
     if (!S.affiche) { S.sale = true; return; }
     S.sale = false; dernierRechargement = Date.now();
+    const moi = ++rang;                                     // plusieurs rechargements peuvent se croiser : seul le dernier compte
     const liste = await agir(lire('/api/carte'));
-    if (!liste) return;
+    if (!liste || moi !== rang) return;
     const change = !S.liste || liste.version !== S.liste.version;
     S.liste = liste;
     if (S.choisi != null && S.choisi >= liste.scans.length) S.choisi = null;
@@ -25,10 +26,13 @@ export function creerCarte() {
         lire('/api/carte/nuage').catch(() => null),
         S.couches.has('grille') ? lire('/api/carte/grille').catch(() => null) : null,
         S.couches.has('plan') ? lire('/api/carte/plan').catch(() => null) : null]);
+      if (moi !== rang) return;
       S.nuage = nuage; S.grille = grille; S.plan = plan; S.image = null;
       if (S.choisi != null) S.proposition = null;
-      if (!S.ajuste && nuage && nuage.scans.length) { cadrer(); S.ajuste = true; }
     }
+    // Cadrage après un import : indépendant de « la carte a changé », car l'événement du document peut arriver
+    // (et recharger la carte) avant la fin de l'import.
+    if (!S.ajuste && S.nuage && S.nuage.scans.length) { cadrer(); S.ajuste = true; }
     interface_(); vue.demander();
   }
 
@@ -163,7 +167,7 @@ export function creerCarte() {
       const r = await agir(envoyerFichier(f.name, f));
       if (r) toast(r.message);
     }
-    S.ajuste = false; recharger();
+    S.ajuste = false; S.liste = null; recharger();      // S.liste = null : on recharge nuage et couches même si la version n'a pas bougé
   }
   $('c-importer').onclick = $('vide-importer').onclick = () => fichier.click();
   fichier.onchange = () => { importer([...fichier.files]); fichier.value = ''; };
@@ -172,7 +176,7 @@ export function creerCarte() {
   zone.addEventListener('dragleave', () => zone.classList.remove('glisse'));
   zone.addEventListener('drop', (e) => { e.preventDefault(); zone.classList.remove('glisse'); if (!S.verrou) importer([...e.dataTransfer.files]); });
   $('c-enregistrer').onclick = () => { if (!S.liste || !S.liste.scans.length) { toast('La carte est vide.'); return; } location.href = lienSession(); };
-  $('vide-exemple').onclick = async () => { await agir(appel('/api/carte/demo')); S.ajuste = false; recharger(); };
+  $('vide-exemple').onclick = async () => { await agir(appel('/api/carte/demo')); S.ajuste = false; S.liste = null; recharger(); };
   $('c-tout-visible').onclick = () => agir(appel('/api/carte/tous', { visible: !(S.liste && S.liste.scans.every((s) => s.visible)) }));
   $('c-tout-inclus').onclick = () => { if (!S.verrou) agir(appel('/api/carte/tous', { inclus: !(S.liste && S.liste.scans.every((s) => s.inclus)) })); else toast('Déconnecte le robot avant de modifier la carte.', true); };
 

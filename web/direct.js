@@ -162,6 +162,7 @@ export function creerDirect({ pilotage }) {
     auto.title = exploration ? 'Arrête l’exploration (toucher une commande la coupe aussi)'
       : (e && e.reglages.mode !== 'cartographier' ? 'Passe en mode Cartographier pour explorer seul' : 'Le robot choisit seul où aller pour compléter la carte');
     $('bouton-replacer').disabled = !connecte || !aCarte;
+    $('bouton-scan').disabled = !(connecte && sc && sc.accepte);
     const vide = (!S.carte || S.carte.vide) && !sc;
     $('accueil').hidden = !(vide && (!e || e.connexion === 'hors_ligne'));
     $('bouton-retrouver').disabled = !(S.carte && !S.carte.vide) || !e || e.connexion !== 'connecte';
@@ -170,6 +171,7 @@ export function creerDirect({ pilotage }) {
   // Mode, réglages, actions
   for (const b of document.querySelectorAll('#seg-mode button')) b.onclick = () => agir(appel('/api/reglages', { mode: b.dataset.mode }));
   $('bouton-retrouver').onclick = () => agir(appel('/api/retrouver'));
+  $('bouton-scan').onclick = () => agir(appel('/api/scan'));
   $('m-reprendre').onclick = () => { fermerMenu(); agir(appel('/api/reprendre')); };
   $('m-nouvelle').onclick = () => { fermerMenu(); if (confirm('Effacer la carte actuelle ? Enregistre-la d’abord depuis l’écran Carte pour la conserver.')) agir(appel('/api/nouvelle_carte')); };
   $('recup-auto').onchange = (e) => agir(appel('/api/reglages', { recup_auto: e.target.checked }));
@@ -177,7 +179,6 @@ export function creerDirect({ pilotage }) {
   $('puissance').onchange = (e) => agir(appel('/api/reglages', { puissance: +e.target.value }));
   $('rotation').oninput = (e) => { $('o-rotation').textContent = e.target.value + ' %'; };
   $('rotation').onchange = (e) => agir(appel('/api/reglages', { rotation_max: +e.target.value }));
-  $('bouton-stop').onclick = () => { appel('/api/arret').catch(() => {}); };
   const menu = $('menu-plus');
   const fermerMenu = () => { menu.hidden = true; };
   $('bouton-plus').onclick = (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; };

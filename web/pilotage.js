@@ -21,26 +21,45 @@ export function vecteurManette(lx, ly, rx) {
 export class Pilotage {
   constructor({ actif, surChangement, surMode }) {
     this.actif = actif; this.surChangement = surChangement; this.surMode = surMode;
-    this.touches = new Set(); this.manette = null; this.rbAvant = false;
+    this.touches = new Set(); this.physiques = new Set(); this.verrouArret = false; this.manette = null; this.rbAvant = false;
     this.dernier = [0, 0, 0]; this.dernierEnvoi = 0; this.courant = [0, 0, 0];
     window.addEventListener('keydown', (e) => this.touche(e, true));
     window.addEventListener('keyup', (e) => this.touche(e, false));
-    window.addEventListener('blur', () => this.tout_arreter());
+    window.addEventListener('blur', () => { this.physiques.clear(); this.verrouArret = false; this.tout_arreter(); });
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.tout_arreter(); });
     setInterval(() => this.cycle(), 50);
   }
 
-  saisie(e) { const t = e.target; return t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable); }
+  // Champ où l'on tape du texte : les touches lui appartiennent. Les curseurs, cases et boutons n'en font pas partie.
+  saisie(e) {
+    const t = e.target; if (!t) return false;
+    if (t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable) return true;
+    return t.tagName === 'INPUT' && !['range', 'checkbox', 'radio', 'button'].includes(t.type);
+  }
+
+  // Arrêt d'urgence : coupe tout et ignore les touches de déplacement encore enfoncées (sinon la répétition clavier
+  // les réactive aussitôt) jusqu'à ce qu'elles soient toutes relâchées.
+  arretUrgence() {
+    this.touches.clear(); this.verrouArret = this.physiques.size > 0;
+    this.courant = [0, 0, 0]; this.dernier = [0, 0, 0]; this.surChangement(this.courant, this.sources());
+    appel('/api/arret').catch(() => {});
+  }
 
   touche(e, bas) {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.key.toLowerCase();
-    if (!this.actif() || this.saisie(e)) { if (!bas) this.touches.delete(k); return; }
+    if (!bas && k in AXES) { this.physiques.delete(k); if (!this.physiques.size) this.verrouArret = false; }
     if (k === ' ' || k === 'escape') {
-      if (bas) { this.touches.clear(); appel('/api/arret').catch(() => {}); this.courant = [0, 0, 0]; this.surChangement(this.courant, this.sources()); }
-      e.preventDefault(); return;
+      // Espace / Échap arrêtent partout, même si un curseur ou un bouton a le focus ; seul un champ de texte garde la touche.
+      if (this.saisie(e) || !this.actif()) return;
+      if (bas && !e.repeat) this.arretUrgence();
+      e.preventDefault(); return;          // y compris au relâchement : Espace ne doit pas « cliquer » le bouton qui a le focus
     }
-    if (k in AXES) { bas ? this.touches.add(k) : this.touches.delete(k); e.preventDefault(); }
+    if (!this.actif() || this.saisie(e)) { if (!bas) this.touches.delete(k); return; }
+    if (k in AXES) {
+      if (bas) { this.physiques.add(k); if (!this.verrouArret) this.touches.add(k); } else this.touches.delete(k);
+      e.preventDefault();
+    }
   }
 
   tout_arreter() {

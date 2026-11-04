@@ -46,6 +46,52 @@ class Fixture(unittest.TestCase):
             fw.stop.set()
 
 
+class ScanManuel(Fixture):
+    def prendre(self, delai=25.):
+        """Roule doucement (le suivi d'un robot immobile dans la simulation parfaite est refusé : scène sans bruit) puis demande le scan."""
+        s = self.session; fin = time.monotonic()+delai
+        while time.monotonic() < fin:
+            s.piloter(.5, 0., 0.)
+            try:
+                s.prendre_scan(); s.piloter(0., 0., 0.); return
+            except ValueError:
+                time.sleep(.1)
+        self.fail('suivi jamais accepté : '+s.message)
+
+    def test_refus_sans_robot(self):
+        with self.assertRaises(ValueError):
+            self.session.prendre_scan()
+
+    def test_en_mode_localiser_la_carte_ne_grossit_que_sur_demande(self):
+        s = self.session
+        s.demarrer_demo('salle')
+        s.fabrique_robot = SessionDirecte._fabrique_defaut       # vrai robot Wi-Fi simulé (processus + sockets), qui bouge vraiment
+        self.assertTrue(attendre(lambda: s.dernier_etat is not None and s.dernier_etat.accepte and s.pret(), 15), s.message)
+        s.regler(mode='localiser')
+        self.assertTrue(attendre(lambda: s.pret() and s.dernier_etat is not None and s.dernier_etat.accepte), s.message)
+        cles = len(s.carte.cles)
+        s.piloter(.5, 0., 0.); time.sleep(1.)
+        self.assertEqual(len(s.carte.cles), cles)                 # localiser : rien n'est ajouté tout seul
+        self.prendre()
+        self.assertTrue(attendre(lambda: s.carte.nb_manuels == 1), s.message)
+        self.assertEqual(len(s.carte.cles), cles+1)
+        self.assertTrue(s.carte.cles[-1].nom.startswith('Manuel 1'), s.carte.cles[-1].nom)
+        self.assertIn('Scan manuel 1 ajouté', ' '.join(m['texte'] for m in s.messages))
+        self.prendre(); self.assertTrue(attendre(lambda: s.carte.nb_manuels == 2), s.message)
+        self.assertEqual(len(s.carte.cles), cles+2)               # un scan par demande, même à l'arrêt
+        s.quitter_demo()
+
+    def test_demande_abandonnee_si_la_position_n_est_pas_suivie(self):
+        s = self.session
+        s.connecter('usb', 'COM9')
+        self.assertTrue(attendre(lambda: s.dernier_etat is not None and s.dernier_etat.accepte), s.message)
+        with patch('atlas.calcul.cartographie_direct.DELAI_SCAN_MANUEL', 0.):
+            s.carte.demander_scan_manuel()
+            time.sleep(.05)
+            self.assertTrue(attendre(lambda: any('abandonné' in m['texte'] for m in s.messages)), s.messages[-3:])
+        self.assertEqual(s.carte.nb_manuels, 0)
+
+
 class Reconnexion(Fixture):
     def test_coupure_puis_reconnexion_avec_la_meme_carte(self):
         s = self.session

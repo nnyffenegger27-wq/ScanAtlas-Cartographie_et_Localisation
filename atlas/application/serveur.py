@@ -250,13 +250,15 @@ def fabriquer_gestionnaire(app):
             elif chemin == '/api/pilote':
                 s.piloter(d.get('surge', 0), d.get('sway', 0), d.get('yaw', 0))
             elif chemin == '/api/arret':
-                s.arreter()
+                s.arreter(silencieux=bool(d.get('silencieux')))
             elif chemin == '/api/reglages':
                 s.regler(**d)
             elif chemin == '/api/auto':
                 s.demarrer_auto() if d.get('actif', True) else s.arreter_auto('Exploration autonome arrêtée.')
             elif chemin == '/api/replacer':
                 s.replacer(float(d['x']), float(d['y']), float(d['cap']))
+            elif chemin == '/api/scan':
+                s.prendre_scan()
             elif chemin == '/api/retrouver':
                 s.retrouver()
             elif chemin == '/api/reprendre':
