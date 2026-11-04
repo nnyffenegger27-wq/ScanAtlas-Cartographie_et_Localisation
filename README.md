@@ -1,3 +1,5 @@
+> **Reprise du projet** : lire d'abord [docs/REPRISE_PROJET.md](docs/REPRISE_PROJET.md) (état, architecture, décisions, suite).
+
 > **Version du 4 novembre 2026** — Interface en trois espaces, carte reprise, localisation seule, grille en direct, PWM et USB/Wi-Fi réunis. Consulter [le guide actuel](docs/GUIDE_SCANATLAS_V3.md). Les descriptions antérieures ci-dessous peuvent correspondre à une version précédente.
 
 # LD06 Atelier
