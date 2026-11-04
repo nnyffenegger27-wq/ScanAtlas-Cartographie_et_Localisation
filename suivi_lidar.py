@@ -32,6 +32,38 @@ def predire(precedente, actuelle, ratio):
     return composer(actuelle,mouvement)
 
 
+def vitesses(precedente, actuelle, dt):
+    """(rotation en °/s, vitesse (m/s) dans le repère du robot) entre deux poses espacées de dt secondes."""
+    delta = composer(inverse(precedente),actuelle)
+    omega = float(np.clip(delta[2]/dt,-240.,240.))
+    vitesse = np.clip(delta[:2]/dt,-1.5,1.5)
+    return omega, vitesse
+
+
+def corriger_mouvement(mesures, omega, vitesse, duree, reference=0.):
+    """Ramène un tour lidar mesuré en mouvement au repère du robot à la FIN du tour.
+
+    Le lidar met `duree` s (0,1 s) à faire un tour : si le robot tourne de 85°/s, le début et la fin du
+    même tour sont décalés de plus de 8°, ce qui fausse tous les murs lointains (45 cm à 3 m) et
+    fait refuser le recalage. Les points sont supposés dans l'ordre d'acquisition ; chacun est tourné de
+    -omega·Δt et décalé de -vitesse·Δt, Δt étant le temps entre sa mesure et la fin du tour.
+    """
+    m = np.asarray(mesures,float).copy()
+    n = len(m)
+    if n < 2 or duree <= 0:
+        return m
+    dtau = (1-np.linspace(0,1,n))*duree
+    theta = np.deg2rad(m[:,0]-reference)
+    x0,y0 = m[:,1]*np.cos(theta),m[:,1]*np.sin(theta)
+    a = -np.deg2rad(omega)*dtau
+    c,s = np.cos(a),np.sin(a)
+    x = c*x0-s*y0-vitesse[0]*dtau
+    y = s*x0+c*y0-vitesse[1]*dtau
+    m[:,0] = (np.rad2deg(np.arctan2(y,x))+reference)%360
+    m[:,1] = np.hypot(x,y)
+    return m
+
+
 class ReferenceSuivi:
     def __init__(self, points):
         self.fond = np.asarray(points,float).copy()

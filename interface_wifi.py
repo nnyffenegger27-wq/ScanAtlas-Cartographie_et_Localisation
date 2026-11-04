@@ -66,6 +66,7 @@ class InterfaceWifi:
         self.wifi_actif=tk.BooleanVar(value=False)
         self.wifi_manette_active=tk.BooleanVar(value=False)
         self.wifi_rb_precedent=False
+        self.wifi_yaw_max=tk.IntVar(value=60)   # % de la puissance autorisé en rotation : tourner trop vite déforme le tour lidar
         self.wifi_auto_recup=tk.BooleanVar(value=True)
         self.wifi_auto_connexion=tk.BooleanVar(value=True)
         self.wifi_tentatives=0;self.wifi_relance=None
@@ -168,6 +169,11 @@ class InterfaceWifi:
         ttk.Label(titre,text=' %',style='CardTexte.TLabel').pack(side='right')
         ttk.Label(titre,textvariable=self.wifi_pwm,style='CardTexte.TLabel').pack(side='right')
         self.wifi_curseur_pwm=curseur(bloc,self.wifi_pwm,0,100,style='Card.Horizontal.TScale')
+        rotation=ttk.Frame(bloc,style='Card.TFrame');rotation.pack(fill='x')
+        ttk.Label(rotation,text='Rotation maximale',style='CardTexte.TLabel').pack(side='left')
+        ttk.Label(rotation,text=' %',style='CardTexte.TLabel').pack(side='right')
+        ttk.Label(rotation,textvariable=self.wifi_yaw_max,style='CardTexte.TLabel').pack(side='right')
+        self.wifi_curseur_yaw=curseur(bloc,self.wifi_yaw_max,10,100,style='Card.Horizontal.TScale')
         ttk.Button(bloc,text='ARRÊT · ESPACE',command=self.wifi_arreter,style='Danger.TButton').pack(fill='x',pady=(4,4))
         ttk.Label(bloc,textvariable=self.wifi_commande,wraplength=262,style='Card.TLabel').pack(fill='x')
         actions=ttk.Frame(cadre);actions.pack(side='bottom',fill='x',pady=(8,2))
@@ -540,6 +546,8 @@ class InterfaceWifi:
         pwm=int(self.wifi_pwm.get())
         if not 0<=pwm<=100:
             raise ValueError('PWM hors limite')
+        # Plafond de rotation : au-delà, le tour lidar (0,1 s) est trop déformé pour être recalé.
+        niveaux=(niveaux[0],niveaux[1],niveaux[2]*max(10,min(100,int(self.wifi_yaw_max.get())))/100)
         surge,sway,yaw=pourcentages(*niveaux,pwm)
         pret=self.wifi_robot_pret()
         if robot is not None and pret:

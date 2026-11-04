@@ -43,7 +43,7 @@ journal_direct.py                tours.jsonl, session_secours.json, evenements.l
 encart_commandes.py, apparence.py, manette.py   pavé de commandes, palette, manette XInput
 simuler_robot_wifi.py            robot simulé sur le PC (sans matériel)
 firmware/ScanAtlas_WiFi/         firmware ESP32 (voir §5)
-tests/                           215 tests, voir §8
+tests/                           218 tests, voir §8
 docs/                            documentation (ce fichier, guide, journal, etc.)
 outils/                          scripts d'évaluation reproductibles (python outils/<nom>.py)
 materiel/                        firmware de démonstration d'origine du châssis, test lidar, CAO
@@ -58,6 +58,8 @@ Les modules Python sont à plat à la racine (imports simples, tests sans instal
 3. `interface_wifi.wifi_poll` (tâche Tk, boucle régulière) prend le dernier tour, le confie à un calcul hors thread UI (`CarteDirecte.traiter`), dessine la carte (Matplotlib) et envoie la commande de pilotage.
 4. `CarteDirecte.traiter` : prédiction SE(2), ICP robuste point-vers-droite (`suivi_lidar`), contrôle d'acceptation (erreur résiduelle, recouvrement), création de scans clés (déplacement ≥ 0,15 m, 5° ou 2 s), carte vectorielle et grille. Modes : Cartographie + localisation, Localisation seule (carte figée), localisation globale 360° si position inconnue.
 5. `journal_direct` enregistre chaque tour (`tours.jsonl`), une session de secours et les événements (`evenements.log` : suivi actif / perdu, états de liaison).
+
+Rotation rapide : `suivi_lidar.corriger_mouvement` redresse le tour (rotation + translation par instant de mesure) avec la vitesse estimée par l'historique de poses, deux passes ; plafond de rotation de 60 % dans l'interface (`wifi_yaw_max`).
 
 Perte de suivi (`CarteDirecte.traiter`, `_recuperer`) : refus d'un recalage → état perdu ; fenêtre de retour proportionnelle au temps écoulé ; après 1 s recherche élargie autour de la dernière pose (`localisation_globale(centre, rayon)`), après 6 s recherche sur toute la carte toutes les 3 s. Cache du champ de distances et de la grille libre sur la sous-carte. Reconnexion automatique dans `interface_wifi.py` (`wifi_poll`, `wifi_reconnecter`) et nouvel essai d'ouverture du port dans `robot_usb.py`.
 
@@ -95,7 +97,7 @@ Compilation : Arduino IDE, carte « ESP32 Dev Module », Arduino-ESP32 2.0.17, o
 ## 8. Tester
 
 ```
-python -m unittest discover -s tests          # 215 tests, ~45 s
+python -m unittest discover -s tests          # 218 tests, ~45 s
 ```
 
 Tk est nécessaire pour les tests d'interface (Linux sans écran : `xvfb-run -a python -m unittest discover -s tests`). Le test `tests/test_usb_direct.py` contient de faux en-têtes Arduino pour vérifier la syntaxe du `.ino` avec g++. Les tests moteurs compilent les vrais en-têtes du firmware avec g++ (`tests/test_motor_*.py`). Banc de suivi : `python outils/evaluer_wifi.py`. Robot simulé : `python simuler_robot_wifi.py`.

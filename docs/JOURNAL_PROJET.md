@@ -698,3 +698,11 @@ Interface : bouton **Me retrouver** près de la carte (les anciens boutons étai
 Vidéo de référence (Robot Maker, 2018) : robot mecanum à 4 roues avec lidar RPLIDAR A2 qui cartographie un appartement de 80 m² avec un SLAM exécuté sur un microcontrôleur 32 bits. Le but retenu : cartographier une grande surface en roulant, sans se perdre. Pas de détail technique exploitable dans la description.
 
 Validation : 215 tests réussis. Non essayé sur le robot (coupures d'alimentation toujours en cause : batteries à vérifier).
+
+## 4 novembre 2026 — Perte de localisation en tournant vite
+
+Remarque de l'utilisateur : en tournant trop vite, le robot perd la localisation. Cause : un tour du LD06 dure 0,1 s ; à 90°/s le robot tourne de 9° pendant un seul tour, le tour est donc déformé (≈45 cm à 3 m) et le recalage point-vers-droite le refuse. Reproduit en simulation (`tests/test_recuperation.py`, tour généré rayon par rayon avec le robot en rotation) : à 150°/s l'orientation dérive de 21° sans correction.
+
+Corrections : `suivi_lidar.corriger_mouvement` (chaque point est ramené à l'instant de fin de tour avec la vitesse estimée par l'historique de poses, puis une seconde passe avec la vitesse mesurée par le premier recalage) appelée par `CarteDirecte.traiter` ; curseur « Rotation maximale » (60 % par défaut) dans le Pilotage. Résultat simulé : erreur d'orientation maximale 1,5° à 150°/s. Difficulté : les tours simulés des anciens bancs de test sont instantanés (sans déformation), donc le redressement les dégrade légèrement (1,26° au lieu de moins de 1° sur le demi-tour continu) ; le seuil du test a été relevé à 1,5° avec un commentaire. Limites : redressement valable si l'ordre des points est celui de la mesure et la vitesse à peu près constante ; non essayé sur le robot réel (l'angle réel de rotation par pourcentage de puissance n'est pas calibré).
+
+Validation : 218 tests réussis.

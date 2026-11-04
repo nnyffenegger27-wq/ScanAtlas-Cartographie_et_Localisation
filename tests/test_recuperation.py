@@ -131,3 +131,62 @@ class ReconnexionAutomatique(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def trame_en_rotation(pose_fin, omega, sequence, duree=.1):
+    """Tour lidar réaliste d'un robot qui tourne : chaque rayon est mesuré à son instant, donc déformé."""
+    import numpy as np
+    from robot_wifi import TrameScan
+    from test_wifi import salle
+    relatif = salle()-np.asarray(pose_fin[:2])
+    phi = np.degrees(np.arctan2(relatif[:, 1], relatif[:, 0])); r = np.linalg.norm(relatif, axis=1)
+    f = ((phi-pose_fin[2]) % 360)/360
+    for _ in range(8):
+        angle = (phi-pose_fin[2]+omega*(1-f)*duree) % 360
+        f = angle/360
+    o = np.argsort(f)
+    return TrameScan(sequence, 1_000_000+sequence*100000, int(duree*1e6),
+                     np.column_stack([angle[o], r[o], np.full(len(r), 230.)]))
+
+
+class RotationRapide(unittest.TestCase):
+    def test_tour_redresse_et_suivi_conserve_a_150_degres_par_seconde(self):
+        c = carte_suivie()
+        yaw, pire, perdus = 7., 0., 0                         # cap de départ de carte_suivie()
+        for k in range(20):
+            w = 150*min(1., (k+1)/6)                      # montée en vitesse sur 0,6 s
+            yaw = ((yaw+w*.1)+180) % 360-180
+            time.sleep(.1)
+            e = c.traiter(trame_en_rotation([.14, 0, yaw], w, 8+k))
+            perdus += not e.accepte
+            pire = max(pire, erreur_pose(c.pose, [0, 0, yaw])[1])
+        self.assertEqual(perdus, 0)
+        self.assertLess(pire, 4.)
+
+    def test_correction_neutre_a_l_arret_et_inverse_du_mouvement(self):
+        import numpy as np
+        from suivi_lidar import corriger_mouvement
+        m = np.column_stack([np.linspace(0, 359, 360), np.full(360, 2.), np.full(360, 200.)])
+        np.testing.assert_allclose(corriger_mouvement(m, 0., np.zeros(2), .1), m, atol=1e-9)
+        c = corriger_mouvement(m, 100., np.zeros(2), .1)
+        self.assertAlmostEqual(c[-1, 0], m[-1, 0], places=6)          # le dernier point est à l'instant de référence
+        self.assertAlmostEqual(abs((c[0, 0]-m[0, 0]+180) % 360-180), 10., places=6)  # le premier, 10° plus tôt
+        np.testing.assert_allclose(c[:, 1], 2., atol=1e-9)             # une rotation pure ne change pas les distances
+
+
+@unittest.skipUnless(os.environ.get('DISPLAY'), 'Écran Tk requis')
+class PlafondDeRotation(unittest.TestCase):
+    def test_la_rotation_est_plafonnee_par_defaut(self):
+        from app import Atelier
+        app = Atelier(); app.geometry('1500x950')
+        try:
+            app.onglets.select(app.wifi_cadre); app.update()
+            self.assertEqual(app.wifi_yaw_max.get(), 60)
+            app.wifi_pwm.set(80)
+            app.wifi_actif.set(True); app.wifi_activer(); app.wifi_zone.focus_force(); app.update()
+            for touche in ('z', 'a'):
+                app.wifi_zone.event_generate(f'<KeyPress-{touche}>')
+            app.update(); app.wifi_pilotage()
+            self.assertEqual(app.wifi_encart._valeurs, (80, 0, 48))      # avance 80 %, rotation 60 % de 80 %
+        finally:
+            app.destroy()

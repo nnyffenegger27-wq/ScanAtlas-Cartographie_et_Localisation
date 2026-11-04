@@ -129,7 +129,7 @@ class InterfacePilotageReelle(unittest.TestCase):
         try:
             app.onglets.select(app.wifi_cadre); app.update()
             self.assertIsNone(app.wifi_robot)
-            app.wifi_pwm.set(60)
+            app.wifi_pwm.set(60); app.wifi_yaw_max.set(100)
             app.wifi_actif.set(True); app.wifi_activer(); app.wifi_zone.focus_force(); app.update()
             self.assertTrue(app.wifi_actif.get())          # Activable sans robot.
             for touche in ('z', 'q', 'a'):
@@ -199,7 +199,7 @@ class InterfacePilotageReelle(unittest.TestCase):
             with patch('interface_wifi.RobotWifi', side_effect=creer):
                 app.onglets.select(app.wifi_cadre); app.update(); app.wifi_connecter()
                 attendre(lambda: app.wifi_etat is not None and app.wifi_etat.accepte)
-                app.wifi_pwm.set(70)
+                app.wifi_pwm.set(70); app.wifi_yaw_max.set(100)
                 app.wifi_actif.set(True); app.wifi_activer(); app.wifi_zone.focus_force(); app.update()
                 app.wifi_zone.event_generate('<KeyPress-z>'); app.wifi_zone.event_generate('<KeyPress-e>')
                 attendre(lambda: (70, 0, -70) in fake.vecteurs)

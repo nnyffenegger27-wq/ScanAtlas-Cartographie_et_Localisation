@@ -33,6 +33,15 @@ Le suivi se perd quand un recalage est refusé (rotation rapide, mur unique ou c
 
 Chaque solution doit confirmer à 75 % à 12 cm sur la géométrie locale (RMSE ≤ 10 cm), sinon elle est refusée. Pour aider : ramener le robot face à une zone déjà cartographiée, avec des murs dans plusieurs directions. Dans un couloir ou devant un mur unique, la position est ambiguë et aucune recherche ne peut la trancher ; le message du refus le dit.
 
+### Tourner vite
+
+Le lidar met 0,1 s à faire un tour : un robot qui tourne à 90°/s a tourné de 9° entre le début et la fin du même tour, ce qui déforme tous les murs lointains (environ 45 cm à 3 m) et fait refuser le recalage. Deux protections :
+
+- **Redressement du tour** : dès que la vitesse estimée dépasse 6°/s ou 15 cm/s, chaque point du tour est ramené au repère de la fin du tour (rotation et translation selon l'instant de sa mesure), puis le recalage est refait une seconde fois avec la vitesse qu'il vient de mesurer. En simulation à 150°/s, l'erreur d'orientation passe de 21° à 1,5°. Le tour redressé est aussi celui qui est gardé dans la carte.
+- **Rotation maximale** (curseur du bloc Pilotage, 60 % par défaut) : plafonne la rotation en pourcentage de la puissance. Monter cette valeur si le robot tourne trop mollement, la baisser s'il se perd encore en tournant.
+
+Le redressement suppose que les points arrivent dans l'ordre de mesure (c'est le cas du firmware) et que le robot garde une vitesse à peu près constante pendant un tour ; la toute première image d'un démarrage brutal n'est pas redressée.
+
 ### Après une coupure (batteries, câble, Wi-Fi)
 
 La case **Reconnecter automatiquement après une coupure** (activée par défaut) relance la connexion 3 s après une coupure subie, jusqu'à 8 essais, avec la même carte. En USB, le port met quelques secondes à revenir quand l'ESP32 redémarre (« Accès refusé ») : l'ouverture est réessayée pendant 8 s. Un clic sur **Déconnecter** annule la reconnexion automatique.

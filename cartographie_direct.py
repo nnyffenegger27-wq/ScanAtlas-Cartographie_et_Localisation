@@ -11,10 +11,11 @@ import numpy as np
 from scipy.spatial import cKDTree
 from cartographie import (extraire_segments, ajuster_segment, proches, longueur,
                          Scan, Grille, mesures_valides)
+from dataclasses import replace
 from localisation import points_filtres, transformer, erreur_pose, sous_carte
 from localisation_globale import localisation_globale
 from localisation_tp import localiser_sur_reference, LOCALE, MULTI
-from suivi_lidar import ReferenceSuivi, icp_droites, predire
+from suivi_lidar import ReferenceSuivi, icp_droites, predire, vitesses, corriger_mouvement
 
 
 def reduire(points, pas=.05, maximum=40000):
@@ -179,9 +180,23 @@ class CarteDirecte:
                 # Index et normales réutilisés entre scans clés ; aucun recalcul intégral par tour.
                 reference_suivi = self.reference_locale
                 initiale = self.pose.copy()
+                omega, vitesse = 0., np.zeros(2)
                 if not recuperation and dt<=.6 and len(self.historique_poses)>=2:
                     (t0,p0),(t1,p1) = self.historique_poses[-2:]
-                    if t1>t0:initiale=predire(p0,p1,(trame.fin_us-t1)/(t1-t0))
+                    if t1>t0:
+                        initiale=predire(p0,p1,(trame.fin_us-t1)/(t1-t0))
+                        omega, vitesse = vitesses(p0,p1,(t1-t0)/1e6)
+                duree_tour = trame.duree_us/1e6
+                brut = scan.mesures
+                def points_corriges(w, v):
+                    return points_filtres(replace(scan,mesures=corriger_mouvement(brut,w,v,duree_tour,scan.angle_reference)),
+                                          self.filtres, locaux=True)
+                # Rotation ou translation rapide : le tour est déformé, on le redresse avec la vitesse estimée
+                # (puis une seconde fois avec celle que le recalage vient de mesurer).
+                if abs(omega) >= 6. or np.linalg.norm(vitesse) >= .15:
+                    pts_corr = points_corriges(omega, vitesse)
+                    if len(pts_corr) >= 30:
+                        pts = pts_corr
                 resultat = icp_droites(pts,reference_suivi,initiale,self.annuler)
                 if not resultat.applicable and not np.allclose(initiale,self.pose) and not self.annuler.is_set():
                     resultat = icp_droites(pts,reference_suivi,self.pose,self.annuler)
@@ -196,6 +211,18 @@ class CarteDirecte:
                         affine = icp_droites(pts,reference_suivi,resultat.pose,self.annuler)
                         affine.methode = 'Secours multi-résolution + point-vers-droite'
                         resultat = affine
+                dt_reel = (trame.fin_us-self.fin_us)/1e6
+                if resultat.applicable and abs(omega) >= 10. and 0 < dt_reel <= .6 and not self.annuler.is_set():
+                    omega2, vitesse2 = vitesses(self.pose,resultat.pose,dt_reel)
+                    if abs(omega2-omega) >= 4.:
+                        pts2 = points_corriges(omega2, vitesse2)
+                        if len(pts2) >= 30:
+                            second = icp_droites(pts2,reference_suivi,resultat.pose,self.annuler)
+                            if second.applicable and second.accord_fin >= resultat.accord_fin-.01:
+                                resultat, pts, omega, vitesse = second, pts2, omega2, vitesse2
+                if abs(omega) >= 6. or np.linalg.norm(vitesse) >= .15:
+                    # La carte garde le tour redressé (segments et grille construits sur ces mesures).
+                    scan.mesures = corriger_mouvement(brut,omega,vitesse,duree_tour,scan.angle_reference)
                 methode, rmse = resultat.methode, resultat.rmse
                 score = 100*resultat.accord_fin
                 ep, ea = erreur_pose(resultat.pose, self.pose)
