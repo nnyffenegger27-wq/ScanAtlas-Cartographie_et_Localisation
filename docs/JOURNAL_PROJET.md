@@ -889,3 +889,7 @@ Validation : 216 tests réussis (nouveaux : `tests/test_charge_carte.py` — `re
 **Captures de la version Tkinter.** Faites sur le PC de l'utilisateur (Tkinter n'existe pas dans l'environnement de travail) avec le dossier `commandes-combinees` : nuages, grille, segments, carte vectorielle, localisation, direct. Cinq sont dans le compte rendu (`web/presentation-assets/tk-*.webp`), étiquetées réel ou simulation. Le dossier de travail `captures_tk` est resté sur le PC (exclu de git en local).
 
 **Limites à dire.** La carte de la salle de classe (Jour 3) n'a pas de mesure de précision indépendante. La capture de localisation est recadrée. Les tests de la branche `jours-1-2` n'ont pas été relancés ici.
+
+## 4 novembre 2026 (21 h 30) — dépôt remis au clair : `main` = version web
+
+Demande de l'utilisateur : que le dépôt soit lisible et qu'on ne puisse pas se tromper. `main` (branche par défaut) devient la **version finale web**. Les anciennes versions Tkinter ne sont pas perdues : l'ancienne `main` devient l'étiquette `version-2-refonte-tkinter`, la branche `claude/commandes-combinees` l'étiquette `version-3-tkinter-avancee`. La branche `jours-1-2` (historique réel des jours 1 et 2) reste une branche. Les branches `claude/interface-web` et `claude/commandes-combinees` sont supprimées. README, compte rendu et documents mis à jour avec ces noms.

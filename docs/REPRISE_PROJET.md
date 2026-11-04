@@ -2,13 +2,13 @@
 
 Document écrit pour qu'un nouvel intervenant (personne ou assistant) reprenne le travail sans l'historique des conversations. À lire en premier ; le détail daté des essais est dans [JOURNAL_PROJET.md](JOURNAL_PROJET.md), l'usage dans [GUIDE_WEB.md](GUIDE_WEB.md).
 
-Mis à jour le 4 novembre 2026 (interface web, branche `claude/interface-web`). Ce qui n'a pas été essayé sur le vrai robot est signalé comme tel : aucun test matériel n'a pu être fait par l'assistant, seulement des tests sur ordinateur.
+Mis à jour le 4 novembre 2026 (interface web, branche `main`). Ce qui n'a pas été essayé sur le vrai robot est signalé comme tel : aucun test matériel n'a pu être fait par l'assistant, seulement des tests sur ordinateur.
 
 ## 1. Le projet en une page
 
 ScanAtlas : application (serveur Python local + interface web dans le navigateur) qui reçoit en direct les tours d'un lidar LD06 monté sur un robot Keyestudio Mecanum Car V2 (carte ESP32), pilote le robot au clavier ou à la manette Xbox, et construit une carte 2D tout en localisant le robot dessus (SLAM 2D par recalage de scans).
 
-- Dépôt : `nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation`, branches : `main` (première version, interface Tkinter), `claude/commandes-combinees` (dernière version avec l'interface Tkinter) et `claude/interface-web` (**version finale**, interface web, sans Tkinter ni Matplotlib) ; le « qui est quoi » est dans le README.
+- Dépôt : `nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation`, `main` (**version finale**, interface web, sans Tkinter ni Matplotlib), `jours-1-2` (historique réel des jours 1 et 2) et deux étiquettes pour les versions Tkinter (`version-2-refonte-tkinter`, `version-3-tkinter-avancee`) ; le « qui est quoi » est dans le README.
 - Poste de l'utilisateur : Windows ; dossier `C:\Users\nyffe\Documents\GitHub\LD06-Cartographie_et_Localisation`. Journaux de l'application : `C:\Users\nyffe\AppData\Local\ScanAtlas\journaux\`.
 - Langue du projet, des messages et des échanges : français.
 - But final demandé par l'utilisateur : un SLAM temps réel sur le robot, « comme dans la vidéo » https://www.youtube.com/watch?v=Pq5y7eDiReU (titre : solution SLAM exécutée sur un microcontrôleur de type Arduino). **La vidéo n'a pas pu être regardée** ; seule la notion « cartographie et localisation en direct pendant que le robot roule » est retenue. À préciser avec l'utilisateur (2 ou 3 comportements attendus) avant d'investir dans une grosse refonte.
@@ -110,13 +110,13 @@ Plus besoin de Tk ni d'écran virtuel. `tests/test_navigateur.py` pilote un vrai
 ## 9. Suite prévue (par ordre)
 
 1. **Valider sur le robot** : exploration autonome (sens des axes, `RAYON_ROBOT`, puissance minimale pour avancer), replacement par indice, piles 18650, firmware à jour, sens du sway, vitesse, Localisation seule, filaire. Lire `evenements.log` et le moniteur série en cas de coupure.
-2. **Interface web** : valider sur Windows (rendu, manette dans le navigateur, port occupé), puis fusionner `claude/interface-web` si elle convient ; retours d'usage à noter dans le journal.
+2. **Interface web** : valider sur Windows (rendu, manette dans le navigateur, port occupé) ; la fusion est faite (`main` est la version web) ; retours d'usage à noter dans le journal.
 3. **Prédiction par commandes** : utiliser les commandes envoyées pour initialiser le recalage lidar (modèle de mouvement), avec recherche élargie si le lidar contredit la prédiction. Idée demandée par l'utilisateur pour plus tard.
 4. SLAM « en direct » plus poussé (fermeture de boucle, optimisation de graphe de poses) selon la vidéo de référence, une fois ses attentes précisées.
 5. Pas de rapport Word pour l'instant (demande de l'utilisateur) ; tenir `JOURNAL_PROJET.md` à jour avec les difficultés rencontrées.
 
 ## 10. Conventions de travail
 
-- Branche `claude/commandes-combinees` ; un commit par lot cohérent avec un message en français.
+- Branche `main` ; un commit par lot cohérent avec un message en français.
 - Ne pas versionner `__pycache__`, `*.npz`, `*.log`, sessions et exports (voir `.gitignore`).
 - Toute fonction qui change le comportement du robot ou du protocole reçoit un test sur ordinateur ; ce qui n'a pas pu être essayé sur le matériel est écrit comme tel dans le journal.

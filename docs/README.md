@@ -24,4 +24,4 @@ Ces textes ont été écrits pendant la version Tkinter : les noms d'écrans et 
 
 ## `archives_tkinter/` — mode d'emploi de l'ancienne interface
 
-Guides de la version avec fenêtres Tkinter (branches `main` et `claude/commandes-combinees`). Conservés pour mémoire ; ils ne décrivent plus l'application actuelle.
+Guides de la version avec fenêtres Tkinter (versions 2 et 3, étiquettes `version-2-refonte-tkinter` et `version-3-tkinter-avancee`). Conservés pour mémoire ; ils ne décrivent plus l'application actuelle.
