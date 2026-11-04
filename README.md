@@ -3,11 +3,11 @@
 TP EIGSI « Cartographie et localisation » (SLAM 2D). Un robot Keyestudio Mecanum Car V2 (ESP32) porte un lidar LD06 : il roule, la carte se dessine sur le PC, et le robot s'y retrouve. Le robot peut aussi **explorer seul** une pièce, et on peut le **replacer** sur la carte s'il se perd. Tout le calcul est en Python ; l'application s'utilise dans le navigateur, **sans robot** grâce à des salles simulées.
 
 > **Où suis-je ?** Cette page est le README de la branche **`claude/interface-web`** : la **version finale**, celle à lancer et à présenter.
-> Les deux autres branches (`main`, `claude/commandes-combinees`) sont les versions précédentes, avec l'ancienne interface Tkinter : voir [Qui est quoi](#1-qui-est-quoi--les-trois-branches).
+> Les trois autres branches (`jours-1-2`, `main`, `claude/commandes-combinees`) sont les versions précédentes, avec l'ancienne interface Tkinter : voir [Qui est quoi](#1-qui-est-quoi--les-quatre-branches).
 
 ## Sommaire
 
-1. [Qui est quoi : les trois branches](#1-qui-est-quoi--les-trois-branches)
+1. [Qui est quoi : les quatre branches](#1-qui-est-quoi--les-quatre-branches)
 2. [Lancer la version finale](#2-lancer-la-version-finale)
 3. [Ce qu'on peut faire dans l'application](#3-ce-quon-peut-faire-dans-lapplication)
 4. [L'onglet « Le projet »](#4-longlet--le-projet-)
@@ -18,17 +18,18 @@ TP EIGSI « Cartographie et localisation » (SLAM 2D). Un robot Keyestudio Mecan
 
 ---
 
-## 1. Qui est quoi : les trois branches
+## 1. Qui est quoi : les quatre branches
 
-Le dépôt contient trois versions du même projet, dans l'ordre où elles ont été écrites. Elles sont toutes complètes et se téléchargent séparément (bouton vert **Code ▸ Download ZIP** sur GitHub après avoir choisi la branche, ou les liens ci-dessous).
+Le dépôt contient quatre versions du même projet, dans l'ordre où elles ont été écrites. Elles sont toutes complètes et se téléchargent séparément (bouton vert **Code ▸ Download ZIP** sur GitHub après avoir choisi la branche, ou les liens ci-dessous).
 
 | | Branche | C'est… | Interface | À utiliser pour |
 | --- | --- | --- | --- | --- |
 | **3** | **`claude/interface-web`** ← *vous êtes ici* | **La version finale.** Mêmes calculs que les versions précédentes, plus : interface web (écrans Direct et Carte, onglet « Le projet »), SLAM en direct, **exploration autonome**, **replacement guidé**, grandes salles simulées, suivi corrigé d'après les vraies sessions du robot, TP Jour 2 intégré à l'écran Carte. | Navigateur | La démonstration, l'évaluation, le travail actuel |
 | **2** | [`claude/commandes-combinees`](https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation/tree/claude/commandes-combinees) · [ZIP](https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation/archive/refs/heads/claude/commandes-combinees.zip) | **La version Tkinter la plus avancée** (16 commits du 4 novembre) : commandes combinées (avancer + côté + tourner), choix du pilote moteur PWM ou I2C, acquisition USB directe, reprise automatique du suivi et reconnexion, redressement du tour lidar en rotation. | Fenêtres Tkinter | Voir l'étape intermédiaire, comparer avec le web |
-| **1** | [`main`](https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation/tree/main) · [ZIP](https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation/archive/refs/heads/main.zip) | **La première version complète** (« LD06 Atelier ») : acquisition USB, import CSV / MapTool, nuages, grille d'occupation, segments, carte vectorielle, recalage ICP, **TP Jour 1 et Jour 2** (trois références × deux stratégies, 42 essais), premier pilotage Wi-Fi. C'est la base de tout le reste ; ses documents (guides, résultats du Jour 2, journal) y sont à la racine, tels que remis. | Fenêtres Tkinter | Les rendus du TP tels qu'ils étaient, les premiers choix |
+| **1b** | [`main`](https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation/tree/main) · [ZIP](https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation/archive/refs/heads/main.zip) | **La première version complète en Tkinter** (« LD06 Atelier », refonte du 4 novembre) : acquisition USB, import CSV / MapTool, nuages, grille d'occupation, segments, carte vectorielle, recalage ICP, **TP Jour 1 et Jour 2** (trois références × deux stratégies, 42 essais), premier pilotage Wi-Fi. Ses documents (guides, résultats du Jour 2, journal) sont à la racine, tels que remis. | Fenêtres Tkinter | Les rendus du TP tels qu'ils étaient |
+| **1a** | [`jours-1-2`](https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation/tree/jours-1-2) · [ZIP](https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation/archive/refs/heads/jours-1-2.zip) | **Le travail des jours 1 et 2, avec son historique réel** (34 commits des 2 et 3 novembre). Son README relie chaque étape de l'énoncé à ses fichiers et à ses commits. | Fenêtres Tkinter | Vérifier les commits demandés, voir le travail dans l'ordre où il a été fait |
 
-**Pourquoi trois versions ?** `main` est la version du TP : elle marchait, mais l'interface Tkinter / Matplotlib était trop lourde pour piloter le robot et cartographier en même temps. La branche 2 améliore le pilotage et la liaison. La branche 3 change d'interface (web) pour la fluidité et ajoute l'autonomie. Le détail du raisonnement est dans l'onglet **Le projet** (§4) et dans [`docs/JOURNAL_PROJET.md`](docs/JOURNAL_PROJET.md).
+**Pourquoi plusieurs versions ?** `jours-1-2` est le travail des deux premiers jours tel qu'il a été commité, `main` la version du TP qui en est issue : elle marchait, mais l'interface Tkinter / Matplotlib était trop lourde pour piloter le robot et cartographier en même temps. La branche 2 améliore le pilotage et la liaison. La branche 3 change d'interface (web) pour la fluidité et ajoute l'autonomie. Le détail du raisonnement est dans l'onglet **Le projet** (§4) et dans [`docs/JOURNAL_PROJET.md`](docs/JOURNAL_PROJET.md).
 
 **Ce qui ne change pas d'une branche à l'autre :** les méthodes de calcul du TP (grille d'occupation, segments, carte vectorielle, ICP, localisation sur trois références) et le firmware de base. **Ce qui change :** l'interface, le pilotage, le suivi en direct, l'exploration autonome.
 
@@ -37,7 +38,8 @@ Le dépôt contient trois versions du même projet, dans l'ordre où elles ont �
 ```
 git clone https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation.git
 cd ScanAtlas-Cartographie_et_Localisation
-git checkout main                          # version 1 (Tkinter)
+git checkout jours-1-2                     # version 1a (jours 1 et 2, historique réel)
+git checkout main                          # version 1b (Tkinter, TP complet)
 git checkout claude/commandes-combinees    # version 2 (Tkinter, avancée)
 git checkout claude/interface-web          # version 3 (finale, web)
 ```
@@ -59,7 +61,7 @@ Le navigateur s'ouvre sur `http://127.0.0.1:8765/`. La fenêtre noire (ou le ter
 ### Essayer sans robot (2 minutes)
 
 1. Sur l'écran d'accueil du **Direct**, choisir une salle (appartement de 16 m × 10 m, deux pièces, salle simple) puis **Essayer sans robot**.
-2. Piloter au clavier : **Z / S** avancer, reculer · **Q / D** déplacement latéral · **A / E** tourner · **Espace** arrêt. La carte se dessine pendant que le « robot » roule.
+2. Piloter au clavier : **Z / S** avancer, reculer · **Q / D** déplacement latéral · **A / E** tourner · lâcher les touches arrête le robot (bouton **Arrêt** en cas de besoin). La carte se dessine pendant que le « robot » roule.
 3. Cliquer **Explorer seul** : le robot simulé parcourt toute la salle et s'arrête avec « Exploration terminée ».
 4. Onglet **Carte** : *Importer* → `Cartes/scanenautonomie.json` (un vrai scan fait par le robot en autonomie), ou *Importer* des scans réels de `Cartes/`. Changer de couche : Points, Occupation (grille), Plan (carte vectorielle).
 5. Écran Carte → **Évaluer les méthodes (TP)** : lance les 42 essais du TP Jour 2 (3 références × 2 stratégies × 7 départs) et propose les exports CSV.

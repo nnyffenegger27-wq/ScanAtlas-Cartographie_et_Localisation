@@ -15,7 +15,7 @@ const pilotage = new Pilotage({
   surMode: () => agir(appel('/api/reglages', { mode: etat && etat.reglages.mode === 'cartographier' ? 'localiser' : 'cartographier' })),
 });
 
-$('bouton-stop').onclick = () => pilotage.arretUrgence();     // même effet que la touche Espace
+$('bouton-stop').onclick = () => pilotage.arretUrgence();     // même effet que la touche Échap
 
 // ---- écrans
 function afficher() {

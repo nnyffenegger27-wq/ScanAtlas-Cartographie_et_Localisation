@@ -1,5 +1,5 @@
 """Parcours dans un vrai navigateur (ignoré si Playwright n'est pas installé) : pas d'erreur JS,
-la carte se dessine, le clavier pilote, Espace arrête."""
+la carte se dessine, le clavier pilote, Arrêt/Échap arrêtent."""
 import json
 import threading
 import unittest
@@ -75,7 +75,7 @@ class Navigateur(unittest.TestCase):
                 sc['pose'] = [sc['pose'][0]-60., sc['pose'][1]+40., sc['pose'][2]]   # et encore ailleurs au tour suivant
         self.assertEqual(self.erreurs, [])
 
-    def test_clavier_pilote_et_espace_arrete(self):
+    def test_clavier_pilote_et_relacher_arrete(self):
         page = self.page()
         envois = []
         page.on('request', lambda r: r.url.endswith('/api/pilote') and envois.append(json.loads(r.post_data or '{}')))
@@ -154,7 +154,7 @@ class Navigateur(unittest.TestCase):
         self.assertEqual(envois[0]['hote'], '192.168.4.1')
         self.assertEqual(self.erreurs, [])
 
-    def test_espace_arrete_meme_avec_le_focus_sur_un_curseur_ou_une_touche_maintenue(self):
+    def test_echap_arrete_meme_avec_le_focus_sur_un_curseur_ou_une_touche_maintenue(self):
         page = self.page()
         page.goto(self.url+'#direct')
         page.click('#accueil-demo')
@@ -162,14 +162,14 @@ class Navigateur(unittest.TestCase):
         page.click('#bouton-auto')
         page.wait_for_function("document.getElementById('bouton-auto').textContent.includes('Arrêter')", timeout=5000)
         page.focus('#puissance')                                         # le focus est resté sur un curseur
-        page.keyboard.press(' ')
+        page.keyboard.press('Escape')
         page.wait_for_function("document.getElementById('bouton-auto').textContent.includes('Explorer')", timeout=5000)
         self.assertFalse(self.app.session.explorateur.actif)
-        # touche de déplacement maintenue (répétition clavier) puis Espace : le robot reste arrêté jusqu'au relâchement
+        # touche de déplacement maintenue (répétition clavier) puis Échap : le robot reste arrêté jusqu'au relâchement
         page.evaluate("document.activeElement.blur()")
         page.keyboard.down('z'); page.wait_for_timeout(300)
         self.assertGreater(self.app.session.consigne[0], 0)
-        page.keyboard.press(' ')
+        page.keyboard.press('Escape')
         for _ in range(4):
             page.keyboard.down('z'); page.wait_for_timeout(120)         # répétitions de la touche enfoncée
         self.assertEqual(self.app.session.consigne, (0., 0., 0.))

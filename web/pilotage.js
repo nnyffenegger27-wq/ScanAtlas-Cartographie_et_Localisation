@@ -49,11 +49,12 @@ export class Pilotage {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.key.toLowerCase();
     if (!bas && k in AXES) { this.physiques.delete(k); if (!this.physiques.size) this.verrouArret = false; }
-    if (k === ' ' || k === 'escape') {
-      // Espace / Échap arrêtent partout, même si un curseur ou un bouton a le focus ; seul un champ de texte garde la touche.
+    if (k === 'escape') {
+      // Échap arrête partout, même si un curseur ou un bouton a le focus ; seul un champ de texte garde la touche.
+      // (Pas d'Espace : le robot s'arrête de lui-même dès qu'aucune commande n'est envoyée, la consigne ne vaut que 0,35 s.)
       if (this.saisie(e) || !this.actif()) return;
       if (bas && !e.repeat) this.arretUrgence();
-      e.preventDefault(); return;          // y compris au relâchement : Espace ne doit pas « cliquer » le bouton qui a le focus
+      e.preventDefault(); return;
     }
     if (!this.actif() || this.saisie(e)) { if (!bas) this.touches.delete(k); return; }
     if (k in AXES) {

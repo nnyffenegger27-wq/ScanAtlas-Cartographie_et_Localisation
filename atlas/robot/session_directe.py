@@ -200,7 +200,7 @@ class SessionDirecte:
             self.consigne, self.consigne_t = (0., 0., 0.), 0.
         if self.robot is not None:
             self.robot.commander('STOP')
-        if not silencieux:       # arrêt demandé par l'utilisateur (Espace, bouton) : on confirme ; pas lors d'un simple changement d'écran
+        if not silencieux:       # arrêt demandé par l'utilisateur (Échap, bouton) : on confirme ; pas lors d'un simple changement d'écran
             self.dire('Arrêt : moteurs coupés.' if self.robot is not None else 'Arrêt demandé : le robot n’est pas connecté, rien ne bouge.')
 
     def prendre_scan(self):
@@ -226,7 +226,7 @@ class SessionDirecte:
             self.explorateur.demarrer(time.monotonic())
             self.perdu_auto_t = None
             self.dernier_plan_t = 0.
-        self.dire('Exploration autonome démarrée. Tout pilotage manuel ou Espace l’arrête.')
+        self.dire('Exploration autonome démarrée. Tout pilotage manuel ou le bouton Arrêt l’arrête.')
         self.diffuseur.publier('auto', self.explorateur.diagnostic())
         self.publier_etat()
 

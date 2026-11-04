@@ -877,3 +877,15 @@ Validation : 216 tests réussis (nouveaux : `tests/test_charge_carte.py` — `re
 
 **Import de scan.** Reproduit en test : l'événement « document » (SSE) arrive avant la fin de la requête d'import et recharge la carte pendant que la vue n'était pas encore à recadrer ; le recadrage n'avait lieu que si la version de la carte changeait, donc jamais après. Le scan était bien dans la carte mais hors écran. Corrigé : le recadrage ne dépend plus du changement de version, et les rechargements qui se croisent sont ordonnés (seul le dernier compte). La barre d'outils du bas se replie maintenant sous le pavé de pilotage au lieu de passer dessous. Tests : session (scan manuel en Localiser, refus sans robot, abandon), navigateur (Connecter, Espace avec focus sur un curseur et touche tenue, bouton Prendre un scan, import lointain avec réponse retardée).
 
+
+## 4 novembre 2026 (20 h 55) — Espace retiré, historique des jours 1-2 restauré, l'énoncé dans le compte rendu
+
+**Espace retiré.** Le robot s'arrête de lui-même dès qu'il n'y a plus de commande (la consigne n'est valable que 0,35 s), donc la touche Espace ne servait à rien. Il reste *Échap* et le bouton **Arrêt** (`arretUrgence()`, inchangé). README, guide web et tests mis à jour.
+
+**Historique des jours 1 et 2.** Le vrai historique (34 commits, 2 et 3 novembre) n'était plus sur GitHub : `main` y avait été remplacée par la refonte du 4 novembre (branche sans parent). Il est restauré tel quel dans la branche **`jours-1-2`**, avec un README ajouté qui donne un tableau « étape de l'énoncé → fichiers → commits » et situe les quatre branches. Aucun commit d'origine n'a été modifié ; seul le README est ajouté par-dessus.
+
+**Compte rendu (`web/presentation.html`).** Nouveau chapitre « L'énoncé » : les 12 étapes du TP (Jour 1, Jour 2, Jour 3 et bonus) avec ce qui a été fait, où le trouver dans `jours-1-2` et où c'est dans la version finale. Le bloc des versions passe à quatre cartes. Sections renumérotées (02 à 06).
+
+**Captures de la version Tkinter.** Faites sur le PC de l'utilisateur (Tkinter n'existe pas dans l'environnement de travail) avec le dossier `commandes-combinees` : nuages, grille, segments, carte vectorielle, localisation, direct. Cinq sont dans le compte rendu (`web/presentation-assets/tk-*.webp`), étiquetées réel ou simulation. Le dossier de travail `captures_tk` est resté sur le PC (exclu de git en local).
+
+**Limites à dire.** La carte de la salle de classe (Jour 3) n'a pas de mesure de précision indépendante. La capture de localisation est recadrée. Les tests de la branche `jours-1-2` n'ont pas été relancés ici.

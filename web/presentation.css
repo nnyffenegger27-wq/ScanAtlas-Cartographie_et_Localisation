@@ -20,3 +20,15 @@ html:has(body.presentation){height:auto;scroll-behavior:smooth;scroll-padding-to
 .buts .choix-grille h4{margin-top:6px}
 @media print{.table-problemes .resultats th,.table-problemes .resultats td{min-width:0}}
 .table-problemes .resultats td{font-family:var(--texte)}
+
+/* Chapitre « L'énoncé étape par étape » : tableau large et galerie des captures Tkinter */
+#enonce .table-problemes{margin:30px 0}
+#enonce .table-problemes .resultats th[scope=row]{min-width:190px}
+#enonce .table-problemes .resultats td{min-width:230px}
+.galerie-tk{display:grid;grid-template-columns:1fr 1fr;gap:26px 30px;margin-top:10px}
+.galerie-tk figure{background:var(--surface);border:1px solid var(--trait);border-radius:12px;padding:10px}
+.galerie-tk .agrandir-image{border:0;border-radius:6px}
+.galerie-tk figcaption{padding:0 3px 3px}
+@media(max-width:900px){.galerie-tk{grid-template-columns:1fr}}
+@media print{.galerie-tk figure{break-inside:avoid}}
+.versions-4{grid-template-columns:repeat(2,1fr)}.versions-4 article{border-bottom:1px solid var(--trait)}@media(max-width:680px){.versions-4{grid-template-columns:1fr}}
