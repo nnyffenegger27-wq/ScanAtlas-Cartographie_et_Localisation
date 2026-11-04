@@ -1,4 +1,4 @@
-> **Archive.** Ce document décrit l'ancienne interface Tkinter (étiquette `version-3-tkinter-avancee`), remplacée par l'interface web. Les noms d'onglets et de fichiers cités ici (`app.py`, `interface_wifi.py`…) n'existent plus sur la branche `main`.
+> **Archive.** Ce document décrit l'ancienne interface Tkinter (branche `version-3-tkinter-avancee`), remplacée par l'interface web. Les noms d'onglets et de fichiers cités ici (`app.py`, `interface_wifi.py`…) n'existent plus sur la branche `main`.
 
 > **Reprise du projet** : lire d'abord [docs/REPRISE_PROJET.md](../REPRISE_PROJET.md) (état, architecture, décisions, suite).
 
