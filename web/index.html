@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="jeton" content="{{JETON}}">
+<title>ScanAtlas</title>
+<link rel="icon" href="/static/marque.svg">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="barre">
+  <a class="marque" href="#direct" aria-label="ScanAtlas">
+    <img src="/static/marque.svg" alt="" width="26" height="26"><span>ScanAtlas</span>
+  </a>
+  <nav class="onglets" aria-label="Écrans">
+    <a href="#direct" data-vue="direct">Direct</a>
+    <a href="#carte" data-vue="carte">Carte</a>
+  </nav>
+  <div class="espace"></div>
+  <div class="connexion">
+    <button id="puce-connexion" class="puce" aria-haspopup="dialog" aria-expanded="false">
+      <span class="voyant" id="voyant"></span><span id="puce-texte">Hors connexion</span>
+      <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
+    </button>
+    <div id="popover-connexion" class="popover" hidden role="dialog" aria-label="Connexion au robot">
+      <div class="segment" id="seg-liaison" role="group" aria-label="Liaison">
+        <button data-liaison="wifi" class="actif">Wi-Fi</button>
+        <button data-liaison="usb">USB</button>
+      </div>
+      <label class="champ" id="champ-hote"><span id="etiquette-hote">Adresse du robot</span>
+        <input id="hote" list="liste-ports" autocomplete="off" spellcheck="false" value="192.168.4.1">
+        <datalist id="liste-ports"></datalist>
+      </label>
+      <p class="aide" id="aide-liaison">Connecte d’abord le PC au Wi-Fi <b>ScanAtlas</b> du robot.</p>
+      <label class="case"><input type="checkbox" id="reco-auto" checked><span>Reconnecter automatiquement après une coupure</span></label>
+      <div class="rangee">
+        <button id="bouton-connexion" class="primaire">Connecter</button>
+      </div>
+      <button id="bouton-demo" class="lien">Essayer avec un robot simulé</button>
+    </div>
+  </div>
+</header>
+
+<div id="bandeau" class="bandeau" hidden role="status"></div>
+
+<main>
+<!-- ===================== DIRECT ===================== -->
+<section id="vue-direct" class="vue" hidden>
+  <canvas id="toile-direct" aria-label="Carte en direct"></canvas>
+
+  <div class="instruments carte-ui" id="instruments">
+    <div class="etat" id="etat-suivi"><span class="pastille"></span><span id="etat-suivi-texte">Hors connexion</span></div>
+    <dl>
+      <div><dt>Position</dt><dd id="i-pos">— / —</dd></div>
+      <div><dt>Cap</dt><dd id="i-cap">—</dd></div>
+      <div><dt>Concordance</dt><dd id="i-conc">—</dd></div>
+      <div><dt>Scans clés</dt><dd id="i-cles">0</dd></div>
+    </dl>
+    <p class="note" id="i-note"></p>
+  </div>
+
+  <div class="accueil carte-ui" id="accueil">
+    <h2>Cartographier en roulant</h2>
+    <ol>
+      <li>Allume le robot et connecte le PC à son Wi-Fi <b>ScanAtlas</b> (ou branche le câble USB).</li>
+      <li>Clique <b>Connecter</b> en haut à droite.</li>
+      <li>Pilote avec <kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd> et <kbd>A</kbd><kbd>E</kbd>, ou la manette : la carte se dessine.</li>
+    </ol>
+    <div class="rangee">
+      <button class="primaire" id="accueil-connecter">Connecter</button>
+      <button id="accueil-demo">Essayer sans robot</button>
+    </div>
+  </div>
+
+  <div class="bas-gauche">
+    <div class="carte-ui outils">
+      <div class="segment" id="seg-mode" role="group" aria-label="Mode">
+        <button data-mode="cartographier" class="actif" title="Ajoute des scans à la carte (RB sur la manette)">Cartographier</button>
+        <button data-mode="localiser" title="Se positionne sans modifier la carte (RB sur la manette)">Localiser</button>
+      </div>
+      <button id="bouton-retrouver" title="Cherche la position sur toute la carte">Me retrouver</button>
+      <div class="menu">
+        <button id="bouton-plus" class="icone" aria-label="Plus d’actions" aria-haspopup="menu">⋯</button>
+        <div id="menu-plus" class="popover haut" hidden role="menu">
+          <button role="menuitem" id="m-reprendre">Reprendre ici<small>près de la dernière position</small></button>
+          <button role="menuitem" id="m-nouvelle" class="danger">Nouvelle carte<small>efface la carte actuelle</small></button>
+          <label class="case"><input type="checkbox" id="recup-auto" checked><span>Me retrouver automatiquement</span></label>
+        </div>
+      </div>
+    </div>
+    <div class="carte-ui zoom">
+      <button id="z-suivre" class="actif" title="La vue suit le robot">Suivre</button>
+      <button id="z-moins" class="icone" aria-label="Zoom arrière">−</button>
+      <button id="z-plus" class="icone" aria-label="Zoom avant">+</button>
+    </div>
+  </div>
+
+  <div class="pilotage carte-ui" id="pilotage">
+    <div class="pave" id="pave" aria-hidden="true">
+      <i data-c="rot_g">↶</i><i data-c="avance">▲</i><i data-c="rot_d">↷</i>
+      <i data-c="gauche">◀</i><i data-c="stop">■</i><i data-c="droite">▶</i>
+      <i></i><i data-c="recul">▼</i><i></i>
+    </div>
+    <div class="reglages">
+      <label class="curseur"><span>Puissance</span><output id="o-puissance">60 %</output>
+        <input type="range" id="puissance" min="10" max="100" step="5" value="60"></label>
+      <label class="curseur"><span>Rotation max</span><output id="o-rotation">60 %</output>
+        <input type="range" id="rotation" min="10" max="100" step="5" value="60"></label>
+      <p class="entrees" id="entrees"><span class="mini-pastille" id="p-clavier"></span>Clavier<span class="mini-pastille" id="p-manette"></span><span id="t-manette">Manette</span></p>
+      <button id="bouton-stop" class="stop">Arrêt <kbd>Espace</kbd></button>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== CARTE ===================== -->
+<section id="vue-carte" class="vue" hidden>
+  <aside class="panneau" id="panneau-carte">
+    <div class="panneau-tete">
+      <h2 id="carte-nom">Carte</h2>
+      <p class="aide" id="carte-resume">Aucun scan</p>
+      <div class="rangee">
+        <button class="primaire" id="c-importer">Importer</button>
+        <button id="c-enregistrer">Enregistrer</button>
+        <input type="file" id="fichier" accept=".csv,.zip,.json" multiple hidden>
+      </div>
+    </div>
+    <div class="liste-tete">
+      <span>Scans</span>
+      <span class="espace"></span>
+      <button class="lien" id="c-tout-visible">Tout afficher</button>
+      <button class="lien" id="c-tout-inclus">Tout inclure</button>
+    </div>
+    <ul id="liste-scans" class="liste" aria-label="Scans de la carte"></ul>
+    <div class="inspecteur" id="inspecteur" hidden>
+      <h3 id="insp-nom">Scan</h3>
+      <p class="aide" id="insp-info"></p>
+      <div class="pose">
+        <label class="champ"><span>x (m)</span><input id="p-x" inputmode="decimal"></label>
+        <label class="champ"><span>y (m)</span><input id="p-y" inputmode="decimal"></label>
+        <label class="champ"><span>cap (°)</span><input id="p-t" inputmode="decimal"></label>
+      </div>
+      <div class="rangee">
+        <button id="insp-recaler">Recaler automatiquement</button>
+      </div>
+      <div id="insp-resultat" class="resultat" hidden>
+        <p id="insp-resultat-texte"></p>
+        <div class="rangee"><button class="primaire" id="insp-appliquer">Appliquer</button><button id="insp-ignorer">Ignorer</button></div>
+      </div>
+      <div class="rangee">
+        <a class="bouton" id="insp-csv" download>Exporter CSV</a>
+        <button id="insp-supprimer" class="danger">Supprimer</button>
+      </div>
+    </div>
+    <div class="panneau-pied">
+      <button id="c-assembler" title="Replace tous les scans inclus dans un même repère">Assembler les scans inclus</button>
+      <button id="c-annuler" hidden>Annuler le calcul</button>
+      <p class="aide" id="c-tache"></p>
+    </div>
+  </aside>
+
+  <div class="zone-carte">
+    <canvas id="toile-carte" aria-label="Carte"></canvas>
+    <div class="carte-ui barre-carte">
+      <div class="segment" id="seg-couches" role="group" aria-label="Couches">
+        <button data-couche="points" class="actif">Points</button>
+        <button data-couche="grille">Occupation</button>
+        <button data-couche="plan">Plan</button>
+      </div>
+      <div class="segment" id="seg-outil" role="group" aria-label="Outil">
+        <button data-outil="naviguer" class="actif" title="Déplacer la vue">Vue</button>
+        <button data-outil="deplacer" title="Glisser le scan sélectionné">Déplacer</button>
+        <button data-outil="tourner" title="Tourner le scan sélectionné autour de sa position">Tourner</button>
+      </div>
+      <div class="menu">
+        <button id="bouton-filtres">Filtres</button>
+        <div id="menu-filtres" class="popover" hidden>
+          <label class="champ"><span>Distance min (m)</span><input id="f-mini" inputmode="decimal"></label>
+          <label class="champ"><span>Distance max (m)</span><input id="f-maxi" inputmode="decimal"></label>
+          <label class="champ"><span>Intensité min</span><input id="f-intensite" inputmode="decimal"></label>
+          <label class="champ"><span>Cellule d’occupation</span>
+            <select id="f-resolution"><option value="0.02">2 cm</option><option value="0.05">5 cm</option><option value="0.1">10 cm</option><option value="0.2">20 cm</option></select></label>
+          <p class="aide">Les filtres s’appliquent à l’affichage et aux calculs.</p>
+        </div>
+      </div>
+    </div>
+    <div class="carte-ui verrou" id="verrou" hidden>Robot connecté : la carte se met à jour en direct. Déconnecte-le pour la modifier.</div>
+    <div class="vide" id="carte-vide" hidden>
+      <h2>La carte est vide</h2>
+      <p>Glisse des fichiers <b>.csv</b>, <b>.zip</b> ou une session <b>.json</b> ici, ou cartographie en direct.</p>
+      <div class="rangee">
+        <button class="primaire" id="vide-importer">Importer des fichiers</button>
+        <button id="vide-exemple">Charger un exemple</button>
+      </div>
+    </div>
+    <div class="carte-ui coordonnees" id="coordonnees">—</div>
+  </div>
+</section>
+</main>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+<script type="module" src="/static/main.js"></script>
+</body>
+</html>
