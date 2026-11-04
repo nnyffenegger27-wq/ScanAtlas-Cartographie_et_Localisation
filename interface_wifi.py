@@ -41,83 +41,151 @@ class ClavierRobot:
 
 class InterfaceWifi:
     def interface_wifi(self, cadre):
-        self.wifi_cadre = cadre
-        self.wifi_robot = None
-        self.wifi_carte = None
-        self.wifi_thread = None
-        self.wifi_etat = None
-        self.wifi_resultats = queue.Queue(maxsize=1)
-        self.wifi_stop = threading.Event()
-        self.wifi_reprise = threading.Event()
-        self.wifi_clavier = ClavierRobot()
-        self.wifi_relachements = {}
-        self.wifi_actif = tk.BooleanVar(value=False)
-        self.wifi_hote = tk.StringVar(value='192.168.4.1')
-        self.wifi_pwm = tk.IntVar(value=65)
-        self.wifi_info = tk.StringVar(value='Connecte le PC au Wi-Fi ScanAtlas, puis clique sur Connecter.')
-        self.wifi_commande = tk.StringVar(value='STOP')
-        self.wifi_dernier_resultat = 0.
-        self.wifi_dernier_dessin = 0.
-        self.wifi_artistes = None
-        self.wifi_suivre = tk.BooleanVar(value=False)
-        self.wifi_voir_points = tk.BooleanVar(value=True)
-        self.wifi_voir_scan = tk.BooleanVar(value=True)
-        self.wifi_voir_segments = tk.BooleanVar(value=True)
-        self.wifi_metriques = {k:tk.StringVar(value='--') for k in ('pose','angle','concordance','calcul','carte')}
-        ligne = ttk.Frame(cadre)
-        ligne.pack(fill='x',pady=(2,10))
-        ttk.Label(ligne, text='Robot Wi-Fi',style='Titre.TLabel').pack(side='left',padx=(0,18))
-        ttk.Entry(ligne, textvariable=self.wifi_hote, width=16).pack(side='left', padx=5)
-        ttk.Button(ligne, text='Connecter', command=self.wifi_connecter,style='Accent.TButton').pack(side='left')
-        ttk.Button(ligne, text='Déconnecter', command=self.wifi_deconnecter).pack(side='left', padx=5)
-        ttk.Button(ligne, text='ARRÊT · Espace', command=self.wifi_arreter,style='Danger.TButton').pack(side='right')
-        metriques=ttk.Frame(cadre);metriques.pack(fill='x',pady=(0,10))
-        for i,(cle,label) in enumerate([('pose','POSITION  x / y (m)'),('angle','ORIENTATION'),
-                                       ('concordance','CONCORDANCE À 12 cm'),('calcul','CALCUL PAR TOUR'),('carte','CARTE VECTORIELLE')]):
-            carte=ttk.Frame(metriques,style='Card.TFrame',padding=(12,9));carte.grid(row=0,column=i,sticky='nsew',padx=(0,5))
-            metriques.columnconfigure(i,weight=1)
-            ttk.Label(carte,text=label,style='Card.TLabel').pack(anchor='w')
-            ttk.Label(carte,textvariable=self.wifi_metriques[cle],style='Metric.TLabel').pack(anchor='w',pady=(3,0))
-        commandes = ttk.Frame(cadre)
-        commandes.pack(fill='x', pady=(0,5))
-        ttk.Checkbutton(commandes, text='Pilotage manuel au clavier', variable=self.wifi_actif,
-                        command=self.wifi_activer).pack(side='left')
-        ttk.Label(commandes, text='Puissance PWM').pack(side='left', padx=(16,5))
-        vitesse=ttk.Frame(commandes,width=150);vitesse.pack(side='left',padx=4)
-        self.wifi_curseur_pwm=curseur(vitesse,self.wifi_pwm,0,100)
-        ttk.Label(commandes,textvariable=self.wifi_pwm,width=4).pack(side='left')
-        ttk.Label(commandes,text='/ 255',style='SousTitre.TLabel').pack(side='left')
-        ttk.Label(commandes, textvariable=self.wifi_commande,style='Status.TLabel').pack(side='right')
-        self.wifi_zone = tk.Label(cadre, text='CLAVIER  |  Haut / Bas : avancer / reculer   ·   Gauche / Droite : tourner   ·   A / D : latéral', takefocus=True,
-                                  background='#e0f0f2',foreground=ACCENT,padx=12,pady=10,font='TkDefaultFont')
-        self.wifi_zone.pack(fill='x', pady=5)
-        self.wifi_zone.bind('<Button-1>', lambda e:self.wifi_zone.focus_set())
-        self.wifi_zone.bind('<KeyPress>', self.wifi_touche)
-        self.wifi_zone.bind('<KeyRelease>', self.wifi_relacher)
-        self.wifi_zone.bind('<FocusOut>', lambda e:self.wifi_arreter())
-        self.bind('<KeyPress-space>', lambda e:self.wifi_arreter(), add='+')
-        self.bind('<KeyPress-Escape>', lambda e:self.wifi_arreter(), add='+')
-        self.onglets.bind('<<NotebookTabChanged>>', self.wifi_changer_onglet, add='+')
-        affichage=ttk.Frame(cadre);affichage.pack(fill='x',pady=(0,4))
-        for label,var in [('Points de carte',self.wifi_voir_points),('Scan courant',self.wifi_voir_scan),('Segments',self.wifi_voir_segments),('Suivre le robot',self.wifi_suivre)]:
-            ttk.Checkbutton(affichage,text=label,variable=var,command=self.wifi_actualiser_vue).pack(side='left',padx=(0,8))
-        ttk.Button(affichage,text='Centrer la carte',command=self.wifi_centrer).pack(side='right')
-        self.wifi_badge=ttk.Label(cadre,text='HORS CONNEXION',style='Status.TLabel')
-        self.wifi_badge.pack(anchor='w',pady=(2,3))
-        ttk.Label(cadre, textvariable=self.wifi_info, wraplength=1000,style='SousTitre.TLabel').pack(fill='x', pady=(0,5))
-        fig = Figure(figsize=(8,5), dpi=100,facecolor=SURFACE,constrained_layout=True)
-        self.wifi_axes = fig.add_subplot(111)
-        self.wifi_canvas = FigureCanvasTkAgg(fig, cadre)
-        actions = ttk.Frame(cadre);actions.pack(side='bottom',fill='x',pady=(7,0))
-        ttk.Button(actions, text='Reprendre le suivi', command=self.wifi_reprendre).pack(side='left')
-        ttk.Button(actions, text='Nouvelle carte', command=self.wifi_nouvelle_carte).pack(side='left', padx=5)
-        ttk.Button(actions, text='Vers la session', command=self.wifi_vers_session).pack(side='left')
-        ttk.Button(actions, text='Exporter les segments...', command=self.wifi_exporter).pack(side='right')
-        NavigationToolbar2Tk(self.wifi_canvas,cadre).pack(side='bottom',fill='x')
-        self.wifi_canvas.get_tk_widget().pack(fill='both', expand=True)
+        self.wifi_cadre=cadre
+        self.wifi_robot=self.wifi_carte=self.wifi_thread=self.wifi_etat=None
+        self.wifi_resultats=queue.Queue(maxsize=1)
+        self.wifi_stop=threading.Event();self.wifi_reprise=threading.Event()
+        self.wifi_global=threading.Event();self.wifi_cartographier=threading.Event();self.wifi_cartographier.set()
+        self.wifi_clavier=ClavierRobot();self.wifi_relachements={}
+        self.wifi_actif=tk.BooleanVar(value=False)
+        self.wifi_manette_active=tk.BooleanVar(value=False)
+        self.wifi_mode=tk.StringVar(value='Cartographier')
+        self.wifi_reference=tk.StringVar(value='Nouvelle carte')
+        self.wifi_vue=tk.StringVar(value='Vectorielle')
+        self.wifi_hote=tk.StringVar(value='192.168.4.1');self.wifi_pwm=tk.IntVar(value=65)
+        self.wifi_info=tk.StringVar(value='Connecte le PC au hotspot ScanAtlas ou démarre la démonstration.')
+        self.wifi_commande=tk.StringVar(value='PC : STOP | ESP32 : EN ATTENTE')
+        self.wifi_dernier_resultat=self.wifi_dernier_dessin=0.
+        self.wifi_artistes=None;self.wifi_image_grille=None;self.wifi_grille_affichee=None
+        self.wifi_suivre=tk.BooleanVar(value=False)
+        self.wifi_voir_points=tk.BooleanVar(value=True);self.wifi_voir_scan=tk.BooleanVar(value=True)
+        self.wifi_voir_segments=tk.BooleanVar(value=True)
+        self.wifi_metriques={k:tk.StringVar(value='--') for k in ('pose','angle','concordance','calcul','carte')}
+        from manette import ManetteXbox
+        self.manette=ManetteXbox()
+        self.wifi_demo_process=None
+        self.wifi_journal=None
+        entete=ttk.Frame(cadre);entete.pack(fill='x',pady=(0,8))
+        ttk.Label(entete,text='Robot en direct',style='Titre.TLabel').pack(side='left')
+        ttk.Button(entete,text='ARRÊT · ESPACE',command=self.wifi_arreter,style='Danger.TButton').pack(side='right',padx=5)
+        ttk.Button(entete,text='Démonstration',command=self.wifi_demo).pack(side='right')
+        self.wifi_panes=ttk.Panedwindow(cadre,orient='horizontal');
+        carte=ttk.Frame(self.wifi_panes)
+        lateral=ttk.Frame(self.wifi_panes,width=295)
+        defilement=tk.Canvas(lateral,width=290,background=FOND,highlightthickness=0)
+        ascenseur=ttk.Scrollbar(lateral,orient='vertical',command=defilement.yview)
+        defilement.configure(yscrollcommand=ascenseur.set)
+        ascenseur.pack(side='right',fill='y');defilement.pack(fill='both',expand=True)
+        panneau=ttk.Frame(defilement,padding=(12,0))
+        fenetre=defilement.create_window((0,0),window=panneau,anchor='nw')
+        panneau.bind('<Configure>',lambda e:defilement.configure(scrollregion=defilement.bbox('all')))
+        defilement.bind('<Configure>',lambda e:defilement.itemconfigure(fenetre,width=e.width))
+        self.wifi_panes.add(carte,weight=5);self.wifi_panes.add(lateral,weight=1)
+        self.wifi_panneau=lateral
+        affichage=ttk.Frame(carte);affichage.pack(fill='x',pady=(0,6))
+        for vue in ('Points','Grille','Vectorielle'):
+            ttk.Radiobutton(affichage,text=vue,variable=self.wifi_vue,value=vue,command=self.wifi_actualiser_vue).pack(side='left',padx=3)
+        ttk.Button(affichage,text='Vue complète',command=self.wifi_centrer).pack(side='right')
+        ttk.Button(affichage,text='Agrandir',command=self.wifi_agrandir).pack(side='right',padx=3)
+        couches=ttk.Frame(carte);couches.pack(fill='x')
+        for texte,var in [('Scan courant',self.wifi_voir_scan),('Segments',self.wifi_voir_segments),('Trajectoire centrée',self.wifi_suivre)]:
+            ttk.Checkbutton(couches,text=texte,variable=var,command=self.wifi_actualiser_vue).pack(side='left',padx=4)
+        fig=Figure(figsize=(10,7),dpi=100,facecolor=SURFACE,constrained_layout=True)
+        self.wifi_axes=fig.add_subplot(111)
+        self.wifi_canvas=FigureCanvasTkAgg(fig,carte)
+        NavigationToolbar2Tk(self.wifi_canvas,carte).pack(side='bottom',fill='x')
+        self.wifi_canvas.get_tk_widget().pack(fill='both',expand=True)
         self.wifi_axes.set_aspect('equal',adjustable='box')
-        self.wifi_axes.set_title('Carte vectorielle · premier scan à l’origine',color=ENCRE,fontsize=11)
-        self.after(75, self.wifi_poll)
+        ttk.Label(panneau,text='Connexion',style='Section.TLabel').pack(anchor='w')
+        ttk.Entry(panneau,textvariable=self.wifi_hote).pack(fill='x',pady=5)
+        ligne=ttk.Frame(panneau);ligne.pack(fill='x')
+        ttk.Button(ligne,text='Connecter',command=self.wifi_connecter,style='Accent.TButton').pack(side='left')
+        ttk.Button(ligne,text='Déconnecter',command=self.wifi_deconnecter).pack(side='right')
+        ttk.Separator(panneau).pack(fill='x',pady=12)
+        ttk.Label(panneau,text='Carte de départ',style='Section.TLabel').pack(anchor='w')
+        ttk.Combobox(panneau,textvariable=self.wifi_reference,values=['Nouvelle carte','Scans cochés Carte'],state='readonly',width=26).pack(fill='x',pady=5)
+        ttk.Label(panneau,text='La carte de session est copiée au démarrage. Nouvelle carte applique ce choix.',wraplength=270,style='SousTitre.TLabel').pack(anchor='w')
+        modes=ttk.Combobox(panneau,textvariable=self.wifi_mode,values=['Cartographier','Localisation seule'],state='readonly')
+        modes.pack(fill='x',pady=(10,4));modes.bind('<<ComboboxSelected>>',lambda e:self.wifi_mode_changer())
+        ttk.Button(panneau,text='Rechercher ma position · 360°',command=self.wifi_relocaliser).pack(fill='x',pady=3)
+        ttk.Button(panneau,text='Reprendre près de la dernière pose',command=self.wifi_reprendre).pack(fill='x')
+        ttk.Separator(panneau).pack(fill='x',pady=12)
+        ttk.Label(panneau,text='Pilotage',style='Section.TLabel').pack(anchor='w')
+        ttk.Checkbutton(panneau,text='Clavier actif',variable=self.wifi_actif,command=self.wifi_activer).pack(anchor='w')
+        ttk.Checkbutton(panneau,text='Manette Xbox · maintenir LB',variable=self.wifi_manette_active,command=self.wifi_activer_manette).pack(anchor='w')
+        self.wifi_zone=tk.Label(panneau,text='↑ / ↓ avancer · ← / → tourner\nA / D déplacement latéral',takefocus=True,
+            background=FOND,foreground=SECONDAIRE,pady=8)
+        self.wifi_zone.pack(fill='x')
+        self.wifi_zone.bind('<Button-1>',lambda e:self.wifi_zone.focus_set())
+        self.wifi_zone.bind('<KeyPress>',self.wifi_touche);self.wifi_zone.bind('<KeyRelease>',self.wifi_relacher)
+        self.wifi_zone.bind('<FocusOut>',lambda e:self.wifi_arreter())
+        self.bind('<KeyPress-space>',lambda e:self.wifi_arreter(),add='+')
+        self.bind('<KeyPress-Escape>',lambda e:self.wifi_arreter(),add='+')
+        self.onglets.bind('<<NotebookTabChanged>>',self.wifi_changer_onglet,add='+')
+        ttk.Label(panneau,text='Puissance maximale · PWM / 255').pack(anchor='w')
+        self.wifi_curseur_pwm=curseur(panneau,self.wifi_pwm,0,100)
+        ttk.Label(panneau,textvariable=self.wifi_pwm).pack(anchor='e')
+        ttk.Button(panneau,text='ARRÊT · ESPACE',command=self.wifi_arreter,style='Danger.TButton').pack(fill='x',pady=8)
+        ttk.Label(panneau,textvariable=self.wifi_commande,wraplength=270,style='SousTitre.TLabel').pack(fill='x')
+        self.wifi_badge=ttk.Label(panneau,text='HORS CONNEXION',style='Section.TLabel',wraplength=270)
+        self.wifi_badge.pack(anchor='w',pady=(10,6))
+        for cle,texte in [('pose','Position x / y (m)'),('angle','Orientation'),('concordance','Concordance à 12 cm'),('calcul','Calcul par tour'),('carte','Carte vectorielle')]:
+            ligne=ttk.Frame(panneau);ligne.pack(fill='x',pady=2)
+            ttk.Label(ligne,text=texte,style='SousTitre.TLabel').pack(side='left')
+            ttk.Label(ligne,textvariable=self.wifi_metriques[cle]).pack(side='right')
+        actions=ttk.Frame(cadre);actions.pack(side='bottom',fill='x',pady=6)
+        ttk.Button(actions,text='Nouvelle carte',command=self.wifi_nouvelle_carte).pack(side='left')
+        ttk.Button(actions,text='Vers Cartographie',command=self.wifi_vers_session).pack(side='left',padx=4)
+        ttk.Button(actions,text='Enregistrer la session directe…',command=self.wifi_sauver).pack(side='left')
+        ttk.Button(actions,text='Dossier des essais',command=self.wifi_ouvrir_journal).pack(side='right',padx=3)
+        ttk.Button(actions,text='Exporter les segments…',command=self.wifi_exporter).pack(side='right')
+        ttk.Label(cadre,textvariable=self.wifi_info,wraplength=1200,style='SousTitre.TLabel').pack(side='bottom',fill='x')
+        self.wifi_panes.pack(fill='both',expand=True)
+        self.after(75,self.wifi_poll)
+
+    def wifi_agrandir(self):
+        self.wifi_arreter()
+        if str(self.wifi_panneau) in self.wifi_panes.panes():
+            self.wifi_panes.forget(self.wifi_panneau)
+        else:self.wifi_panes.add(self.wifi_panneau,weight=1)
+
+    def wifi_mode_changer(self):
+        if self.wifi_mode.get()=='Cartographier':self.wifi_cartographier.set()
+        else:self.wifi_cartographier.clear()
+
+    def wifi_relocaliser(self):
+        self.wifi_arreter();self.wifi_global.set()
+        self.wifi_info.set('Recherche globale demandée ; la carte attend une pose validée.')
+
+    def wifi_activer_manette(self):
+        active=self.wifi_manette_active.get();self.wifi_arreter()
+        self.wifi_manette_active.set(active)
+        if active:self.wifi_zone.focus_set()
+
+    def wifi_ouvrir_journal(self):
+        self.wifi_arreter()
+        if self.wifi_journal is None:return
+        import os
+        if hasattr(os,'startfile'):os.startfile(str(self.wifi_journal.dossier))
+        else:messagebox.showinfo('Dossier des essais',str(self.wifi_journal.dossier))
+
+    def wifi_sauver(self):
+        self.wifi_arreter()
+        if self.wifi_etat is None:return
+        chemin=filedialog.asksaveasfilename(defaultextension='.json',initialfile='session_directe.json')
+        if chemin:
+            from journal_direct import sauver_carte
+            sauver_carte(chemin,self.wifi_etat.scans_cles,self.wifi_carte.filtres)
+            self.wifi_info.set('Session directe enregistrée ; ouvrir dans Cartographie pour la reprendre.')
+
+    def wifi_demo(self):
+        import subprocess,sys
+        from pathlib import Path
+        self.wifi_deconnecter()
+        if self.wifi_demo_process is None or self.wifi_demo_process.poll() is not None:
+            self.wifi_demo_process=subprocess.Popen([sys.executable,str(Path(__file__).with_name('simuler_robot_wifi.py'))])
+        self.wifi_hote.set('127.0.0.1')
+        self.after(800,self.wifi_connecter)
 
     def wifi_connecter(self):
         if self.wifi_robot is not None:
@@ -140,29 +208,49 @@ class InterfaceWifi:
         self.wifi_arreter()
         self.wifi_stop = threading.Event()
         self.wifi_reprise = threading.Event()
+        self.wifi_global.clear()
         self.wifi_resultats = queue.Queue(maxsize=1)
-        if self.wifi_carte is None:
-            self.wifi_carte = CarteDirecte(filtres)
-            self.wifi_etat = None
-        else:
+        sources = deepcopy([scan for scan,oui in zip(self.scans,self.inclus) if oui]) if self.wifi_reference.get()=='Scans cochés Carte' else []
+        vecteurs = deepcopy(self.vecteurs) if sources and self.vecteurs is not None and self.scans_vecteurs=={id(scan) for scan,oui in zip(self.scans,self.inclus) if oui} else None
+        if self.wifi_carte is None and self.wifi_reference.get()=='Scans cochés Carte' and not sources:
+            self.wifi_info.set('Cocher au moins un scan Carte dans Cartographie.')
+            return
+        if self.wifi_carte is not None:
             self.wifi_carte.annuler.clear()
-            self.wifi_reprise.set()
+            self.wifi_global.set()  # Position inconnue après reconnexion.
+        from journal_direct import JournalDirect
+        try:self.wifi_journal=JournalDirect()
+        except OSError as exc:
+            self.wifi_info.set('Impossible de créer le journal : '+str(exc));return
         robot = self.wifi_robot = RobotWifi(hote)
         self.wifi_info.set('Connexion… carte conservée si existante ; filtres figés jusqu’à Nouvelle carte.')
+        robot.journal=self.wifi_journal
         robot.demarrer()
         # Captures locales : un ancien worker ne peut publier dans une nouvelle carte.
         stop, reprise, resultats, carte = self.wifi_stop, self.wifi_reprise, self.wifi_resultats, self.wifi_carte
+        journal=self.wifi_journal
         def calculer():
+            nonlocal carte
+            if carte is None:
+                try:
+                    carte=CarteDirecte(filtres,scans=sources,segments=vecteurs)
+                    if stop.is_set() or robot.arret.is_set():return
+                    self.wifi_carte=carte
+                except Exception as exc:
+                    robot._etat('Carte de départ refusée : '+str(exc));robot.fermer();return
             while not stop.is_set() and not robot.arret.is_set():
                 try:
                     trame = robot.scans.get(timeout=.1)
                 except queue.Empty:
                     continue
+                if self.wifi_global.is_set():
+                    carte.relocaliser();self.wifi_global.clear()
                 if reprise.is_set():
                     carte.reprendre()
                     reprise.clear()
                 try:
-                    etat = carte.traiter(trame)
+                    etat = carte.traiter(trame,enrichir=self.wifi_cartographier.is_set())
+                    journal.resultat(trame,etat,carte.filtres)
                 except Exception as exc:
                     robot.commander('STOP')
                     robot._etat('Suivi arrêté : '+str(exc))
@@ -175,6 +263,7 @@ class InterfaceWifi:
 
     def wifi_arreter(self):
         self.wifi_actif.set(False)
+        self.wifi_manette_active.set(False)
         self.wifi_clavier.vider()
         self.wifi_commande.set('STOP')
         if self.wifi_robot is not None:
@@ -187,6 +276,10 @@ class InterfaceWifi:
             self.wifi_carte.annuler.set()
         if self.wifi_robot is not None:
             self.wifi_robot.fermer()
+        robot=self.wifi_robot
+        if robot is not None and robot.journal is not None:
+            journal=robot.journal;robot.journal=None
+            threading.Thread(target=journal.fermer,daemon=True).start()
         self.wifi_robot = None
         self.wifi_badge.configure(text='HORS CONNEXION',foreground=SECONDAIRE)
         self.wifi_info.set('Déconnecté ; la dernière carte reste exportable.')
@@ -194,6 +287,7 @@ class InterfaceWifi:
     def wifi_activer(self):
         self.wifi_clavier.vider()
         if self.wifi_actif.get():
+            self.wifi_manette_active.set(False)
             if (self.wifi_robot is None or not self.wifi_robot.connecte.is_set() or
                 time.monotonic()-self.wifi_robot.dernier_scan > .6):
                 self.wifi_arreter()
@@ -246,6 +340,8 @@ class InterfaceWifi:
         self.wifi_etat = None
         self.wifi_axes.clear()
         self.wifi_artistes = None
+        self.wifi_image_grille = None
+        self.wifi_grille_affichee = None
         self.wifi_canvas.draw_idle()
         if connecte:
             # Le firmware libère son bail après 300 ms.
@@ -292,7 +388,7 @@ class InterfaceWifi:
                     precedent = self.wifi_etat
                     self.wifi_etat = etat
                     self.wifi_dernier_resultat = time.monotonic()
-                    self.wifi_info.set(f'{etat.message} {etat.cles} scans clés · {len(etat.segments)} segments · calcul {1000*etat.duree:.0f} ms · {robot.recus} tours reçus.')
+                    self.wifi_info.set(f'{etat.message} {etat.cles} scans clés · {len(etat.segments)} segments · calcul {1000*etat.duree:.0f} ms · {robot.recus} tours reçus. {self.wifi_journal.erreur if self.wifi_journal else ""}')
                     pose=etat.trajectoire[-1] if len(etat.trajectoire) else np.zeros(3)
                     self.wifi_metriques['pose'].set(f'{pose[0]:.2f} / {pose[1]:.2f}')
                     self.wifi_metriques['angle'].set(f'{pose[2]:.1f}°')
@@ -304,16 +400,22 @@ class InterfaceWifi:
                         str(self.onglets.select())==str(self.wifi_cadre)):
                         self.wifi_dessiner(etat)
                         self.wifi_dernier_dessin = time.monotonic()
-                actif = (self.wifi_actif.get() and self.focus_get() == self.wifi_zone and
+                actif = ((self.wifi_actif.get() or self.wifi_manette_active.get()) and self.focus_get() == self.wifi_zone and
                          str(self.onglets.select()) == str(self.wifi_cadre) and
                          robot.connecte.is_set() and time.monotonic()-robot.dernier_scan < .6)
-                if self.wifi_actif.get() and not actif:
+                if (self.wifi_actif.get() or self.wifi_manette_active.get()) and not actif:
                     self.wifi_arreter()
                 try:
                     pwm = int(self.wifi_pwm.get())
                     if not 0 <= pwm <= 100:
                         raise ValueError('PWM hors limite')
-                    cmd = self.wifi_clavier.commande() if actif else 'STOP'
+                    cmd = self.wifi_clavier.commande() if actif and self.wifi_actif.get() else 'STOP'
+                    if actif and self.wifi_manette_active.get():
+                        presente,cmd,niveau=self.manette.lire()
+                        if not presente:
+                            self.wifi_arreter();cmd='STOP'
+                            self.wifi_info.set('Manette Xbox absente ; pilotage arrêté. Windows / XInput requis.')
+                        pwm=int(pwm*niveau)
                     robot.commander(cmd, pwm)
                     diagnostic = robot.diagnostic_commande()
                     self.wifi_commande.set(f"PC : {diagnostic['envoyee']} | ESP32 : {diagnostic['effective']}")
@@ -342,11 +444,31 @@ class InterfaceWifi:
         nuage,courant,segments,trajet,robot=self.wifi_artistes
         points=etat.points[::max(1,len(etat.points)//8000)]
         nuage.set_offsets(points if len(points) else np.empty((0,2)))
-        nuage.set_visible(self.wifi_voir_points.get())
-        segments.set_segments(etat.segments);segments.set_visible(self.wifi_voir_segments.get())
+        vue=self.wifi_vue.get()
+        limite_x,limite_y=ax.get_xlim(),ax.get_ylim()
+        nuage.set_visible(self.wifi_vue.get()=='Points')
+        segments.set_segments(etat.segments);segments.set_visible(self.wifi_voir_segments.get() and self.wifi_vue.get()!='Points')
         filtre=self.wifi_carte.filtres if self.wifi_carte is not None else {}
         pts=etat.scan.points()[mesures_valides(etat.scan,**filtre)] if etat.accepte else np.empty((0,2))
         courant.set_offsets(pts);courant.set_visible(self.wifi_voir_scan.get())
+        grille=etat.grille
+        if grille is not None and grille is not self.wifi_grille_affichee:
+            self.wifi_grille_affichee=grille
+            from matplotlib.colors import ListedColormap
+            probabilites=grille.probabilites()
+            valeurs=np.ones(grille.observe.shape,dtype=np.uint8)
+            valeurs[grille.observe & (probabilites<.45)]=0
+            valeurs[grille.observe & (probabilites>=.6)]=2
+            ny,nx=valeurs.shape;o=grille.origine;r=grille.resolution
+            extent=(o[0],o[0]+nx*r,o[1],o[1]+ny*r)
+            if self.wifi_image_grille is None:
+                self.wifi_image_grille=ax.imshow(valeurs,origin='lower',extent=extent,interpolation='nearest',
+                    cmap=ListedColormap(['#ffffff','#a9b8c3','#26343d']),vmin=0,vmax=2,zorder=0)
+            else:
+                self.wifi_image_grille.set_data(valeurs);self.wifi_image_grille.set_extent(extent)
+        if self.wifi_image_grille is not None:self.wifi_image_grille.set_visible(self.wifi_vue.get()=='Grille')
+        if not premiere:
+            ax.set_xlim(limite_x);ax.set_ylim(limite_y)
         if len(etat.trajectoire):
             traj = etat.trajectoire
             trajet.set_data(traj[:,0],traj[:,1])
@@ -357,7 +479,7 @@ class InterfaceWifi:
                 dx=(ax.get_xlim()[1]-ax.get_xlim()[0])/2;dy=(ax.get_ylim()[1]-ax.get_ylim()[0])/2
                 ax.set_xlim(x-dx,x+dx);ax.set_ylim(y-dy,y+dy)
         if premiere:self.wifi_centrer(dessiner=False)
-        ax.set_title('Carte vectorielle en direct' if etat.accepte else 'Suivi suspendu · carte conservée',fontsize=11,color=ENCRE)
+        ax.set_title(self.wifi_vue.get()+' · '+('Cartographie active' if etat.enrichissement else 'Localisation seule') if etat.accepte else 'Position incertaine · carte conservée',fontsize=11,color=ENCRE)
         self.wifi_canvas.draw_idle()
 
     def wifi_centrer(self,dessiner=True):

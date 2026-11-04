@@ -28,7 +28,7 @@ from localisation_tp import LOCALE as TP_LOCALE, MULTI as TP_MULTI
 
 AIDE = '''PARCOURS CONSEILLÉ
 1. « Démonstration simulée » pour découvrir les vues sans matériel.
-2. Importer un CSV réel ou capturer l'USB. Les scans importés sont ajoutés.
+2. Cartographie : importer un CSV/ZIP, ouvrir une session ou capturer par USB/Wi-Fi.
 3. Sélectionner un scan ; régler sa pose par coordonnées ou modes souris Déplacer/Tourner.
 4. Grille : créer depuis un scan, puis ajouter un autre ; ou reconstruire les scans cochés Carte.
 5. Exporter les scans réels et la session pour conserver le travail.
@@ -64,17 +64,29 @@ les anciens segments contredits par au moins trois directions de rayons libres.
 
 LOCALISATION
 Un seul onglet Localisation réunit les trois références du TP : grille,
-carte vectorielle et scan fixe. Le mobile est le scan sélectionné à gauche.
+carte vectorielle et scan fixe. Choisir le mobile dans le panneau de droite.
 Construire la grille ou la carte vectorielle sans y inclure ce mobile.
-La pose actuelle du mobile sert de point de départ (réglable dans le panneau gauche).
+La pose actuelle sert de point de départ ; elle se règle dans Pose initiale.
 La multi-résolution explore un voisinage de 1 m et 30° puis affine la pose.
 L'affinement local robuste sert de deuxième méthode de comparaison.
 Les filtres communs sont utilisés. Comparer l'aperçu avant/après puis Appliquer.
 Une convergence locale n'est pas une garantie de position correcte.
 
+ROBOT EN DIRECT
+Connecter le PC au hotspot ScanAtlas, puis connecter l'application.
+Nouvelle carte fixe l'origine au premier scan valide. Scans cochés Carte copie
+une référence depuis Cartographie ; une recherche globale retrouve la pose.
+Localisation seule poursuit le suivi sans enrichir les points, la grille ou les segments.
+Points / Grille / Vectorielle sont trois affichages de la même carte.
+Clavier : flèches et A/D. Manette Xbox sous Windows : maintenir LB.
+Enregistrer la session directe conserve les scans clés ; Dossier des essais ouvre
+le journal brut et la sauvegarde de secours. Démonstration utilise un robot simulé.
+
 LIMITES
-Lidar immobile pendant un scan ; environnement supposé fixe et plan.
-Robot Wi-Fi ajoute un suivi local continu et une carte vectorielle incrémentale.
+Environnement supposé fixe et plan. Les déplacements intra-tour ne sont pas
+compensés : limiter la vitesse et vérifier l'alignement des murs.
+Le firmware PWM demande un profil de câblage vérifié dans motor_config.h.
+Les correspondances de roues restent à confirmer physiquement.
 Pas encore de fermeture de boucle ni de navigation autonome. Vitres, mouvements et bruit
 peuvent créer des erreurs. Des scans CSV fragmentaires peuvent être importés :
 le nombre de points et l'étendue angulaire sont affichés pour contrôle.
@@ -92,7 +104,7 @@ AIDE = AIDE.replace('270°', f'{ANGLE_REFERENCE_DEFAUT:g}°')
 class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title('LD06 Atelier · Acquisition et cartographie 2D')
+        self.title('ScanAtlas · Cartographie et localisation')
         self.geometry('1440x940')
         self.minsize(1050, 720)
         self.scans, self.inclus, self.visibles = [], [], []
@@ -101,6 +113,7 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
         self.scans_vecteurs=set()
         self.segments = []
         self.manipulation = None
+        self.annulations_pose = []
         self.resultat_localisation = None
         self.scans_localisation = []
         self.messages, self.annuler = queue.Queue(), threading.Event()
@@ -110,13 +123,15 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
         appliquer_theme(self)
         entete = ttk.Frame(self, padding=(16, 10))
         entete.pack(fill='x')
+        from apparence import dessiner_logo
+        dessiner_logo(entete).pack(side='left',padx=(0,10))
         ttk.Label(entete, text='ScanAtlas', style='Titre.TLabel').pack(side='left')
         ttk.Label(entete, text='   LD06 · Cartographie et localisation', style='SousTitre.TLabel').pack(side='left')
         ttk.Button(entete, text='Comprendre l’application', command=self.aide).pack(side='right')
-        corps = ttk.Panedwindow(self, orient='horizontal')
+        corps = self.corps = ttk.Panedwindow(self, orient='horizontal')
         corps.pack(fill='both', expand=True, padx=12)
-        panneau = ttk.Frame(corps, width=360)
-        defilement = tk.Canvas(panneau, width=305, highlightthickness=0,background='#f2f5fa')
+        panneau = self.panneau_scans = ttk.Frame(corps, width=325)
+        defilement = tk.Canvas(panneau, width=310, highlightthickness=0,background='#f7f8fa')
         ascenseur = ttk.Scrollbar(panneau, orient='vertical', command=defilement.yview)
         defilement.configure(yscrollcommand=ascenseur.set)
         ascenseur.pack(side='right', fill='y')
@@ -128,7 +143,7 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
         droite = ttk.Frame(corps)
         corps.add(panneau, weight=0)
         corps.add(droite, weight=1)
-        fichiers = ttk.LabelFrame(gauche, text='1 · Mes scans', padding=8)
+        fichiers = ttk.LabelFrame(gauche, text='Scans', padding=8)
         fichiers.pack(fill='x')
         self.bouton(fichiers, 'Importer des CSV ou un ZIP…', self.importer)
         self.bouton(fichiers, 'Démonstration simulée (2 scans)', self.demo)
@@ -144,17 +159,20 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
         self.liste.pack(fill='x', pady=6)
         self.liste.bind('<<TreeviewSelect>>', self.selection)
         self.liste.bind('<ButtonRelease-1>', self.clic_liste)
-        ttk.Label(fichiers, text='Visible : afficher/masquer · Carte : inclure/exclure.', font=('Segoe UI', 9)).pack(anchor='w')
-        self.info = ttk.Label(fichiers, text='Aucun scan sélectionné', wraplength=300)
+        ttk.Label(fichiers, text='Visible : afficher/masquer · Carte : inclure/exclure.',wraplength=285).pack(anchor='w')
+        self.info = ttk.Label(fichiers, text='Aucun scan sélectionné', wraplength=285)
         self.info.pack(fill='x', pady=5)
         self.bouton(fichiers, 'Supprimer le scan sélectionné', self.supprimer)
-        pose = ttk.LabelFrame(gauche, text='2 · Pose du scan sélectionné', padding=8)
-        pose.pack(fill='x', pady=8)
+        from apparence import Repliable
+        section_pose=Repliable(gauche,'Pose du scan sélectionné',ouvert=False)
+        section_pose.pack(fill='x',pady=8)
+        pose=section_pose.contenu
         for cle, titre, valeur in [('x','Position x (m)',0), ('y','Position y (m)',0), ('orientation','Orientation (°)',0)]:
             self.champ(pose, cle, titre, valeur)
         self.bouton(pose, 'Appliquer la pose', self.appliquer_pose)
-        filtres = ttk.LabelFrame(gauche, text='3 · Filtrage commun', padding=8)
-        filtres.pack(fill='x')
+        self.bouton(pose, 'Annuler le dernier déplacement', self.annuler_pose)
+        section_filtres=Repliable(gauche,'Filtres');section_filtres.pack(fill='x')
+        filtres=section_filtres.contenu
         for cle, titre, valeur in [('mini','Distance min (m)',.05), ('maxi','Distance max exclue (m)',12), ('intensite','Intensité minimale',0)]:
             self.champ(filtres, cle, titre, valeur)
         self.bouton(filtres, 'Appliquer les filtres', self.filtrer)
@@ -163,10 +181,16 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
         self.bouton(gauche, 'Exporter le scan sélectionné…', self.sauver_scan)
         self.onglets = ttk.Notebook(droite)
         self.onglets.pack(fill='both', expand=True)
+        self.cadre_carto=ttk.Frame(self.onglets)
+        self.onglets.add(self.cadre_carto,text='Cartographie')
+        self.sous_onglets=ttk.Notebook(self.cadre_carto)
+        self.sous_onglets.pack(fill='both',expand=True)
+        self.onglets.bind('<<NotebookTabChanged>>',self.adapter_espace,add='+')
         self.axes, self.canvas = {}, {}
         for titre in ['Nuages', 'Grille', 'Segments', 'Carte vectorielle', 'TP Localisation', 'Acquisition USB', 'Robot Wi-Fi']:
-            cadre = ttk.Frame(self.onglets, padding=8)
-            self.onglets.add(cadre, text={'TP Localisation':'Localisation','Acquisition USB':'Acquisition'}.get(titre,titre))
+            parent=self.onglets if titre in ('TP Localisation','Robot Wi-Fi') else self.sous_onglets
+            cadre = ttk.Frame(parent, padding=8)
+            parent.add(cadre, text={'TP Localisation':'Localisation','Acquisition USB':'Acquisition','Robot Wi-Fi':'Robot en direct'}.get(titre,titre))
             if titre == 'Robot Wi-Fi':
                 self.interface_wifi(cadre)
                 continue
@@ -174,7 +198,7 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
                 self.interface_usb(cadre)
                 continue
             barre = ttk.Frame(cadre)
-            barre.pack(fill='x')
+            barre.pack(side='right',fill='y',padx=(12,0)) if titre=='TP Localisation' else barre.pack(fill='x')
             if titre == 'TP Localisation':
                 self.interface_tp(barre)
             elif titre == 'Grille':
@@ -207,8 +231,10 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
             fig = Figure(figsize=(7,5), dpi=100, constrained_layout=True)
             self.axes[titre] = fig.add_subplot(111)
             canvas = FigureCanvasTkAgg(fig, cadre)
-            canvas.get_tk_widget().pack(fill='both', expand=True)
-            NavigationToolbar2Tk(canvas, cadre).update()
+            barre_navigation=NavigationToolbar2Tk(canvas,cadre,pack_toolbar=False)
+            barre_navigation.pack(side='bottom',fill='x')
+            canvas.get_tk_widget().pack(fill='both',expand=True)
+            barre_navigation.update()
             self.canvas[titre] = canvas
             if titre == 'Nuages':
                 self.manipulation = ManipulationScan(canvas, self.axes[titre], self.mode_souris.get,
@@ -218,6 +244,13 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
         self.protocol('WM_DELETE_WINDOW', self.fermer)
         self.actualiser()
         self.after(100, self.poll)
+
+    def adapter_espace(self,event=None):
+        if not hasattr(self,'wifi_cadre'):return
+        robot=str(self.onglets.select())!=str(self.cadre_carto)
+        present=str(self.panneau_scans) in self.corps.panes()
+        if robot and present:self.corps.forget(self.panneau_scans)
+        elif not robot and not present:self.corps.insert(0,self.panneau_scans,weight=0)
 
     def bouton(self, parent, texte, action):
         b = ttk.Button(parent, text=texte, command=lambda: self.proteger(action))
@@ -229,9 +262,9 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
         ensemble.pack(fill='x',pady=2)
         ligne = ttk.Frame(ensemble)
         ligne.pack(fill='x', pady=2)
-        ttk.Label(ligne, text=titre).pack(side='left')
+        ttk.Label(ligne,text=titre,wraplength=185).pack(side='left')
         self.vars[cle] = tk.StringVar(value=str(valeur))
-        ttk.Entry(ligne, textvariable=self.vars[cle], width=12).pack(side='right')
+        ttk.Entry(ligne, textvariable=self.vars[cle], width=8).pack(side='right')
         if cle in PLAGES:
             curseur(ensemble,self.vars[cle],*PLAGES[cle])
 
@@ -373,14 +406,35 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
 
     def fin_geste(self):
         scan = self.scans[self.indice()]
+        ancienne=getattr(self.manipulation,'derniere_pose_avant',None)
+        if ancienne is not None:Atelier.memoriser_pose(self,scan,ancienne)
         scan.suivi_recalage = None
         self.invalider(conserver_grille=id(scan) not in self.scans_grille)
         self.statut.set('Pose modifiée à la souris. Recalcule les cartes, puis enregistre la session.')
+
+    def memoriser_pose(self,scan,pose=None):
+        historique=getattr(self,'annulations_pose',[])
+        historique.append((scan,list(scan.pose if pose is None else pose),deepcopy(scan.suivi_recalage)))
+        self.annulations_pose=historique[-30:]
+
+    def annuler_pose(self):
+        self.annuler_geste()
+        historique=getattr(self,'annulations_pose',[])
+        while historique:
+            scan,pose,suivi=historique.pop()
+            if any(scan is s for s in self.scans):
+                scan.pose=pose;scan.suivi_recalage=suivi
+                self.invalider(conserver_grille=id(scan) not in self.scans_grille)
+                self.actualiser(next(i for i,s in enumerate(self.scans) if s is scan))
+                self.statut.set('Dernière modification de pose annulée ; recalculer les cartes concernées.')
+                return
+        self.statut.set('Aucune modification de pose à annuler.')
 
     def appliquer_pose(self):
         self.annuler_geste()
         s = self.scans[self.indice()]
         nouvelle_pose = [self.nombre(k) for k in ['x','y','orientation']]
+        Atelier.memoriser_pose(self,s)
         s.pose = nouvelle_pose
         s.suivi_recalage = None
         self.invalider(conserver_grille=id(s) not in self.scans_grille)
@@ -967,6 +1021,7 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
         if not resultat.applicable:
             raise ValueError('Ce recalage n’est pas applicable. '+resultat.message)
         mobile = contexte[1]
+        Atelier.memoriser_pose(self,mobile)
         mobile.pose = list(resultat.pose)
         mobile.suivi_recalage = None
         self.invalider(conserver_grille=id(mobile) not in self.scans_grille)
@@ -982,7 +1037,7 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
                                icp_fenetre_xy=1.,icp_fenetre_angle=30.).items():
             self.vars[cle]=tk.StringVar(value=str(valeur))
         ttk.Label(cadre,text='Capturer des scans réels depuis l’ESP32',style='Titre.TLabel').pack(anchor='w',pady=12)
-        ttk.Label(cadre,text='Le programme ESP32 doit utiliser printScanCSV(Serial) uniquement.\nFerme le moniteur série Arduino et Teleplot avant de connecter le port.',wraplength=700).pack(anchor='w',pady=10)
+        ttk.Label(cadre,text='USB : firmware ScanAtlas_WiFi avec commande SCAN, ou ancien firmware CSV.\nFerme le moniteur série Arduino et Teleplot avant de connecter le port.',wraplength=700).pack(anchor='w',pady=10)
         self.capture_source = tk.StringVar(value='USB')
         self.capture_hote = tk.StringVar(value='192.168.4.1')
         ttk.Label(cadre,text='Source : USB (firmware CSV historique) ou Wi-Fi (firmware ScanAtlas_WiFi)').pack(anchor='w')
@@ -1005,7 +1060,7 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
         self.info_capture.pack(anchor='w', pady=4)
         self.bouton(cadre,'Capturer',self.lancer_capture)
         self.bouton(cadre,'Annuler la capture',self.annuler.set)
-        ttk.Label(cadre,text='Garde le lidar immobile. Les scans reçus sont ajoutés à la liste ; exporte-les ensuite.\nLe port se ferme automatiquement en fin de capture. Le délai maximal est de 40 s.\nLa capture attend le début d’un scan et rejette les blocs incomplets.\nCapture : étendue ≥340°. Les blocs de plusieurs tours sont conservés avec une information.',wraplength=740).pack(anchor='w',pady=15)
+        ttk.Label(cadre,text='Garde le lidar immobile. Les scans reçus sont ajoutés à la liste ; exporte-les ensuite.\nLe port se ferme automatiquement en fin de capture. Le délai maximal est adapté au nombre de scans demandé.\nLa capture attend le début d’un scan et rejette les blocs incomplets.\nCapture : étendue ≥340°. Les blocs de plusieurs tours sont conservés avec une information.',wraplength=740).pack(anchor='w',pady=15)
 
     def actualiser_ports(self):
         try:
@@ -1064,7 +1119,7 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
                 if source == 'Wi-Fi':
                     scans=capturer_wifi(hote,int(quantite),self.annuler,progression)
                 else:
-                    scans=capturer(port,int(baud),int(quantite),self.annuler,progression)
+                    scans=capturer(port,int(baud),int(quantite),self.annuler,progression,demander_scan=True,delai=max(40,int(quantite)*4+5)) if hasattr(self,'capture_source') else capturer(port,int(baud),int(quantite),self.annuler,progression)
                 if automatique and scans:
                     self.messages.put(('capture_statut', f'Capture terminée : {len(scans)} scan(s) reçus. Localisation automatique en cours…'))
                     try:
@@ -1120,7 +1175,7 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
         self.info_capture.configure(text=texte)
         self.statut.set(f'Capture globale : {len(nouveaux)-len(attentes)} raccordé(s), {len(attentes)} en attente.')
         if attentes: messagebox.showwarning('Scans en attente de raccordement',texte,parent=self)
-        onglets=getattr(self,'onglets',None)
+        onglets=getattr(self,'sous_onglets',getattr(self,'onglets',None))
         if onglets is not None:
             for tab in onglets.tabs():
                 if onglets.tab(tab,'text')=='Nuages': onglets.select(tab);break
@@ -1174,7 +1229,7 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
             messagebox.showwarning('Échec de localisation automatique', texte, parent=self)
         elif reussis:
             # Montrer la superposition réellement appliquée, pas seulement un compteur.
-            onglets = getattr(self, 'onglets', None)
+            onglets = getattr(self, 'sous_onglets', getattr(self,'onglets',None))
             if onglets is not None:
                 for tab in onglets.tabs():
                     if onglets.tab(tab, 'text') == 'Nuages':
@@ -1239,6 +1294,8 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
             return
         self.annuler.set()
         self.wifi_deconnecter()
+        if self.wifi_demo_process is not None and self.wifi_demo_process.poll() is None:
+            self.wifi_demo_process.terminate()
         self.destroy()
 
 

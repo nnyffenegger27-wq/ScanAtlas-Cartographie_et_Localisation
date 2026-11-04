@@ -27,7 +27,8 @@ class InterfaceWifiReelle(unittest.TestCase):
             titres=[app.onglets.tab(t,'text') for t in app.onglets.tabs()]
             self.assertEqual(titres.count('Localisation'),1)
             self.assertNotIn('TP Localisation',titres)
-            self.assertIn('Acquisition',titres)
+            self.assertEqual(titres,['Cartographie','Localisation','Robot en direct'])
+            self.assertIn('Acquisition',[app.sous_onglets.tab(t,'text') for t in app.sous_onglets.tabs()])
             self.assertEqual(app.capture_source.get(),'USB')
             self.assertIn('tp_reference',app.vars)
             app.wifi_curseur_pwm.set(49)
@@ -36,6 +37,13 @@ class InterfaceWifiReelle(unittest.TestCase):
                 app.onglets.select(app.wifi_cadre);app.update();app.wifi_connecter()
                 attendre(lambda:app.wifi_etat is not None and app.wifi_etat.accepte)
                 self.assertIn('%',app.wifi_metriques['concordance'].get())
+                points=app.wifi_etat.points.copy()
+                app.wifi_mode.set('Localisation seule');app.wifi_mode_changer()
+                attendre(lambda:not app.wifi_etat.enrichissement)
+                app.wifi_vue.set('Grille');app.wifi_actualiser_vue();app.update()
+                self.assertTrue(app.wifi_image_grille.get_visible())
+                self.assertGreater(app.wifi_canvas.get_tk_widget().winfo_width(),800)
+                app.wifi_mode.set('Cartographier');app.wifi_mode_changer()
                 fake.degrade=True
                 attendre(lambda:not app.wifi_etat.accepte)
                 arme();app.wifi_zone.event_generate('<KeyPress-Up>')
@@ -64,7 +72,7 @@ class InterfaceWifiReelle(unittest.TestCase):
                 app.wifi_centrer();app.update()
                 if os.environ.get('SCANATLAS_SCREENSHOT'):
                     from PIL import ImageGrab
-                    ImageGrab.grab(xdisplay=os.environ['DISPLAY']).save(os.environ['SCANATLAS_SCREENSHOT'])
+                    ImageGrab.grab(bbox=(app.winfo_rootx(),app.winfo_rooty(),app.winfo_rootx()+app.winfo_width(),app.winfo_rooty()+app.winfo_height()),xdisplay=os.environ['DISPLAY']).save(os.environ['SCANATLAS_SCREENSHOT'])
                 app.wifi_deconnecter();self.assertIsNone(app.wifi_robot)
                 self.assertIsNotNone(app.wifi_etat)
         finally:

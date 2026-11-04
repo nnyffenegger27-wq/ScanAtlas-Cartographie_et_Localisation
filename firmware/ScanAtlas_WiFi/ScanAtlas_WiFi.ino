@@ -6,28 +6,23 @@
 #include <WiFiUdp.h>
 #include <esp_timer.h>
 #include <freertos/semphr.h>
-#include "MecanumCar_v2.h"
+#include "motor_pwm.h"
 #include "protocol.h"
 
 const char *AP_SSID="ScanAtlas";
 const char *AP_PASSWORD="ScanAtlas2026"; // Modifier ici avant flash si souhaité.
 const uint16_t COMMAND_PORT=4210,SCAN_PORT=4211;
-mecanumCar car(19,21);  // Broches du README matériel fourni, pas SDA/SCL par défaut.
+MotorPWM car;  // PWM direct ; profil dans motor_config.h.
 WiFiUDP udp;
 WiFiServer server(SCAN_PORT);
-QueueHandle_t scans;
+QueueHandle_t scans,scansUSB;
+unsigned usbRemaining=0;
 SemaphoreHandle_t ownerMutex;
 char ownerToken[33]={0};IPAddress ownerIP;bool ownerActive=false;
 uint32_t dataAlive=0;  // millis du dernier tour transféré (pas de backlog moteur).
 
 void applyMotion(Motion m,unsigned pwm) {
-  speed_Upper_L=speed_Lower_L=speed_Upper_R=speed_Lower_R=(uint8_t)pwm;
-  switch(m){
-    case FORWARD:car.Advance();break;case BACK:car.Back();break;
-    case LEFT:car.Turn_Left();break;case RIGHT:car.Turn_Right();break;
-    case STRAFE_L:car.L_Move();break;case STRAFE_R:car.R_Move();break;
-    default:car.Stop();
-  }
+  car.apply(m,pwm);
 }
 void reply(const char *s,IPAddress ip,uint16_t port){
   udp.beginPacket(ip,port);udp.write((const uint8_t*)s,strlen(s));udp.endPacket();
@@ -38,12 +33,12 @@ void commandTask(void *) {
   for(;;){
     uint32_t now=millis();
     if(lease.expired(now)){
-      lease.close();car.Stop();applied=STOP;
+      lease.close();car.stop();applied=STOP;
       xSemaphoreTake(ownerMutex,portMAX_DELAY);ownerActive=false;xSemaphoreGive(ownerMutex);
     }
     // Si le PC ne reçoit plus les scans, on n'entretient pas un mouvement aveugle.
-    xSemaphoreTake(ownerMutex,portMAX_DELAY);bool fresh=uint32_t(now-dataAlive)<600;xSemaphoreGive(ownerMutex);
-    if(!fresh&&applied!=STOP){car.Stop();applied=STOP;}
+    xSemaphoreTake(ownerMutex,portMAX_DELAY);bool fresh=usbRemaining==0&&dataAlive!=0&&uint32_t(millis()-dataAlive)<600;xSemaphoreGive(ownerMutex);
+    if(!fresh&&applied!=STOP){car.stop();applied=STOP;}
     int n=udp.parsePacket();
     if(n>0){
       char buf[128];int got=udp.read(buf,sizeof(buf)-1);buf[got>0?got:0]=0;
@@ -52,7 +47,7 @@ void commandTask(void *) {
       char tok[33],extra;
       if(sscanf(buf,"HELLO %32s %c",tok,&extra)==1&&tokenValid(tok)){
         if(!lease.active){
-          car.Stop();applied=STOP;lease.open(now);ownerPort=port;
+          car.stop();applied=STOP;lease.open(now);ownerPort=port;
           xSemaphoreTake(ownerMutex,portMAX_DELAY);
           strcpy(ownerToken,tok);ownerIP=ip;ownerActive=true;dataAlive=0;
           xSemaphoreGive(ownerMutex);
@@ -109,12 +104,37 @@ void scanTask(void *) {
   }
 }
 
+void usbTask(void *) {
+  static ScanFrame frame;
+  for(;;){
+    if(xQueueReceive(scansUSB,&frame,pdMS_TO_TICKS(100))!=pdTRUE)continue;
+    xSemaphoreTake(ownerMutex,portMAX_DELAY);bool active=usbRemaining>0;xSemaphoreGive(ownerMutex);
+    if(!active)continue;
+    uint16_t n=uint16_t(frame.bytes[6])|(uint16_t(frame.bytes[7])<<8);
+    Serial.println("N,Angle_deg,Distance_mm,Intensity,X_mm,Y_mm");
+    for(unsigned i=0;i<n;++i){
+      xSemaphoreTake(ownerMutex,portMAX_DELAY);active=usbRemaining>0;xSemaphoreGive(ownerMutex);
+      if(!active)break;
+      const uint8_t *p=frame.bytes+26+i*5;
+      double angle=(uint16_t(p[0])|(uint16_t(p[1])<<8))*.01;
+      unsigned distance=uint16_t(p[2])|(uint16_t(p[3])<<8);
+      double a=angle*3.141592653589793/180.;
+      Serial.printf("%u,%.2f,%u,%u,%.2f,%.2f\n",i,angle,distance,unsigned(p[4]),distance*cos(a),distance*sin(a));
+    }
+    Serial.println();
+    xSemaphoreTake(ownerMutex,portMAX_DELAY);if(usbRemaining)--usbRemaining;xSemaphoreGive(ownerMutex);
+  }
+}
+
 void setup(){
-  Serial.begin(115200);car.Init();car.Stop();
+  Serial.begin(115200);
+  if(!car.begin()){Serial.println("Profil PWM invalide : verifier motor_config.h");while(true)delay(1000);}
+  car.stop();
+  if(MOTOR_DIAGNOSTIC){Serial.println("Test PWM : 1..4 sens A ; a..d sens B ; espace STOP. Impulsions 250 ms / PWM 50.");return;}
   pinMode(32,OUTPUT);digitalWrite(32,HIGH);
   Serial2.setRxBufferSize(8192);Serial2.begin(230400,SERIAL_8N1,33,-1);
-  ownerMutex=xSemaphoreCreateMutex();scans=xQueueCreate(1,sizeof(ScanFrame));
-  if(!ownerMutex||!scans){Serial.println("Allocation impossible : moteurs arretes.");while(true)delay(1000);}
+  ownerMutex=xSemaphoreCreateMutex();scans=xQueueCreate(1,sizeof(ScanFrame));scansUSB=xQueueCreate(1,sizeof(ScanFrame));
+  if(!ownerMutex||!scans||!scansUSB){Serial.println("Allocation impossible : moteurs arretes.");while(true)delay(1000);}
   WiFi.mode(WIFI_AP);WiFi.setSleep(false);
   if(!WiFi.softAPConfig(IPAddress(192,168,4,1),IPAddress(192,168,4,1),IPAddress(255,255,255,0))||
      !WiFi.softAP(AP_SSID,AP_PASSWORD,6,0,1)){
@@ -122,15 +142,49 @@ void setup(){
   }
   udp.begin(COMMAND_PORT);server.begin();
   if(xTaskCreate(commandTask,"commands",6144,nullptr,3,nullptr)!=pdPASS||
-     xTaskCreate(scanTask,"scans",6144,nullptr,1,nullptr)!=pdPASS){
-    car.Stop();Serial.println("Taches impossibles.");while(true)delay(1000);
+     xTaskCreate(scanTask,"scans",6144,nullptr,1,nullptr)!=pdPASS||
+     xTaskCreate(usbTask,"usb",4096,nullptr,1,nullptr)!=pdPASS){
+    car.stop();Serial.println("Taches impossibles.");while(true)delay(1000);
   }
   Serial.print("ScanAtlas AP : ");Serial.println(WiFi.softAPIP());
 }
 void loop(){
+  if(MOTOR_DIAGNOSTIC){
+    static uint32_t deadline=0;
+    while(Serial.available()){
+      char c=Serial.read();int motor=-1,power=50;
+      if(c>='1'&&c<='4')motor=c-'1';
+      if(c>='a'&&c<='d'){motor=c-'a';power=-50;}
+      if(motor>=0){car.stop();car.wheel(motor,power);deadline=millis()+250;}
+      else if(c==' '){car.stop();deadline=0;}
+    }
+    if(deadline&&int32_t(millis()-deadline)>=0){car.stop();deadline=0;}
+    delay(1);return;
+  }
   static LidarParser parser;static ScanFrame frame;
+  static char request[32];static unsigned length=0;static bool overflow=false;
+  for(int n=0;n<64&&Serial.available();++n){
+    char c=Serial.read();
+    if(c=='\n'){
+      request[length]=0;unsigned count;
+      if(!overflow&&parseUsbRequest(request,count)){
+        xSemaphoreTake(ownerMutex,portMAX_DELAY);
+        if(!ownerActive||count==0){usbRemaining=count;xQueueReset(scansUSB);}
+        else Serial.println("BUSY : deconnecter le pilotage Wi-Fi avant USB");
+        xSemaphoreGive(ownerMutex);
+      }
+      length=0;overflow=false;
+    }else if(c!='\r'){
+      if(length<sizeof(request)-1)request[length++]=c;else overflow=true;
+    }
+  }
   // Un tour par trame, CRC UART puis CRC réseau. La file ne garde que le dernier.
   for(int n=0;n<4096&&Serial2.available();++n)
-    if(parser.feed(Serial2.read(),esp_timer_get_time(),frame))xQueueOverwrite(scans,&frame);
+    if(parser.feed(Serial2.read(),esp_timer_get_time(),frame)){
+      xQueueOverwrite(scans,&frame);
+      xSemaphoreTake(ownerMutex,portMAX_DELAY);bool wanted=usbRemaining>0;xSemaphoreGive(ownerMutex);
+      if(wanted)xQueueOverwrite(scansUSB,&frame);
+    }
   delay(1);
 }
+

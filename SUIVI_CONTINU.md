@@ -1,3 +1,5 @@
+> **Version du 4 novembre 2026** — Interface en trois espaces, carte reprise, localisation seule, grille en direct, PWM et USB/Wi-Fi réunis. Consulter [le guide actuel](GUIDE_SCANATLAS_V3.md). Les descriptions antérieures ci-dessous peuvent correspondre à une version précédente.
+
 # Suivi continu et interface simplifiée
 
 L’application conserve **un seul onglet Localisation** pour le TP Jour 2 :

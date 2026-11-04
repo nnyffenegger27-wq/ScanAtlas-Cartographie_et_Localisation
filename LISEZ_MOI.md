@@ -1,3 +1,5 @@
+> **Version du 4 novembre 2026** — Interface en trois espaces, carte reprise, localisation seule, grille en direct, PWM et USB/Wi-Fi réunis. Consulter [le guide actuel](GUIDE_SCANATLAS_V3.md). Les descriptions antérieures ci-dessous peuvent correspondre à une version précédente.
+
 # LD06 Atelier — ton application Python de TP
 
 Application locale en français pour acquérir, comprendre et cartographier les scans LD06.

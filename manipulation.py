@@ -82,6 +82,7 @@ class ManipulationScan:
         self.bouger(event)
         g, self.geste = self.geste, None
         if g is not None and not np.allclose(g['scan'].pose, g['pose'], rtol=0, atol=1e-12):
+            self.derniere_pose_avant = list(g['pose'])
             self.terminer()
 
     def annuler(self):
@@ -93,3 +94,4 @@ class ManipulationScan:
     def touche(self, event):
         if event.key == 'escape':
             self.annuler()
+

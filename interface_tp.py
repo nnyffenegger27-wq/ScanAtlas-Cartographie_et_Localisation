@@ -12,30 +12,47 @@ from localisation_tp import (ReferenceGrille,ReferenceVectorielle,ReferenceScan,
 
 class InterfaceTP:
     def interface_tp(self,cadre):
-        ttk.Label(cadre,text='Localisation sur les trois références du TP',style='SousTitre.TLabel').pack(anchor='w',pady=(2,8))
+        ttk.Label(cadre,text='Recaler un scan',style='Section.TLabel').pack(anchor='w',pady=(2,8))
+        ttk.Label(cadre,text='Scan mobile').pack(anchor='w')
+        self.choix_mobile_tp=ttk.Combobox(cadre,state='readonly',width=29)
+        self.choix_mobile_tp.pack(fill='x',pady=(3,8))
+        self.choix_mobile_tp.bind('<<ComboboxSelected>>',self.selection_mobile_tp)
         self.vars['tp_reference']=tk.StringVar(value='Grille')
         self.vars['tp_methode']=tk.StringVar(value=MULTI)
         for label,cle,choix in [('Type de référence','tp_reference',['Grille','Carte vectorielle','Scan']),
                                 ('Méthode','tp_methode',[MULTI,LOCALE])]:
             ligne=ttk.Frame(cadre);ligne.pack(fill='x',pady=2)
-            ttk.Label(ligne,text=label).pack(side='left')
-            ttk.Combobox(ligne,textvariable=self.vars[cle],values=choix,state='readonly',width=44).pack(side='right')
+            ttk.Label(ligne,text=label).pack(anchor='w')
+            ttk.Combobox(ligne,textvariable=self.vars[cle],values=choix,state='readonly',width=29).pack(fill='x',pady=(2,6))
         ligne=ttk.Frame(cadre);ligne.pack(fill='x')
-        ttk.Label(ligne,text='Référence pour le mode Scan').pack(side='left')
-        self.choix_reference_tp=ttk.Combobox(ligne,state='readonly',width=44)
-        self.choix_reference_tp.pack(side='right')
-        ttk.Label(cadre,text='Mobile = scan sélectionné à gauche. Construis la grille ou la carte vectorielle sans ce mobile.\n'
-            'Ces méthodes partent de sa pose actuelle. Multi-résolution : voisinage ±1 m / ±30°, puis affinement.').pack(anchor='w')
+        ttk.Label(ligne,text='Référence pour le mode Scan').pack(anchor='w')
+        self.choix_reference_tp=ttk.Combobox(ligne,state='readonly',width=29)
+        self.choix_reference_tp.pack(fill='x',pady=(2,6))
+        ttk.Label(cadre,text='Choisis le scan mobile ci-dessus. Construis la grille ou la carte vectorielle sans ce mobile.\n'
+            'Ces méthodes partent de sa pose actuelle. Multi-résolution : voisinage ±1 m / ±30°, puis affinement.',wraplength=315).pack(anchor='w')
         actions=ttk.Frame(cadre);actions.pack(fill='x')
         for texte,action in [('Localiser sur cette référence',self.lancer_localisation_tp),
                              ('Appliquer la pose',self.appliquer_localisation_tp),('Annuler',self.annuler_calcul)]:
-            ttk.Button(actions,text=texte,command=lambda a=action:self.proteger(a)).pack(side='left',padx=2,pady=4)
-        ttk.Button(cadre,text='Évaluer les 6 combinaisons sur les mêmes scans simulés et exporter les CSV',
+            ttk.Button(actions,text=texte,command=lambda a=action:self.proteger(a)).pack(fill='x',pady=3)
+        ttk.Button(cadre,text='Évaluer les 6 combinaisons du TP…',
                    command=lambda:self.proteger(self.lancer_evaluation_tp)).pack(fill='x')
-        self.info_tp=ttk.Label(cadre,text='Résultats de pose à vérifier ; concordance et RMSE ne sont pas des erreurs vraies.',wraplength=900)
+        self.info_tp=ttk.Label(cadre,text='Résultats de pose à vérifier ; concordance et RMSE ne sont pas des erreurs vraies.',wraplength=315)
         self.info_tp.pack(anchor='w')
+        from apparence import Repliable
+        avance=Repliable(cadre,'Pose initiale',ouvert=False);avance.pack(fill='x',pady=8)
+        for cle,texte in [('x','x (m)'),('y','y (m)'),('orientation','Orientation (°)')]:
+            ligne=ttk.Frame(avance.contenu);ligne.pack(fill='x',pady=2)
+            ttk.Label(ligne,text=texte).pack(side='left')
+            ttk.Entry(ligne,textvariable=self.vars[cle],width=13).pack(side='right')
+        ttk.Button(avance.contenu,text='Appliquer la pose initiale',command=lambda:self.proteger(self.appliquer_pose)).pack(fill='x')
         self.resultat_tp=None
         self.actualiser_choix_tp()
+
+    def selection_mobile_tp(self,event=None):
+        i=self.choix_mobile_tp.current()
+        if 0<=i<len(self.scans):
+            self.liste.selection_set(str(i));self.liste.focus(str(i))
+            self.selection(None)
 
     def actualiser_choix_tp(self):
         ancien=getattr(self,'references_tp',[])
@@ -43,6 +60,12 @@ class InterfaceTP:
         objet=ancien[index] if 0<=index<len(ancien) else None
         self.references_tp=list(self.scans)
         self.choix_reference_tp['values']=[f'{i+1} · {s.nom}' for i,s in enumerate(self.scans)]
+        if hasattr(self,'choix_mobile_tp'):
+            self.choix_mobile_tp['values']=[f'{i+1} · {s.nom}' for i,s in enumerate(self.scans)]
+            if self.scans:
+                selection=self.liste.selection()
+                self.choix_mobile_tp.current(int(selection[0]) if selection else 0)
+            else:self.choix_mobile_tp.set('')
         if self.scans:self.choix_reference_tp.current(next((i for i,s in enumerate(self.scans) if s is objet),0))
         else:self.choix_reference_tp.set('')
 
@@ -132,6 +155,7 @@ class InterfaceTP:
         c,r=self.resultat_tp
         if not self.contexte_tp_valide(c):raise ValueError('Résultat TP périmé : relance le calcul.')
         if not r.applicable:raise ValueError('Pose TP refusée : '+r.message)
+        if hasattr(self,'memoriser_pose'):self.memoriser_pose(c['mobile'])
         c['mobile'].pose=list(r.pose);c['mobile'].suivi_recalage=None
         self.invalider(conserver_grille=id(c['mobile']) not in self.scans_grille)
         self.actualiser(next(i for i,s in enumerate(self.scans) if s is c['mobile']))
@@ -158,3 +182,4 @@ class InterfaceTP:
             f"{r['corrects_acceptes']} correctes acceptées, {r['faux_acceptes']} fausses acceptées ; médiane {r['mediane_s']:.3f} s." for r in synthese)
         self.info_tp.configure(text=texte+'\nCSV détaillé et synthèse enregistrés : '+chemin)
         self.statut.set('Évaluation TP terminée ; simulation connue, pas une mesure sur le robot.')
+

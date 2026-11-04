@@ -1,3 +1,5 @@
+> **Version du 4 novembre 2026** — Interface en trois espaces, carte reprise, localisation seule, grille en direct, PWM et USB/Wi-Fi réunis. Consulter [le guide actuel](GUIDE_SCANATLAS_V3.md). Les descriptions antérieures ci-dessous peuvent correspondre à une version précédente.
+
 # LD06 Atelier
 
 Application Python locale pour le TP EIGSI de cartographie et localisation lidar.

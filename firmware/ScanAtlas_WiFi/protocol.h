@@ -84,3 +84,11 @@ class LidarParser {
     return ready;
   }
 };
+
+
+// Requête USB compatible avec le CSV historique : SCAN 0 annule.
+inline bool parseUsbRequest(const char *s,unsigned &nombre){
+  unsigned n;char extra;
+  if(strncmp(s,"SCAN ",5)||sscanf(s+5,"%u %c",&n,&extra)!=1||n>20)return false;
+  nombre=n;return true;
+}

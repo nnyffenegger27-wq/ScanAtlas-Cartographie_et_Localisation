@@ -3,14 +3,16 @@
 Premier scan ancré ; références figées pendant chaque recalage ; insertion
 uniquement après validation. Aucune odométrie n'est inventée depuis les touches.
 """
+from copy import deepcopy
 from dataclasses import dataclass
 from time import perf_counter
 import threading
 import numpy as np
 from scipy.spatial import cKDTree
 from cartographie import (extraire_segments, ajuster_segment, proches, longueur,
-                         Scan, mesures_valides)
-from localisation import points_filtres, transformer, erreur_pose
+                         Scan, Grille, mesures_valides)
+from localisation import points_filtres, transformer, erreur_pose, sous_carte
+from localisation_globale import localisation_globale
 from localisation_tp import localiser_sur_reference, LOCALE, MULTI
 from suivi_lidar import ReferenceSuivi, icp_droites, predire
 
@@ -57,10 +59,12 @@ class EtatDirect:
     scans_cles: tuple
     rmse: float = float('nan')
     methode: str = 'Ancrage'
+    grille: object = None
+    enrichissement: bool = True
 
 
 class CarteDirecte:
-    def __init__(self, filtres=None):
+    def __init__(self, filtres=None, scans=None, segments=None, resolution=.1):
         self.filtres = dict(filtres or dict(mini=.05, maxi=12., intensite=0))
         self.points = np.empty((0, 2))
         self.appuis = []
@@ -77,12 +81,53 @@ class CarteDirecte:
         self.historique_poses = []
         self.dernier_essai = 0.
         self.dernier_refus = ""
+        self.enrichir = True
+        self.resolution = resolution
+        self.grille = None
+        self.localisation_globale_requise = False
+        self.prochain_global = 0.
+        if scans:
+            self.charger_reference(scans, segments)
+
+    def charger_reference(self, scans, segments=None):
+        """Copie indépendante des scans cochés et de leurs poses, sans réancrage."""
+        copies = deepcopy(list(scans))
+        if not copies or len(copies)>2000:
+            raise ValueError('Choisir de 1 à 2000 scans de référence.')
+        points = reduire(np.vstack([points_filtres(s,self.filtres) for s in copies]))
+        reference = ReferenceSuivi(points)
+        grille = Grille.creer(copies,self.resolution,**self.filtres)
+        for scan in copies:
+            if self.annuler.is_set():raise ValueError('Chargement annulé.')
+            grille.mettre_a_jour(scan,**self.filtres)
+        self.points, self.reference_locale, self.grille, self.cles = points, reference, grille, copies
+        self.appuis = []
+        if segments is not None:
+            for segment in segments:
+                segment=np.asarray(segment,float)
+                if segment.shape!=(2,2) or not np.isfinite(segment).all() or longueur(segment)<1e-8:
+                    raise ValueError('Segment de référence invalide.')
+                n=max(6,min(160,int(longueur(segment)/.03)+1))
+                self.appuis.append((segment.copy(),np.linspace(segment[0],segment[1],n)))
+        else:
+            for scan in copies:self.appuis = self._ajouter_segments(scan)
+        self.localisation_globale_requise=True
+        self.reference_globale=sous_carte(copies,self.filtres)
+
+    def relocaliser(self):
+        """Recherche sur la carte entière au prochain tour, après déplacement inconnu."""
+        if not len(self.points):return
+        self.reference_globale=sous_carte(self.cles,self.filtres)
+        self.localisation_globale_requise=True
+        self.prochain_global=0.
+        self.historique_poses=[]
 
     @property
     def segments(self):
         return [s.copy() for s, _ in self.appuis]
 
-    def traiter(self, trame):
+    def traiter(self, trame, enrichir=None):
+        if enrichir is not None:self.enrichir = bool(enrichir)
         debut = perf_counter()
         scan = trame.scan()
         score = float('nan')
@@ -92,15 +137,29 @@ class CarteDirecte:
         message = ''
         rmse, methode = float('nan'), 'Ancrage'
         try:
-            if self.perdu and not explicite and debut-self.dernier_essai < .5:
-                return EtatDirect(scan, False, 'Nouvel essai en attente : '+self.dernier_refus,
-                    score, perf_counter()-debut, self.points.copy(), self.segments,
-                    np.asarray(self.trajectoire), len(self.cles), tuple(self.cles), rmse, 'Attente')
+            if self.localisation_globale_requise and debut < self.prochain_global:
+                return self.etat(scan,False,'Position inconnue : nouvel essai global en attente.',score,debut,rmse,'Attente globale')
+            if not self.localisation_globale_requise and self.perdu and not explicite and debut-self.dernier_essai < .5:
+                return self.etat(scan,False,'Nouvel essai en attente : '+self.dernier_refus,score,debut,rmse,'Attente')
             self.dernier_essai = debut
             pts = points_filtres(scan, self.filtres, locaux=True)
             if len(pts) < 30 or np.linalg.norm(np.ptp(pts, axis=0)) < 1.:
                 raise ValueError('Pas assez de géométrie après filtrage ; carte en pause.')
-            if self.fin_us is None:
+            if self.localisation_globale_requise:
+                self.prochain_global=debut+5.
+                resultat=localisation_globale(scan,self.reference_globale,annuler=self.annuler,**self.filtres)
+                methode,rmse,score=resultat.methode,resultat.rmse,100*resultat.accord_fin
+                if not resultat.applicable:
+                    raise ValueError('Position inconnue ou ambiguë : '+resultat.message)
+                affine=icp_droites(pts,self.reference_locale,resultat.pose,self.annuler)
+                if not affine.applicable or affine.accord_fin<.75 or affine.rmse>.10:
+                    raise ValueError('Position globale non confirmée par la géométrie locale.')
+                scan.pose=list(affine.pose)
+                rmse,score=affine.rmse,100*affine.accord_fin
+                accepte=True
+                message=f'Position retrouvée dans la carte : {score:.0f} % à 12 cm.'
+                recuperation=True
+            elif self.fin_us is None:
                 scan.pose = [0., 0., 0.]
                 message = 'Premier scan : origine fixe de la carte.'
                 accepte = True
@@ -145,21 +204,28 @@ class CarteDirecte:
             if self.annuler.is_set():
                 raise ValueError('Cartographie arrêtée.')
             ep, ea = erreur_pose(scan.pose, self.pose_cle)
-            cle = self.fin_us is None or ep >= .15 or ea >= 5. or trame.fin_us-self.fin_cle >= 2_000_000
+            cle = self.enrichir and (self.fin_us is None or ep >= .15 or ea >= 5. or trame.fin_us-self.fin_cle >= 2_000_000)
+            if not self.enrichir and not len(self.points):
+                raise ValueError('Localisation seule : charger une carte ou activer la cartographie pour créer une référence.')
             if cle:
                 if len(self.cles) >= 2000:
                     raise ValueError('Limite de 2000 scans clés : enregistrer la carte.')
                 nouveaux_points = reduire(np.vstack([self.points, transformer(pts, scan.pose)]))
                 nouveaux_appuis = self._ajouter_segments(scan)
                 # Seuls les huit derniers scans clés validés servent au suivi local.
-                recents = (self.cles+[scan])[-8:]
-                local = reduire(np.vstack([points_filtres(s,self.filtres) for s in recents]))
+                # La référence garde aussi la couverture de la carte importée.
+                proches = nouveaux_points[np.linalg.norm(nouveaux_points-np.asarray(scan.pose[:2]),axis=1)<14.]
+                local = proches if len(proches)>=30 else nouveaux_points
                 nouvelle_reference = ReferenceSuivi(local)
+                # Copie à l'insertion seulement : l'UI ne lit jamais une grille en mutation.
+                nouvelle_grille = deepcopy(self.grille) if self.grille is not None else Grille.creer([scan],self.resolution,**self.filtres)
+                nouvelle_grille.mettre_a_jour(scan,**self.filtres)
                 # Publication atomique : aucun état partiellement inséré sur une erreur.
-                self.points, self.appuis = nouveaux_points, nouveaux_appuis
+                self.points, self.appuis, self.grille = nouveaux_points, nouveaux_appuis, nouvelle_grille
                 self.reference_locale = nouvelle_reference
                 self.cles.append(scan)
                 self.pose_cle, self.fin_cle = np.array(scan.pose), trame.fin_us
+            self.localisation_globale_requise = False
             self.pose, self.fin_us = np.array(scan.pose), trame.fin_us
             if recuperation:
                 self.historique_poses = []
@@ -175,8 +241,12 @@ class CarteDirecte:
             self.perdu = True
             self.reprise = False
             message = self.dernier_refus = str(exc)
-        return EtatDirect(scan, accepte, message, score, perf_counter()-debut,
-                          self.points.copy(), self.segments, np.asarray(self.trajectoire), len(self.cles), tuple(self.cles),rmse,methode)
+        return self.etat(scan,accepte,message,score,debut,rmse,methode)
+
+    def etat(self,scan,accepte,message,score,debut,rmse,methode):
+        return EtatDirect(scan,accepte,message,score,perf_counter()-debut,self.points.copy(),
+                          self.segments,np.asarray(self.trajectoire),len(self.cles),tuple(self.cles),
+                          rmse,methode,self.grille,self.enrichir)
 
     def reprendre(self):
         """Autorisation explicite près de la dernière pose validée ; carte conservée."""

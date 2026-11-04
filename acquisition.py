@@ -51,7 +51,7 @@ class AssembleurCSV:
         return None
 
 
-def capturer(port, baud, quantite, annuler, progression, delai=40):
+def capturer(port, baud, quantite, annuler, progression, delai=40, demander_scan=False):
     """À appeler dans un thread. Une ligne incomplète reste en tampon.
 
     Chaque résultat couvre au moins 340°. Les blocs multiples sont conservés ; cela ne garantit
@@ -61,37 +61,44 @@ def capturer(port, baud, quantite, annuler, progression, delai=40):
     scans, tampon, assembleur = [], bytearray(), AssembleurCSV()
     debut = time.monotonic()
     with serial.Serial(port, baudrate=baud, timeout=.2) as liaison:
+        if demander_scan and annuler.wait(1.8):return []
         liaison.reset_input_buffer()
-        while len(scans) < quantite:
-            if annuler.is_set():
-                return []
-            if time.monotonic()-debut > delai:
-                raise TimeoutError(f'{len(scans)}/{quantite} scans reçus en {delai}s ; '
-                                   f'{assembleur.rejets} lignes/blocs rejetés. Vérifie le baud et la sortie CSV.')
-            tampon.extend(liaison.read(liaison.in_waiting or 1))
-            if len(tampon) > 65536:
-                raise ValueError('Aucune fin de ligne reconnue : vérifie le baud.')
-            while b'\n' in tampon:
-                ligne, _, reste = tampon.partition(b'\n')
-                tampon = bytearray(reste)
-                try:
-                    donnees = assembleur.ajouter(ligne.decode('ascii'))
-                except UnicodeDecodeError:
-                    assembleur.ajouter('ERREUR ENCODAGE')
-                    continue
-                if donnees is not None:
-                    # Angles déjà mathématiques : ils décroissent dans le flux.
-                    diagnostic = diagnostic_scan(donnees)
-                    if diagnostic['etendue'] < 340.:
-                        assembleur.rejets += 1
-                        progression(f"Bloc rejeté : {diagnostic['etat']} ({diagnostic['etendue']:.1f}°)")
+        if demander_scan:liaison.write(f'SCAN {quantite}\n'.encode('ascii'))
+        try:
+            while len(scans) < quantite:
+                if annuler.is_set():
+                    return []
+                if time.monotonic()-debut > delai:
+                    raise TimeoutError(f'{len(scans)}/{quantite} scans reçus en {delai}s ; '
+                                       f'{assembleur.rejets} lignes/blocs rejetés. Vérifie le baud et la sortie CSV.')
+                tampon.extend(liaison.read(liaison.in_waiting or 1))
+                if len(tampon) > 65536:
+                    raise ValueError('Aucune fin de ligne reconnue : vérifie le baud.')
+                while b'\n' in tampon:
+                    ligne, _, reste = tampon.partition(b'\n')
+                    tampon = bytearray(reste)
+                    try:
+                        donnees = assembleur.ajouter(ligne.decode('ascii'))
+                    except UnicodeDecodeError:
+                        assembleur.ajouter('ERREUR ENCODAGE')
                         continue
-                    scans.append(Scan(f'USB {len(scans)+1}', donnees, source='Acquisition USB réelle',
-                                      angle_reference=ANGLE_REFERENCE_DEFAUT))
-                    detail = f" · {diagnostic['etat']} conservé à pose unique" if not diagnostic['tour_plausible'] else ''
-                    progression(f'{len(scans)}/{quantite} scans reçus' + detail)
-                    if len(scans) >= quantite:
-                        break
+                    if donnees is not None:
+                        # Angles déjà mathématiques : ils décroissent dans le flux.
+                        diagnostic = diagnostic_scan(donnees)
+                        if diagnostic['etendue'] < 340.:
+                            assembleur.rejets += 1
+                            progression(f"Bloc rejeté : {diagnostic['etat']} ({diagnostic['etendue']:.1f}°)")
+                            continue
+                        scans.append(Scan(f'USB {len(scans)+1}', donnees, source='Acquisition USB réelle',
+                                          angle_reference=ANGLE_REFERENCE_DEFAUT))
+                        detail = f" · {diagnostic['etat']} conservé à pose unique" if not diagnostic['tour_plausible'] else ''
+                        progression(f'{len(scans)}/{quantite} scans reçus' + detail)
+                        if len(scans) >= quantite:
+                            break
+        finally:
+            if demander_scan:
+                try:liaison.write(b'SCAN 0\n')
+                except OSError:pass
     return scans
 
 

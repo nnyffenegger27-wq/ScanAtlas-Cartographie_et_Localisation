@@ -125,6 +125,7 @@ class RobotWifi:
         self.envoyee = "STOP"
         self.effective = "EN ATTENTE"
         self.date_ack = 0.
+        self.journal = None
 
     def diagnostic_commande(self):
         with self.lock:
@@ -235,6 +236,7 @@ class RobotWifi:
                         raise ValueError('Scan ancien ou redémarrage ESP32 : reconnecter.')
                     seq, fin = trame.sequence, trame.fin_us
                     self.dernier_scan = dernier_recu = time.monotonic()
+                    if self.journal is not None:self.journal.brut(trame)
                     self.recus += 1
                     dernier(self.scans, trame)
         except (OSError, ValueError) as exc:
