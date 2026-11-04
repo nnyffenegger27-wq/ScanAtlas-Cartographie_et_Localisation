@@ -104,9 +104,11 @@ ROTATION_65 = 35.        # °/s
 RAYON_ROBOT = .17        # m, pour les collisions
 
 
-def mesures_simulees(pose, rng, murs=SALLE_DEMO, n=450, portee=12., bruit=.003):
+def mesures_simulees(pose, rng, murs=SALLE_DEMO, n=450, portee=12., bruit=.003, dephasage=False):
     """Un tour de lidar depuis `pose` : tableau (angle °, distance m, intensité)."""
     angles = np.linspace(0, 360, n, endpoint=False)
+    if dephasage:
+        angles = angles+rng.uniform(0, 360/n)      # un vrai lidar ne repart pas du même angle à chaque tour
     a = np.deg2rad(angles+pose[2])
     rayons = np.column_stack([np.cos(a), np.sin(a)])
     dist = np.full(len(angles), float(portee))
@@ -153,8 +155,9 @@ def deplacer(pose, avance, gauche, tourne, dt, murs=SALLE_DEMO, rayon=RAYON_ROBO
 
 class SalleVirtuelle:
     """Robot + salle avancés à pas de temps fixe, pour tester sans temps réel."""
-    def __init__(self, murs=SALLE_DEUX_PIECES, pose=(0., -1., 0.), graine=1, derive=0., bruit=.003):
+    def __init__(self, murs=SALLE_DEUX_PIECES, pose=(0., -1., 0.), graine=1, derive=0., bruit=.003, points=450, duree_tour=100000):
         self.murs = murs
+        self.points, self.duree_tour = points, duree_tour      # LD06 en câble : ~260 points par tour, 58 ms
         self.bruit = bruit               # écart-type du bruit de mesure en mètres (un LD06 réel : 1 à 2 cm)
         self.pose = np.array(pose, float)
         self.rng = np.random.default_rng(graine)
@@ -172,4 +175,5 @@ class SalleVirtuelle:
     def trame(self):
         self.sequence += 1
         fin = 1_000_000+int(self.t*1e6)
-        return TrameScan(self.sequence, fin, 100000, mesures_simulees(self.pose, self.rng, self.murs, bruit=self.bruit))
+        return TrameScan(self.sequence, fin, self.duree_tour, mesures_simulees(self.pose, self.rng, self.murs, n=self.points,
+                                                                              bruit=self.bruit, dephasage=self.points != 450))

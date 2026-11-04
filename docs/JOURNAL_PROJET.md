@@ -805,3 +805,24 @@ Retours du même essai, **notés mais pas traités** (à reprendre ensuite) :
 4. Exploration : le robot va trop vite ; envisager des étapes de 50 cm avec scan, en gardant la localisation pendant le déplacement. Précision de l'utilisateur : la carte peut être construite en continu si le coût est maîtrisé (c'est le cas maintenant : scans clés tous les 15 cm / 5°).
 
 Validation : 216 tests réussis (nouveaux : `tests/test_charge_carte.py` — `reduire`, préfiltre, scans clés à l'arrêt et en mouvement, points périmés, journal hors du chemin critique, carte unique).
+
+## 4 novembre 2026 (16 h) — le suivi se perdait tout le temps sur le vrai robot : régression de ma correction du gel
+
+**Constat (journaux du robot).** Jusqu'à 15 h 51 presque toutes les sessions étaient à ~100 % de scans acceptés. Après l'installation de la correction du gel (fb74c77), plusieurs sessions tombent à 13–53 % : « Suivi actif » / « Suivi perdu » en boucle, `Recalage refusé : 88 % à 12 cm, RMSE 0.101 m, déplacement 0.00 m`, robot immobile.
+
+**Méthode.** Les journaux contiennent les tours bruts : je les rejoue dans `CarteDirecte` avec l'horloge du lidar (`perf_counter` remplacé par `fin_us`), ancien code (5deb327) contre nouveau. Résultat identique à ce que l'utilisateur voit : ancien 93–96 %, nouveau 14–27 %. Sans cette horloge, le rejeu est faux (les attentes de 0,5 s entre essais ne passent jamais).
+
+**Cause.** Le lidar en câble ne donne que ~261 points par tour (1,4°, 58 ms). Ma correction supprimait les scans clés à l'arrêt (pour ne pas gonfler la carte). La référence du suivi restait alors un seul tour clairsemé ; or la validation du recalage mesure la distance de chaque point au *point de référence le plus proche* : un point exact du mur, tombé entre deux points de référence (20 cm et plus à 8–12 m, ou en rasant un mur), paraît à plus de 12 cm. 11–15 % de points hors tolérance suffisent à faire dépasser RMSE 0,10 m, et le suivi est refusé à l'arrêt. Ma simulation (450 points, bruit 3 mm) ne pouvait pas montrer ce défaut.
+
+**Correctifs.**
+1. `cartographie_direct.py` : à l'arrêt, jusqu'à `STATIQUES_MAX = 12` scans clés espacés d'1 s (densification), puis plus aucun tant que le robot ne bouge pas. La carte ne grossit donc pas pendant une pause (le gel venait de la croissance sans fin), mais la référence est assez dense. Compteur remis à zéro par un scan clé en mouvement.
+2. `suivi_lidar.py` : `ecart_a_la_reference` : l'écart d'un point est le minimum de la distance au point le plus proche (diminuée de la moitié de l'espacement local au-delà de 5 cm) et de la distance à la droite locale du mur. Une carte dense n'est pas touchée.
+3. Les points périmés (SEUIL_PERIME) ne sont pas en cause : taux d'acceptation identique avec ou sans sur les vraies données.
+
+**Mesures (rejeu des vraies sessions).** 15 h 56 : 35 % → 96 % ; 15 h 59 : 14 % → 96 % ; 16 h 01 : 21 % → 99 % ; 15 h 59 (démarrage seul, 9 s) : 6 % → 75 % ; longues sessions qui marchaient : 93–100 % conservés avec 5 fois moins de scans clés (2309 tours : 140 → 30).
+
+**Tests.** `tests/donnees/lidar_cable_arret.jsonl.gz` (330 vrais tours) + `ToursReels` (échoue à 39 % sur fb74c77), `LidarClairseme` (simulation 261 points), `SalleVirtuelle(points=, duree_tour=)`. 219 tests OK.
+
+**Leçon.** Valider sur les vrais journaux avant de pousser : une simulation propre ne remplace pas le rejeu de tours réels. Le rejeu est maintenant un outil du dépôt : `python outils/rejouer_journal.py <tours.jsonl>`.
+
+**Reste à traiter.** Démarrage à froid : les 5–10 premières secondes restent fragiles (75 %) ; déconnexions Wi-Fi (`WinError 10051`, « Pause de 1–2 s sans scan »), écart de 89°, dérive du sway, vitesse d'exploration.

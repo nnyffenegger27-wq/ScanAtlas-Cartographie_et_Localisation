@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import numpy as np
 import journal_direct
 from cartographie import demonstration, proches
-from cartographie_direct import CarteDirecte, reduire
+from cartographie_direct import CarteDirecte, reduire, STATIQUES_MAX
 from document_carte import DocumentCarte, grille_vers_json, valider_session
 from journal_direct import JournalDirect
 from simulation import SalleVirtuelle, SALLE_DEMO, rectangle
@@ -55,10 +55,13 @@ def rouler(carte, salle, commande, secondes, dt=.1):
 
 
 class ScansCles(unittest.TestCase):
-    def test_robot_a_l_arret_n_ajoute_aucun_scan_cle(self):
+    def test_robot_a_l_arret_ne_remplit_pas_la_carte_de_scans_cles(self):
         salle, carte = SalleVirtuelle(SALLE_DEMO, pose=(0., 0., 0.)), CarteDirecte()
         rouler(carte, salle, (0, 0, 0), 20.)
-        self.assertEqual(len(carte.cles), 1)                       # que le premier scan, pas un toutes les 2 s
+        self.assertLessEqual(len(carte.cles), 1+STATIQUES_MAX)     # quelques scans de densification, puis plus rien
+        n = len(carte.cles)
+        rouler(carte, salle, (0, 0, 0), 20.)
+        self.assertEqual(len(carte.cles), n)                       # pas un toutes les 2 s : la carte ne grossit pas à l'arrêt
 
     def test_un_scan_cle_tous_les_15_cm_environ(self):
         salle, carte = SalleVirtuelle(SALLE_DEMO, pose=(-2., 0., 0.)), CarteDirecte()
@@ -67,6 +70,57 @@ class ScansCles(unittest.TestCase):
         self.assertGreater(parcouru, 2.)
         self.assertLessEqual(len(carte.cles), parcouru/.15+3)
         self.assertGreaterEqual(len(carte.cles), parcouru/.3)
+
+
+class LidarClairseme(unittest.TestCase):
+    """LD06 en câble : ~260 points par tour (1,4°). Une référence d'un seul tour est trop clairsemée : le suivi doit
+    rester accroché à l'arrêt (régression observée sur le robot : 13 à 50 % de scans acceptés, « Suivi perdu » en boucle)."""
+    def test_suivi_accroche_a_l_arret_dans_une_grande_salle(self):
+        from simulation import SALLE_APPARTEMENT
+        salle = SalleVirtuelle(SALLE_APPARTEMENT, pose=(2., 4.6, 0.), bruit=.012, points=261, duree_tour=58000)
+        carte, acceptes, n = CarteDirecte(), 0, 0
+        for _ in range(int(40/.058)):
+            salle.avancer((0, 0, 0), .058)
+            etat = carte.traiter(salle.trame())
+            n += 1
+            acceptes += bool(etat.accepte)
+        self.assertGreaterEqual(acceptes/n, .95)
+
+    def test_suivi_accroche_en_roulant_avec_un_lidar_clairseme(self):
+        salle = SalleVirtuelle(SALLE_DEMO, pose=(-2., 0., 0.), bruit=.012, points=261, duree_tour=58000)
+        carte, acceptes, n = CarteDirecte(), 0, 0
+        for commande, duree in (((0, 0, 0), 4.), ((30, 0, 0), 6.), ((0, 0, 0), 4.), ((0, 30, 0), 3.), ((0, 0, 0), 4.)):
+            for _ in range(int(duree/.058)):
+                salle.avancer(commande, .058)
+                etat = carte.traiter(salle.trame())
+                n += 1
+                acceptes += bool(etat.accepte)
+        self.assertGreaterEqual(acceptes/n, .95)
+
+
+class ToursReels(unittest.TestCase):
+    """330 tours enregistrés sur le robot (LD06 en câble, immobile dans une pièce, 4 nov. 2026) : le suivi ne doit pas se perdre.
+    Avant correction : 13 à 21 % de scans acceptés, « Recalage refusé : 88 % à 12 cm, RMSE 0.101 m, déplacement 0.00 m »."""
+    def test_suivi_a_l_arret_sur_de_vrais_tours(self):
+        import gzip
+        import cartographie_direct
+        from robot_wifi import TrameScan
+        horloge = [0.]
+        avant, cartographie_direct.perf_counter = cartographie_direct.perf_counter, lambda: horloge[0]     # le temps réel du rejeu
+        try:
+            carte, acceptes, n = CarteDirecte(), 0, 0
+            with gzip.open(Path(__file__).parent/'donnees'/'lidar_cable_arret.jsonl.gz', 'rt', encoding='utf-8') as f:
+                for ligne in f:
+                    j = json.loads(ligne)
+                    horloge[0] = j['fin_us']/1e6
+                    etat = carte.traiter(TrameScan(j['sequence'], j['fin_us'], j['duree_us'], np.array(j['mesures'], float)))
+                    n += 1
+                    acceptes += bool(etat.accepte)
+        finally:
+            cartographie_direct.perf_counter = avant
+        self.assertEqual(n, 330)
+        self.assertGreaterEqual(acceptes/n, .95)
+        self.assertLessEqual(len(carte.cles), 1+STATIQUES_MAX)
 
 
 class PointsPerimes(unittest.TestCase):

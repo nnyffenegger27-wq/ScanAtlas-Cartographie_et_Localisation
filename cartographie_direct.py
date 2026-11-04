@@ -78,8 +78,14 @@ PROBATION_SCANS = 3
 # (≈ 40 ms), donc ce n'est plus un risque de gel ; le suivi, lui, tourne à chaque tour de lidar.
 CLE_DISTANCE = .15
 CLE_ANGLE = 5.
-CLE_DELAI_US = 3_000_000        # robot qui bouge très lentement : au plus un scan clé toutes les 3 s…
-IMMOBILE_DISTANCE, IMMOBILE_ANGLE = .04, 1.5      # …mais jamais pendant qu'il est à l'arrêt (pas de scan clé inutile)
+CLE_DELAI_US = 3_000_000        # robot qui bouge très lentement : au plus un scan clé toutes les 3 s
+IMMOBILE_DISTANCE, IMMOBILE_ANGLE = .04, 1.5
+# À l'arrêt, quelques scans clés rapprochés densifient la carte autour de la pose (le lidar en câble ne donne que
+# ~260 points par tour : une référence faite d'un seul tour est trop clairsemée, la distance au point le plus proche
+# fait grimper le RMSE au-dessus du seuil et le suivi se perd à l'arrêt). Au-delà, plus rien n'est ajouté tant que
+# le robot ne s'est pas déplacé : la carte ne grossit pas pendant une pause.
+STATIQUES_MAX = 12
+CLE_DELAI_STATIQUE_US = 1_000_000
 
 # Un point de la carte est périmé quand les rayons d'un nouveau scan l'ont traversé assez souvent : son
 # log-odds de la grille d'occupation est repassé sous ce seuil (impact +0,85, rayon traversant -0,4).
@@ -97,6 +103,7 @@ class CarteDirecte:
         self.pose_cle = np.zeros(3)
         self.fin_us = None
         self.fin_cle = 0
+        self.statiques = 0       # scans clés consécutifs pris à l'arrêt (plafonnés par STATIQUES_MAX)
         self.perdu = False
         self.reprise = False
         self.annuler = threading.Event()
@@ -322,8 +329,12 @@ class CarteDirecte:
             amorce = not self.enrichir and not len(self.points)
             surveille = sous_surveillance or self.probation > 0
             immobile = ep < IMMOBILE_DISTANCE and ea < IMMOBILE_ANGLE
-            cle = (self.enrichir or amorce) and (self.fin_us is None or (not surveille and not immobile and (
-                ep >= CLE_DISTANCE or ea >= CLE_ANGLE or trame.fin_us-self.fin_cle >= CLE_DELAI_US)))
+            ecoule = trame.fin_us-self.fin_cle
+            if immobile:
+                declencheur = self.statiques < STATIQUES_MAX and ecoule >= CLE_DELAI_STATIQUE_US
+            else:
+                declencheur = ep >= CLE_DISTANCE or ea >= CLE_ANGLE or ecoule >= CLE_DELAI_US
+            cle = (self.enrichir or amorce) and (self.fin_us is None or (not surveille and declencheur))
             if surveille and self.enrichir and self.fin_us is not None:
                 message += ' Carte non enrichie pendant la vérification de la position.'
             if amorce:
@@ -347,6 +358,7 @@ class CarteDirecte:
                 self.points, self.appuis, self.grille = nouveaux_points, nouveaux_appuis, nouvelle_grille
                 self.reference_locale = nouvelle_reference
                 self.cles.append(scan)
+                self.statiques = self.statiques+1 if immobile and self.fin_us is not None else 0
                 self.pose_cle, self.fin_cle = np.array(scan.pose), trame.fin_us
             self.localisation_globale_requise = False
             if sous_surveillance:

@@ -77,10 +77,35 @@ class ReferenceSuivi:
         valeurs,axes = np.linalg.eigh(covariance)
         self.normales = axes[:,:,0]
         self.centres = centres
+        self.espacement = distances[:,1]        # écart au voisin le plus proche : densité locale de la référence
         self.valides = ((valeurs[:,1]>.0001)&(valeurs[:,0]<.08*valeurs[:,1])&
                         (distances[:,-1]<.6))
 
     def distance(self, points):return self.arbre.query(points)[0]
+
+
+PORTEE_DROITE = .20
+ESPACEMENT_DENSE = .05      # écart entre points d'une référence assez dense (grille de réduction de la carte)
+
+
+def ecart_a_la_reference(reference, points):
+    """Écart de chaque point à la référence : distance au point le plus proche, ou à la droite locale de ce point.
+
+    Un lidar de ~260 points par tour échantillonne un mur tous les 10 cm et plus : un point exact du mur tombe
+    entre deux points de la référence et paraît à 5 cm d'un mur qu'il touche. La distance à la droite locale ne
+    dépend pas de la densité de la référence. Elle n'est utilisée que si un point de référence « en droite » est à
+    moins de PORTEE_DROITE : un prolongement de droite vers le vide n'est pas compté comme un impact.
+    """
+    d,idx = reference.arbre.query(points)
+    espacement = getattr(reference,'espacement',None)
+    if espacement is not None:
+        # Entre deux points d'une référence clairsemée, un point exact du mur peut être à la moitié de leur écart.
+        d = np.maximum(d-.5*np.maximum(espacement[idx]-ESPACEMENT_DENSE,0.),0.)
+    valides = reference.valides[idx] & (d<PORTEE_DROITE)
+    if valides.any():
+        lateral = np.abs(np.sum((points[valides]-reference.centres[idx[valides]])*reference.normales[idx[valides]],axis=1))
+        d = d.copy();d[valides] = np.minimum(d[valides],lateral)
+    return d
 
 
 def icp_droites(source, reference, initiale, annuler=None, iterations=30):
@@ -116,7 +141,7 @@ def icp_droites(source, reference, initiale, annuler=None, iterations=30):
         if np.linalg.norm(pas[:2])<.0002 and abs(pas[2])<.0001 and k>=4:
             converge=True;break
     # Validation exacte point-à-point : ne pas compter un prolongement de droite comme un impact.
-    d = reference.distance(transformer(source,pose));bons = d<.5
+    d = ecart_a_la_reference(reference,transformer(source,pose));bons = d<.5
     accord = float(np.mean(d<=.12))
     rmse = float(np.sqrt(np.mean(d[bons]**2))) if bons.any() else float('inf')
     # Un suivi dont le dernier pas est déjà de moins de 3 mm et 0,05° est stable même si le seuil
@@ -130,7 +155,7 @@ def icp_droites(source, reference, initiale, annuler=None, iterations=30):
     elif not geometrie:raison='Géométrie insuffisante (mur unique ou couloir : une direction non contrainte).'
     elif not stable:raison='Recalage non stabilisé.'
     else:raison='Concordance insuffisante.'
-    initial = reference.distance(transformer(source,init));b = initial<.5
+    initial = ecart_a_la_reference(reference,transformer(source,init));b = initial<.5
     erreur_init = float(np.sqrt(np.mean(initial[b]**2))) if b.any() else float('inf')
     return ResultatICP(pose.tolist(),init.tolist(),erreur_init,rmse,float(bons.mean()),
         int(bons.sum()),k+1,perf_counter()-debut,converge,applicable,
