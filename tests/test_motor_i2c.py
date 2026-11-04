@@ -126,9 +126,33 @@ class MotorI2CTests(unittest.TestCase):
         programme = compiler(self.d, VALIDATION, 'val')
         subprocess.run([str(programme)], check=True, capture_output=True)
 
-    def test_defaut_est_pwm(self):
+    def test_pilote_par_defaut_valide(self):
+        # Le défaut dépend du robot ; il doit seulement être l'un des deux pilotes connus.
         texte = (DOSSIER/'motor_config.h').read_text(encoding='utf-8')
-        self.assertIn('#define MOTOR_DRIVER MOTOR_DRIVER_PWM', texte)
+        self.assertRegex(texte, r'#define MOTOR_DRIVER MOTOR_DRIVER_(PWM|I2C)\b')
+
+    def test_fichiers_arduino_sans_bom_et_en_utf8(self):
+        # Un BOM en tête fait échouer le compilateur ESP32 (« stray '#' », U+FEFF).
+        for fichier in DOSSIER.glob('*'):
+            if fichier.suffix in ('.h', '.cpp', '.ino'):
+                octets = fichier.read_bytes()
+                self.assertFalse(octets.startswith(b'\xef\xbb\xbf'), fichier.name)
+                octets.decode('utf-8')
+
+    def test_cpp_i2c_compile_selon_le_pilote(self):
+        stub = self.d/'Arduino.h'
+        stub.write_text('''#pragma once
+#include <cstdint>
+#define OUTPUT 1
+#define INPUT 0
+#define HIGH 1
+#define LOW 0
+void pinMode(int,int);void digitalWrite(int,int);int digitalRead(int);void delay(unsigned long);void delayMicroseconds(unsigned int);
+''')
+        for valeur in (1, 2):
+            resultat = subprocess.run(['g++', '-std=gnu++11', '-fsyntax-only', '-Wall', '-I', str(self.d), '-I', str(DOSSIER),
+                                       f'-DMOTOR_DRIVER={valeur}', str(DOSSIER/'MecanumCar_v2.cpp')], capture_output=True, text=True)
+            self.assertEqual(resultat.returncode, 0, resultat.stderr)
 
 
 if __name__ == '__main__':
