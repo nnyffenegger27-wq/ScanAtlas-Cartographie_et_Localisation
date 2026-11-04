@@ -36,7 +36,9 @@ web/                             interface : index.html, style.css, modules JS (
 session_directe.py               connexion, pilotage, reconnexion, démo, suivi en direct (sans interface)
 document_carte.py                carte partagée : scans, filtres, import/export, recalage, assemblage
 robot_wifi.py, robot_usb.py      transports Wi-Fi (UDP commandes + TCP scans) et USB-série ; bail de commande
-cartographie_direct.py           CarteDirecte : suivi ICP, scans clés, carte incrémentale
+cartographie_direct.py           CarteDirecte : suivi ICP, scans clés, carte incrémentale, replacement guidé (replacer)
+exploration.py                   exploration autonome : frontières, chemin (Dijkstra), commande avec évitement, détections
+simulation.py                    salles simulées (lidar, collisions, cinématique) pour le robot de démo et les tests
 suivi_lidar.py, localisation*.py ICP, localisation globale 360°, localisation TP
 cartographie.py, recalage_capture.py, assemblage_global.py   outils de carte (CSV, grille, segments, assemblage)
 evaluer_tp_jour2.py              comparaison TP des trois références (script, voir outils/)
@@ -97,14 +99,14 @@ Compilation : Arduino IDE, carte « ESP32 Dev Module », Arduino-ESP32 2.0.17, o
 ## 8. Tester
 
 ```
-python -m unittest discover -s tests          # 167 tests, ~60 s
+python -m unittest discover -s tests          # 190 tests, ~80 s
 ```
 
 Plus besoin de Tk ni d'écran virtuel. `tests/test_navigateur.py` pilote un vrai Chromium et est ignoré sans Playwright (`pip install playwright && playwright install chromium`). Le test `tests/test_usb_direct.py` contient de faux en-têtes Arduino pour vérifier la syntaxe du `.ino` avec g++. Les tests moteurs compilent les vrais en-têtes du firmware avec g++ (`tests/test_motor_*.py`). Banc de suivi : `python outils/evaluer_wifi.py`. Robot simulé : `python simuler_robot_wifi.py`.
 
 ## 9. Suite prévue (par ordre)
 
-1. **Valider sur le robot** : piles 18650, firmware à jour, sens du sway, vitesse, Localisation seule, filaire. Lire `evenements.log` et le moniteur série en cas de coupure.
+1. **Valider sur le robot** : exploration autonome (sens des axes, `RAYON_ROBOT`, puissance minimale pour avancer), replacement par indice, piles 18650, firmware à jour, sens du sway, vitesse, Localisation seule, filaire. Lire `evenements.log` et le moniteur série en cas de coupure.
 2. **Interface web** : valider sur Windows (rendu, manette dans le navigateur, port occupé), puis fusionner `claude/interface-web` si elle convient ; retours d'usage à noter dans le journal.
 3. **Prédiction par commandes** : utiliser les commandes envoyées pour initialiser le recalage lidar (modèle de mouvement), avec recherche élargie si le lidar contredit la prédiction. Idée demandée par l'utilisateur pour plus tard.
 4. SLAM « en direct » plus poussé (fermeture de boucle, optimisation de graphe de poses) selon la vidéo de référence, une fois ses attentes précisées.

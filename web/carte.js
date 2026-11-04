@@ -1,6 +1,6 @@
 // Écran Carte : la même carte que le direct, pour la relire, la corriger, l'exporter.
 import { appel, lire, agir, envoyerFichier, lienSession, lienScan, toast } from './api.js';
-import { Vue, nuagePoints, robot } from './vue.js';
+import { Vue, nuagePoints, robot, imageGrille, poserGrille, segments } from './vue.js';
 
 export function creerCarte() {
   const $ = (id) => document.getElementById(id);
@@ -57,11 +57,7 @@ export function creerCarte() {
       const sel = S.nuage.scans.find((s) => s.id === S.choisi);
       if (sel) nuagePoints(ctx, v, sel.pts, indexPose(sel.id), 3.2, c.accent, 1);
     }
-    if (S.couches.has('plan') && S.plan) {
-      ctx.strokeStyle = c.encre; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.beginPath();
-      for (const s of S.plan.segments) { const [x0, y0] = v.versEcran(s[0], s[1]), [x1, y1] = v.versEcran(s[2], s[3]); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); }
-      ctx.stroke();
-    }
+    if (S.couches.has('plan') && S.plan) segments(ctx, v, S.plan.segments, c.encre);
     if (S.proposition && S.nuage) {
       const s = S.nuage.scans.find((q) => q.id === S.proposition.id);
       if (s) nuagePoints(ctx, v, s.pts, S.proposition.pose, 3.4, c.alerte, 1);
@@ -74,24 +70,8 @@ export function creerCarte() {
   }
 
   function dessinerGrille(ctx, v, c) {
-    const g = S.grille;
-    if (!S.image) {
-      const img = document.createElement('canvas'); img.width = g.largeur; img.height = g.hauteur;
-      const x = img.getContext('2d'); const data = x.createImageData(g.largeur, g.hauteur);
-      const brut = Uint8Array.from(atob(g.donnees), (ch) => ch.charCodeAt(0));
-      const tint = (hex) => { const e = document.createElement('canvas').getContext('2d'); e.fillStyle = hex; e.fillRect(0, 0, 1, 1); return e.getImageData(0, 0, 1, 1).data; };
-      const libre = tint(c.accent), plein = tint(c.point);
-      for (let r = 0; r < g.hauteur; r++) for (let q = 0; q < g.largeur; q++) {
-        const val = brut[r * g.largeur + q]; if (!val) continue;
-        const p = (val - 1) / 254, o = ((g.hauteur - 1 - r) * g.largeur + q) * 4;
-        const cible = p > .5 ? plein : libre;
-        data.data[o] = cible[0]; data.data[o + 1] = cible[1]; data.data[o + 2] = cible[2]; data.data[o + 3] = p > .5 ? 50 + 190 * p : 40 * (1 - p) + 14;
-      }
-      x.putImageData(data, 0, 0); S.image = img;
-    }
-    const [x0, y0] = v.versEcran(g.origine[0], g.origine[1] + g.hauteur * g.resolution);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(S.image, x0, y0, g.largeur * g.resolution * v.e, g.hauteur * g.resolution * v.e);
+    if (!S.image) S.image = imageGrille(S.grille, c);
+    poserGrille(ctx, v, S.grille, S.image);
   }
 
   // ---------------------------------------------------------------- outils sur la toile

@@ -58,6 +58,21 @@
       <div><dt>Scans clés</dt><dd id="i-cles">0</dd></div>
     </dl>
     <p class="note" id="i-note"></p>
+    <button id="i-replacer" class="primaire" hidden>Replacer le robot…</button>
+  </div>
+
+  <div class="carte-ui barre-direct" id="barre-direct">
+    <div class="segment" id="seg-couches-direct" role="group" aria-label="Couches">
+      <button data-couche="points" class="actif">Points</button>
+      <button data-couche="grille">Occupation</button>
+      <button data-couche="plan">Plan</button>
+    </div>
+  </div>
+
+  <div class="carte-ui consigne-replacer" id="consigne-replacer" hidden role="status">
+    <b>Replacer le robot</b>
+    <span>Clique où il se trouve sur la carte, puis glisse pour indiquer vers où il regarde.</span>
+    <button id="replacer-annuler">Annuler</button>
   </div>
 
   <div class="accueil carte-ui" id="accueil">
@@ -65,7 +80,7 @@
     <ol>
       <li>Allume le robot et connecte le PC à son Wi-Fi <b>ScanAtlas</b> (ou branche le câble USB).</li>
       <li>Clique <b>Connecter</b> en haut à droite.</li>
-      <li>Pilote avec <kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd> et <kbd>A</kbd><kbd>E</kbd>, ou la manette : la carte se dessine.</li>
+      <li>Pilote avec <kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd> et <kbd>A</kbd><kbd>E</kbd> (ou la manette), ou clique <b>Explorer seul</b> : le robot choisit où aller et dessine la pièce.</li>
     </ol>
     <div class="rangee">
       <button class="primaire" id="accueil-connecter">Connecter</button>
@@ -79,7 +94,9 @@
         <button data-mode="cartographier" class="actif" title="Ajoute des scans à la carte (RB sur la manette)">Cartographier</button>
         <button data-mode="localiser" title="Se positionne sans modifier la carte (RB sur la manette)">Localiser</button>
       </div>
-      <button id="bouton-retrouver" title="Cherche la position sur toute la carte">Me retrouver</button>
+      <button id="bouton-auto" class="primaire" title="Le robot choisit seul où aller pour compléter la carte">Explorer seul</button>
+      <button id="bouton-replacer" title="Indique sur la carte où est le robot et vers où il regarde">Replacer</button>
+      <button id="bouton-retrouver" title="Cherche la position sur toute la carte, sans indice">Me retrouver</button>
       <div class="menu">
         <button id="bouton-plus" class="icone" aria-label="Plus d’actions" aria-haspopup="menu">⋯</button>
         <div id="menu-plus" class="popover haut" hidden role="menu">

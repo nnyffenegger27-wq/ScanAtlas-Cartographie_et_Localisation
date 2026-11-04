@@ -57,6 +57,14 @@ def valider_session(data):
     return scans, drapeaux, dict(data.get('parametres', {}))
 
 
+def grille_vers_json(grille):
+    """Grille d'occupation pour le navigateur : 0 = inconnu, 1 à 255 = probabilité d'occupation (octets en base64)."""
+    valeurs = np.where(grille.observe, 1+np.rint(grille.probabilites()*254), 0).astype(np.uint8)
+    hauteur, largeur = valeurs.shape
+    return dict(origine=[float(grille.origine[0]), float(grille.origine[1])], resolution=grille.resolution,
+                largeur=int(largeur), hauteur=int(hauteur), donnees=base64.b64encode(valeurs.tobytes()).decode('ascii'))
+
+
 class DocumentCarte:
     def __init__(self):
         self.verrou = threading.RLock()
@@ -248,10 +256,7 @@ class DocumentCarte:
         grille = Grille.creer(scans, self.resolution, **self.filtres)
         for scan in scans:
             grille.mettre_a_jour(scan, **self.filtres)
-        valeurs = np.where(grille.observe, 1+np.rint(grille.probabilites()*254), 0).astype(np.uint8)
-        hauteur, largeur = valeurs.shape
-        return dict(origine=[float(grille.origine[0]), float(grille.origine[1])], resolution=grille.resolution,
-                    largeur=int(largeur), hauteur=int(hauteur), donnees=base64.b64encode(valeurs.tobytes()).decode('ascii'))
+        return grille_vers_json(grille)
 
     def plan(self):
         """Carte vectorielle : segments fusionnés des scans inclus."""

@@ -163,3 +163,32 @@ export function robot(ctx, vue, pose, couleur, perdu = false, c = null, fixe = 0
   ctx.beginPath(); ctx.moveTo(taille * 1.15, 0); ctx.lineTo(-taille * .8, taille * .75); ctx.lineTo(-taille * .45, 0); ctx.lineTo(-taille * .8, -taille * .75); ctx.closePath();
   ctx.stroke(); ctx.fill(); ctx.restore();
 }
+
+// Grille d'occupation : octets (0 inconnu, 1–255 probabilité) → image prête à être posée sur la toile.
+export function imageGrille(g, c) {
+  const img = document.createElement('canvas'); img.width = g.largeur; img.height = g.hauteur;
+  const x = img.getContext('2d'); const data = x.createImageData(g.largeur, g.hauteur);
+  const brut = Uint8Array.from(atob(g.donnees), (ch) => ch.charCodeAt(0));
+  const teinte = (hex) => { const e = document.createElement('canvas').getContext('2d'); e.fillStyle = hex; e.fillRect(0, 0, 1, 1); return e.getImageData(0, 0, 1, 1).data; };
+  const libre = teinte(c.accent), plein = teinte(c.point);
+  for (let r = 0; r < g.hauteur; r++) for (let q = 0; q < g.largeur; q++) {
+    const val = brut[r * g.largeur + q]; if (!val) continue;
+    const p = (val - 1) / 254, o = ((g.hauteur - 1 - r) * g.largeur + q) * 4;
+    const cible = p > .5 ? plein : libre;
+    data.data[o] = cible[0]; data.data[o + 1] = cible[1]; data.data[o + 2] = cible[2]; data.data[o + 3] = p > .5 ? 50 + 190 * p : 40 * (1 - p) + 14;
+  }
+  x.putImageData(data, 0, 0);
+  return img;
+}
+
+export function poserGrille(ctx, vue, g, image) {
+  const [x0, y0] = vue.versEcran(g.origine[0], g.origine[1] + g.hauteur * g.resolution);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(image, x0, y0, g.largeur * g.resolution * vue.e, g.hauteur * g.resolution * vue.e);
+}
+
+export function segments(ctx, vue, liste, couleur, largeur = 2) {
+  ctx.strokeStyle = couleur; ctx.lineWidth = largeur; ctx.lineCap = 'round'; ctx.beginPath();
+  for (const s of liste) { const [x0, y0] = vue.versEcran(s[0], s[1]), [x1, y1] = vue.versEcran(s[2], s[3]); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); }
+  ctx.stroke();
+}

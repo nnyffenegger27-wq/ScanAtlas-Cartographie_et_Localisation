@@ -102,6 +102,7 @@ class CarteDirecte:
         self._ref_recherche = None
         self._ref_n = -1
         self.probation = 0       # scans restant à suivre normalement avant de réenrichir la carte
+        self.indice = None       # position et cap approximatifs donnés par l'utilisateur (voir replacer)
         if scans:
             self.charger_reference(scans, segments)
 
@@ -139,6 +140,27 @@ class CarteDirecte:
         self.historique_poses=[]
         self.probation=PROBATION_SCANS
 
+    def replacer(self, x, y, cap, rayon=1., tolerance=50.):
+        """L'utilisateur indique où le robot est sur la carte (point + direction approximatifs).
+
+        Au prochain tour, recherche limitée à `rayon` mètres autour du point et `tolerance` degrés autour du
+        cap, puis confirmation par la géométrie locale (mêmes seuils que la localisation globale). Si rien de
+        sûr n'est trouvé après quelques essais, l'indice est abandonné et la récupération habituelle reprend.
+        """
+        valeurs = np.array([x, y, cap, rayon, tolerance], float)
+        if not np.isfinite(valeurs).all() or not .2 <= rayon <= 6. or not 5. <= tolerance <= 180.:
+            raise ValueError('Indice de position invalide.')
+        if not len(self.points):
+            raise ValueError('Pas de carte où replacer le robot.')
+        if self._ref_recherche is None or self._ref_n != len(self.cles):
+            self._ref_recherche = sous_carte(self.cles, self.filtres)
+            self._ref_n = len(self.cles)
+        self.reference_globale = self._ref_recherche
+        self.indice = dict(pose=(float(x), float(y), float(cap)), rayon=float(rayon), tolerance=float(tolerance),
+                           debut=perf_counter(), essais=0)
+        self.historique_poses = []
+        self.probation = PROBATION_SCANS
+
     @property
     def segments(self):
         return [s.copy() for s, _ in self.appuis]
@@ -150,22 +172,28 @@ class CarteDirecte:
         score = float('nan')
         recuperation = self.perdu or self.reprise
         explicite = self.reprise
+        guide = self.indice
         accepte = False
         message = ''
         rmse, methode = float('nan'), 'Ancrage'
         sous_surveillance = False  # ce scan vient d'une récupération ou suit un trou : pas de scan clé
         try:
-            if self.localisation_globale_requise and debut < self.prochain_global:
+            if guide is None and self.localisation_globale_requise and debut < self.prochain_global:
                 return self.etat(scan,False,'Position inconnue : nouvel essai global en attente.',score,debut,rmse,'Attente globale')
-            if not self.localisation_globale_requise and self.perdu and not explicite and debut-self.dernier_essai < .5:
+            if guide is None and not self.localisation_globale_requise and self.perdu and not explicite and debut-self.dernier_essai < .5:
                 return self.etat(scan,False,'Nouvel essai en attente : '+self.dernier_refus,score,debut,rmse,'Attente')
             self.dernier_essai = debut
             pts = points_filtres(scan, self.filtres, locaux=True)
             if len(pts) < 30 or np.linalg.norm(np.ptp(pts, axis=0)) < 1.:
                 raise ValueError('Pas assez de géométrie après filtrage ; carte en pause.')
-            if self.localisation_globale_requise:
-                self.prochain_global=debut+3.
-                resultat=localisation_globale(scan,self.reference_globale,annuler=self.annuler,**self.filtres)
+            if self.localisation_globale_requise or guide is not None:
+                options = {}
+                if guide is None:
+                    self.prochain_global=debut+3.
+                else:
+                    options = dict(centre=guide['pose'][:2], rayon=guide['rayon'], cap=guide['pose'][2],
+                                   tolerance_cap=guide['tolerance'])
+                resultat=localisation_globale(scan,self.reference_globale,annuler=self.annuler,**options,**self.filtres)
                 methode,rmse,score=resultat.methode,resultat.rmse,100*resultat.accord_fin
                 if not resultat.applicable:
                     raise ValueError('Position inconnue ou ambiguë : '+resultat.message)
@@ -182,6 +210,9 @@ class CarteDirecte:
                 rmse,score=affine.rmse,100*affine.accord_fin
                 accepte=True
                 message=f'Position retrouvée dans la carte : {score:.0f} % à 12 cm.'
+                if guide is not None:
+                    message=f'Position confirmée à partir de ton indice : {score:.0f} % à 12 cm.'
+                    self.indice=None
                 recuperation=True
             elif self.fin_us is None:
                 scan.pose = [0., 0., 0.]
@@ -318,6 +349,14 @@ class CarteDirecte:
         except (ValueError, RuntimeError) as exc:
             accepte = False
             self.perdu = True
+            if guide is not None:
+                guide['essais'] += 1
+                if guide['essais'] >= 5 or perf_counter()-guide['debut'] > 12.:
+                    self.indice = None
+                    guide = None
+                    self.dernier_refus = 'Indice abandonné.'
+                else:
+                    exc = ValueError('Indice de position non confirmé (essai %d/5) : %s' % (guide['essais'], exc))
             if self.perdu_t is None and self.fin_us is not None:
                 self.perdu_t = debut
             self.reprise = False

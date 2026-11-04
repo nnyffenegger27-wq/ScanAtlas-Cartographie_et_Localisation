@@ -15,8 +15,9 @@ METHODE_GLOBALE = 'Carte cumulée · recherche globale 360°'
 
 def localisation_globale(mobile, reference, pose_initiale=None, mini=.05, maxi=12., intensite=0,
                          distance_max=.5, iterations_max=80, annuler=None, progression=None, concordance_min=.65,
-                         centre=None, rayon=None):
-    """Recherche sur toute la carte ; `centre` et `rayon` (m) bornent les positions testées (recherche élargie)."""
+                         centre=None, rayon=None, cap=None, tolerance_cap=180.):
+    """Recherche sur toute la carte ; `centre` et `rayon` (m) bornent les positions testées (recherche élargie) et
+    `cap` ± `tolerance_cap` (degrés) les orientations (indice donné par l'utilisateur : « je suis ici, vers là »)."""
     debut=perf_counter()
     valeurs=np.array([mini,maxi,intensite,distance_max,iterations_max],float)
     if (not np.isfinite(concordance_min) or not .3<=concordance_min<=.95 or mobile is reference or not np.isfinite(valeurs).all() or not 0<=mini<maxi or
@@ -31,8 +32,8 @@ def localisation_globale(mobile, reference, pose_initiale=None, mini=.05, maxi=1
         raise ValueError('Au moins douze points distincts après filtrage sont nécessaires.')
     # Le centre du lidar peut être hors de la zone déjà mesurée. Une borne
     # déduite de la portée inclut toute pose ayant au moins un impact commun.
-    rayon=float(np.linalg.norm(source,axis=1).max())
-    bas=cible.min(axis=0)-rayon;haut=cible.max(axis=0)+rayon
+    portee=float(np.linalg.norm(source,axis=1).max())
+    bas=cible.min(axis=0)-portee;haut=cible.max(axis=0)+portee
     petits=source[np.linspace(0,len(source)-1,min(160,len(source)),dtype=int)]
     limite=max(.65,min(1.,distance_max*2))
     # Champ de distances et zones libres : calculés une fois par carte (la recherche est relancée
@@ -94,13 +95,22 @@ def localisation_globale(mobile, reference, pose_initiale=None, mini=.05, maxi=1
         xs=np.arange(bas[0],haut[0]+.4,.4);ys=np.arange(bas[1],haut[1]+.4,.4)
         xy=np.array(np.meshgrid(xs,ys,indexing='ij')).reshape(2,-1).T
         if centre is not None and rayon is not None:
-            # Recherche élargie : seules les positions proches du dernier point connu (tous les angles).
-            proche=np.linalg.norm(xy-np.asarray(centre,float),axis=1)<=float(rayon)+.3
-            if proche.any():xy=xy[proche]
+            # Recherche élargie : seules les positions proches du point donné, quadrillage centré sur lui
+            # (le point lui-même est toujours testé).
+            rayon=float(rayon)
+            pas=.4 if rayon>2. else .2
+            g=np.arange(-rayon,rayon+1e-9,pas)
+            decalages=np.array(np.meshgrid(g,g)).reshape(2,-1).T
+            decalages=decalages[np.linalg.norm(decalages,axis=1)<=rayon+1e-9]
+            xy=np.asarray(centre,float)+decalages
         graines=[]
-        for k,angle in enumerate(np.arange(-180.,180.,4.)):
+        angles=np.arange(-180.,180.,4.)
+        if cap is not None and tolerance_cap<180.:
+            angles=np.arange(float(cap)-tolerance_cap,float(cap)+tolerance_cap+.1,4.)
+            angles=(angles+180.)%360.-180.
+        for k,angle in enumerate(angles):
             verifier()
-            if progression and k%6==0: progression(f'Recherche globale 360° : {k+1}/90 orientations, {total} poses…')
+            if progression and k%6==0: progression(f'Recherche globale 360° : {k+1}/{len(angles)} orientations, {total} poses…')
             poses=np.column_stack([xy,np.full(len(xy),angle)])
             scores=np.concatenate([cout(poses[j:j+1024]) for j in range(0,len(poses),1024)])
             meilleurs=np.argsort(scores)[:48]

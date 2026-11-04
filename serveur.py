@@ -7,6 +7,7 @@
 """
 import json
 import queue
+import gzip
 import secrets
 import threading
 import time
@@ -14,7 +15,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs, unquote
-from document_carte import DocumentCarte
+from document_carte import DocumentCarte, grille_vers_json
 from session_directe import SessionDirecte, Diffuseur
 
 DOSSIER_WEB = Path(__file__).with_name('web')
@@ -91,7 +92,11 @@ def fabriquer_gestionnaire(app):
             self.wfile.write(contenu)
 
         def json(self, donnees, code=200):
-            self.envoyer(code, json.dumps(donnees, ensure_ascii=False, allow_nan=False).encode('utf-8'), 'application/json; charset=utf-8')
+            corps = json.dumps(donnees, ensure_ascii=False, allow_nan=False).encode('utf-8')
+            extra = None
+            if len(corps) > 4096 and 'gzip' in (self.headers.get('Accept-Encoding') or ''):
+                corps, extra = gzip.compress(corps, 3), {'Content-Encoding': 'gzip'}    # grilles et nuages : très compressibles
+            self.envoyer(code, corps, 'application/json; charset=utf-8', extra)
 
         def erreur(self, texte, code=400):
             self.json(dict(erreur=texte), code)
@@ -142,6 +147,11 @@ def fabriquer_gestionnaire(app):
                     return self.json(app.doc.nuage())
                 if chemin == '/api/carte/grille':
                     return self.json(app.doc.grille())
+                if chemin == '/api/direct/grille':
+                    etat = app.session.dernier_etat
+                    if etat is None or etat.grille is None:
+                        return self.json(dict(vide=True))
+                    return self.json(dict(vide=False, cles=etat.cles, **grille_vers_json(etat.grille)))
                 if chemin == '/api/carte/plan':
                     return self.json(app.doc.plan())
                 if chemin == '/api/carte/session':
@@ -234,6 +244,10 @@ def fabriquer_gestionnaire(app):
                 s.arreter()
             elif chemin == '/api/reglages':
                 s.regler(**d)
+            elif chemin == '/api/auto':
+                s.demarrer_auto() if d.get('actif', True) else s.arreter_auto('Exploration autonome arrêtée.')
+            elif chemin == '/api/replacer':
+                s.replacer(float(d['x']), float(d['y']), float(d['cap']))
             elif chemin == '/api/retrouver':
                 s.retrouver()
             elif chemin == '/api/reprendre':
@@ -284,6 +298,12 @@ class ConflitCarte(Exception):
 class ServeurLocal(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = False
+
+    def handle_error(self, request, client_address):
+        # Une page fermée en plein flux coupe la connexion : ce n'est pas une erreur à afficher.
+        import sys
+        if not isinstance(sys.exc_info()[1], (ConnectionError, TimeoutError)):
+            super().handle_error(request, client_address)
 
 
 def demarrer(port=8765, ouvrir=True, fabrique_robot=None):

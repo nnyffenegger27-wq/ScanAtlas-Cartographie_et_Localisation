@@ -14,6 +14,7 @@ Sous Windows : `installer_windows.bat` puis `lancer_windows.bat` (détails dans 
 ## Deux écrans
 
 - **Direct** : connexion (Wi-Fi ou USB), pilotage (clavier, manette, pavé à l'écran), carte et position en temps réel. Modes *Cartographier* (ajoute des scans) et *Localiser* (se positionne sans modifier la carte), *Me retrouver* (recherche sur toute la carte), *Reprendre ici*, *Nouvelle carte*.
+- **Explorer seul** : le robot choisit où aller pour terminer la carte (exploration par frontières, évitement d'obstacles, arrêt dès qu'on touche une commande). **Replacer** : s'il est perdu, on clique sa position sur la carte et on glisse sa direction.
 - **Carte** : la même carte, hors connexion. Importer des CSV / ZIP / sessions, afficher ou exclure des scans, les déplacer ou les tourner, les recaler automatiquement, assembler tous les scans inclus, voir en points, en grille d'occupation ou en plan vectoriel, exporter.
 
 Une seule carte alimente les deux écrans ; elle n'est modifiable que robot déconnecté.
@@ -24,6 +25,7 @@ Une seule carte alimente les deux écrans ; elle n'est modifiable que robot déc
 | --- | --- |
 | `scanatlas.py`, `serveur.py` | point d'entrée ; serveur HTTP local (127.0.0.1, jeton, flux d'événements SSE) |
 | `web/` | interface (HTML, CSS, JavaScript sans dépendance, fonctionne hors ligne) |
+| `exploration.py`, `simulation.py` | exploration autonome ; salles simulées pour la démo et les tests |
 | `session_directe.py` | connexion au robot, pilotage, reconnexion, démonstration, suivi en direct |
 | `document_carte.py` | le document de carte partagé (scans, filtres, import/export, recalage, assemblage) |
 | `robot_wifi.py`, `robot_usb.py` | transports (UDP/TCP Wi-Fi, USB-série), bail de commande |

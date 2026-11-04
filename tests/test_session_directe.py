@@ -122,5 +122,62 @@ class Pilotage(Fixture):
             self.session.piloter(float('nan'), 0, 0)
 
 
+class ExplorationDansLaSession(Fixture):
+    def demarrer(self):
+        s = self.session
+        s.demarrer_demo()
+        s.fabrique_robot = SessionDirecte._fabrique_defaut       # vrai robot Wi-Fi simulé (processus + sockets)
+        self.assertTrue(attendre(lambda: s.dernier_etat is not None and s.dernier_etat.accepte and s.pret(), 15), s.message)
+        return s
+
+    def test_exploration_complete_de_la_salle_de_demonstration(self):
+        s = self.demarrer()
+        s.demarrer_auto()
+        self.assertTrue(s.explorateur.actif)
+        self.assertTrue(attendre(lambda: not s.explorateur.actif, 120), s.explorateur.message)
+        self.assertEqual(s.explorateur.etat, 'termine', s.explorateur.message)
+        self.assertGreater(s.dernier_etat.cles, 3)
+        self.assertEqual(s.consigne, (0., 0., 0.))
+        s.quitter_demo()
+
+    def test_pilotage_manuel_reprend_la_main(self):
+        s = self.demarrer()
+        s.demarrer_auto()
+        s.piloter(1., 0., 0.)
+        self.assertEqual(s.explorateur.etat, 'inactif')
+        self.assertIn('manuel', s.message)
+        s.quitter_demo()
+
+    def test_arret_et_deconnexion_arretent_l_exploration(self):
+        s = self.demarrer()
+        s.demarrer_auto(); s.arreter()
+        self.assertFalse(s.explorateur.actif)
+        s.demarrer_auto(); s.quitter_demo()
+        self.assertFalse(s.explorateur.actif)
+
+    def test_conditions_de_demarrage(self):
+        s = self.session
+        with self.assertRaises(ValueError):
+            s.demarrer_auto()                                       # pas connecté
+        with self.assertRaises(ValueError):
+            s.replacer(0, 0, 0)
+
+    def test_mode_localiser_interdit_l_exploration(self):
+        s = self.demarrer()
+        s.regler(mode='localiser')
+        with self.assertRaises(ValueError):
+            s.demarrer_auto()
+        s.quitter_demo()
+
+    def test_replacer_pendant_la_demo(self):
+        s = self.demarrer()
+        carte = s.carte
+        pose = s.dernier_etat.trajectoire[-1]
+        s.replacer(pose[0]+.2, pose[1]-.2, pose[2]+10.)             # indice proche : doit être confirmé sans perdre la carte
+        self.assertTrue(attendre(lambda: carte.indice is None, 10))
+        self.assertIs(s.carte, carte)
+        s.quitter_demo()
+
+
 if __name__ == '__main__':
     unittest.main()

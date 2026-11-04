@@ -82,6 +82,7 @@ ecouter({
   etat: majConnexion,
   scan: (s) => direct.scan(s),
   carte: (c) => direct.carte(c),
+  auto: (d) => direct.auto(d),
   document: () => carte.document(),
   tache: (t) => carte.tache(t),
   message: (m) => bandeau(m.texte, m.grave),

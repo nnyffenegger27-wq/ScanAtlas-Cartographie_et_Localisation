@@ -16,6 +16,7 @@ import numpy as np
 from robot_wifi import RobotWifi, dernier
 from cartographie import mesures_valides
 from cartographie_direct import CarteDirecte
+from exploration import Explorateur
 
 VALIDITE_CONSIGNE = .35
 ESSAIS_RECONNEXION = 8
@@ -92,10 +93,17 @@ class SessionDirecte:
         self.derniere_carte_t, self.derniere_carte_cles = 0., -1
         self.version_publiee = -1
         self.demo = None                 # None ou dict(processus, avant) pendant la démonstration
+        self.explorateur = Explorateur()  # exploration autonome (inactive tant que l'utilisateur ne la demande pas)
+        self.points_locaux = np.empty((0, 2))   # dernier tour, repère du robot, en mètres (évitement d'obstacles)
+        self.dernier_suivi_t = 0.        # heure du dernier tour traité
+        self.perdu_auto_t = None         # début de la perte de position pendant l'exploration
+        self.dernier_plan_t = 0.
         self.verrou = threading.RLock()
         self.arret = threading.Event()
         self.thread = threading.Thread(target=self._boucle, daemon=True)
         self.thread.start()
+        self.thread_plan = threading.Thread(target=self._boucle_plan, daemon=True)
+        self.thread_plan.start()
 
     # -- outils -----------------------------------------------------------------------------------
     @staticmethod
@@ -137,7 +145,8 @@ class SessionDirecte:
                         reconnexion=None if restant is None else dict(essai=self.tentatives, restant=round(restant, 1)),
                         suivi=None if etat is None else dict(actif=etat.accepte, message=etat.message),
                         recus=0 if r is None else r.recus, journal=str(self.journal.dossier) if self.journal else None,
-                        commande=None if r is None else r.diagnostic_commande())
+                        commande=None if r is None else r.diagnostic_commande(),
+                        auto=dict(etat=self.explorateur.etat, message=self.explorateur.message))
 
     def publier_etat(self):
         self.diffuseur.publier('etat', self.etat_public())
@@ -148,6 +157,7 @@ class SessionDirecte:
         sortie.append(('messages', dict(messages=list(self.messages))))
         if self.dernier_scan is not None:
             sortie.append(('scan', self.dernier_scan))
+        sortie.append(('auto', self.explorateur.diagnostic()))
         if self.dernier_etat is not None:
             sortie.append(('carte', self._charge_carte(self.dernier_etat)))
         return sortie
@@ -177,14 +187,79 @@ class SessionDirecte:
         if not np.isfinite(brut).all():        # avant de borner : min(1, nan) vaudrait 1 (pleine vitesse)
             raise ValueError('Consigne invalide.')
         vecteur = tuple(max(-1., min(1., v)) for v in brut)
+        if self.explorateur.actif and max(abs(v) for v in vecteur) > .15:
+            self.arreter_auto('Pilotage manuel repris : exploration autonome arrêtée.')
         with self.verrou:
             self.consigne, self.consigne_t = vecteur, time.monotonic()
 
     def arreter(self):
+        self.arreter_auto('Arrêt : exploration autonome arrêtée.')
         with self.verrou:
             self.consigne, self.consigne_t = (0., 0., 0.), 0.
         if self.robot is not None:
             self.robot.commander('STOP')
+
+    # -- exploration autonome ---------------------------------------------------------------------
+    def demarrer_auto(self):
+        with self.verrou:
+            if self.robot is None or not self.pret():
+                raise ValueError('Connecte le robot et attends le premier tour du lidar avant l’exploration autonome.')
+            if self.reglages['mode'] != 'cartographier':
+                raise ValueError('L’exploration autonome ajoute des scans à la carte : passe en mode Cartographier.')
+            etat = self.dernier_etat
+            if etat is None or not etat.accepte:
+                raise ValueError('Position non suivie : attends que le suivi soit actif (ou replace le robot).')
+            self.explorateur.demarrer(time.monotonic())
+            self.perdu_auto_t = None
+            self.dernier_plan_t = 0.
+        self.dire('Exploration autonome démarrée. Tout pilotage manuel ou Espace l’arrête.')
+        self.diffuseur.publier('auto', self.explorateur.diagnostic())
+        self.publier_etat()
+
+    def arreter_auto(self, message=None, etat='inactif', grave=False):
+        with self.verrou:
+            if self.explorateur.etat != 'exploration':
+                return
+            self.explorateur.arreter(etat, message or '')
+        if message:
+            self.dire(message, grave=grave)
+        self.diffuseur.publier('auto', self.explorateur.diagnostic())
+        self.publier_etat()
+
+    def _boucle_plan(self):
+        """Planification (frontières, chemin) hors de la boucle de sécurité : elle prend de 10 à 200 ms selon la carte."""
+        while not self.arret.wait(.2):
+            ex = self.explorateur
+            try:
+                if not ex.actif:
+                    continue
+                etat = self.dernier_etat
+                maintenant = time.monotonic()
+                if etat is None or not etat.accepte or etat.grille is None or not len(etat.trajectoire):
+                    continue
+                if maintenant-self.dernier_plan_t < 1. and not ex.replanifier:
+                    continue
+                self.dernier_plan_t = maintenant
+                avant = ex.etat
+                ex.planifier(etat.grille, np.asarray(etat.trajectoire[-1], float), maintenant)
+                self.diffuseur.publier('auto', ex.diagnostic())
+                if ex.etat != avant:
+                    self.dire(ex.message, grave=ex.etat in ('bloque', 'erreur'))
+                    self.publier_etat()
+            except Exception as exc:
+                self.dire('Planification : '+str(exc), grave=True)
+                ex.arreter('erreur', 'Erreur interne de planification : '+str(exc))
+                self.publier_etat()
+
+    def replacer(self, x, y, cap):
+        """Indique où le robot est sur la carte (point + direction approximatifs, repère de la carte)."""
+        with self.verrou:
+            if self.robot is None:
+                raise ValueError('Connecte le robot avant de le replacer sur la carte.')
+            if self.carte is None or not len(self.carte.points):
+                raise ValueError('Pas encore de carte où replacer le robot.')
+            self.carte.replacer(x, y, cap)
+        self.dire('Recherche de la position autour du point indiqué…')
 
     def retrouver(self):
         """Recherche sur toute la carte au prochain tour."""
@@ -202,6 +277,7 @@ class SessionDirecte:
         self.dire('Reprise près de la dernière position connue.')
 
     def nouvelle_carte(self):
+        self.arreter_auto('Exploration autonome arrêtée : nouvelle carte.')
         with self.verrou:
             self.generation += 1
             self.carte, self.dernier_etat, self.dernier_scan = None, None, None
@@ -250,6 +326,7 @@ class SessionDirecte:
         self.publier_etat()
 
     def deconnecter(self, automatique=False):
+        self.arreter_auto('Exploration autonome arrêtée : robot déconnecté.', etat='inactif', grave=automatique)
         with self.verrou:
             if not automatique:
                 self.actif_demande = False
@@ -399,6 +476,7 @@ class SessionDirecte:
         precedent = self.dernier_etat
         with self.verrou:
             self.dernier_etat, self.dernier_scan = etat, evenement
+            self.points_locaux, self.dernier_suivi_t = np.column_stack((rayon*np.cos(theta), rayon*np.sin(theta))), time.monotonic()
         if self.journal is not None and (precedent is None or precedent.accepte != etat.accepte):
             self.journal.evenement('Suivi actif.' if etat.accepte else 'Suivi perdu : '+etat.message)
         if etat.accepte:
@@ -438,7 +516,10 @@ class SessionDirecte:
             while not robot.etats.empty():
                 self.dire(robot.etats.get_nowait())
             if self.pret():
-                frais = time.monotonic()-t <= VALIDITE_CONSIGNE
+                if self.explorateur.actif:
+                    consigne, frais = self._consigne_auto(), True
+                else:
+                    frais = time.monotonic()-t <= VALIDITE_CONSIGNE
                 surge, sway, yaw = pourcentages(*(consigne if frais else (0, 0, 0)), reglages['puissance'], reglages['rotation_max'])
                 robot.conduire(surge, sway, yaw)
             else:
@@ -455,6 +536,26 @@ class SessionDirecte:
                     self.connecter(automatique=True)
                 except ValueError as exc:
                     self.dire(str(exc), grave=True)
+
+    def _consigne_auto(self):
+        """Consigne de la boucle de sécurité en exploration autonome ; immobile tant que la position n'est pas suivie."""
+        ex, etat, maintenant = self.explorateur, self.dernier_etat, time.monotonic()
+        suivi = etat is not None and etat.accepte and len(etat.trajectoire) and maintenant-self.dernier_suivi_t <= .6
+        if not suivi:
+            if self.perdu_auto_t is None:
+                self.perdu_auto_t = maintenant
+                self.dire('Position perdue : le robot s’arrête et cherche où il est (exploration en pause).')
+            elif maintenant-self.perdu_auto_t > 45.:
+                self.arreter_auto('Position perdue depuis plus de 45 s : exploration arrêtée. Replace le robot sur la carte.',
+                                  etat='erreur', grave=True)
+            return (0., 0., 0.)
+        self.perdu_auto_t = None
+        surge, sway, yaw = ex.commande(np.asarray(etat.trajectoire[-1], float), self.points_locaux, maintenant)
+        if not ex.actif:                                  # terminé, bloqué ou erreur détectée par la surveillance
+            self.dire(ex.message, grave=ex.etat in ('bloque', 'erreur'))
+            self.diffuseur.publier('auto', ex.diagnostic())
+            self.publier_etat()
+        return (surge, sway, yaw)
 
     def _perte(self, robot):
         messages = []

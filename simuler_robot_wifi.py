@@ -9,23 +9,7 @@ import time
 import numpy as np
 from robot_wifi import encoder_trame, COMMANDS
 
-MURS = np.array([[[-3,-2],[4,-2]],[[4,-2],[4,3]],[[4,3],[-3,3]],
-                 [[-3,3],[-3,-2]],[[.6,.8],[1.4,.8]],[[1.4,.8],[1.4,1.5]]],float)
-
-
-def mesures_simulees(pose, rng):
-    angles=np.linspace(0,360,450,endpoint=False)
-    a=np.deg2rad(angles+pose[2]);rays=np.column_stack([np.cos(a),np.sin(a)])
-    dist=np.full(len(angles),12.)
-    def cross(a,b):return a[...,0]*b[...,1]-a[...,1]*b[...,0]
-    for p,q in MURS:
-        v=q-p;w=p-np.asarray(pose[:2]);den=cross(rays,v)
-        with np.errstate(divide='ignore',invalid='ignore'):
-            t=cross(w,v)/den;u=cross(w,rays)/den
-        valid=(np.abs(den)>1e-9)&(t>.05)&(u>=0)&(u<=1)
-        dist[valid]=np.minimum(dist[valid],t[valid])
-    dist=np.maximum(.05,dist+rng.normal(0,.003,len(dist)))
-    return np.column_stack([angles,dist,np.full(len(dist),230)])
+from simulation import MURS, mesures_simulees, deplacer
 
 
 def main():
@@ -88,16 +72,12 @@ def main():
             with lock:
                 cmd=state['cmd'] if now-state['last']<.3 else 'STOP'
                 if cmd=='DRIVE':
-                    avance,gauche,tourne=(x/65. for x in state['vecteur'])
-                    local=np.array([.3*avance,.3*gauche]);rotation_signee=35.*tourne
+                    avance,gauche,tourne=state['vecteur']
                 else:
-                    speed=.3*state['pwm']/65.;rotation=35.*state['pwm']/65.
-                    local=np.array({'FORWARD':[speed,0],'BACK':[-speed,0],
-                                    'STRAFE_L':[0,speed],'STRAFE_R':[0,-speed]}.get(cmd,[0,0]))
-                    rotation_signee=rotation*(1 if cmd=='LEFT' else -1 if cmd=='RIGHT' else 0)
-                a=np.deg2rad(pose[2]);R=np.array([[np.cos(a),-np.sin(a)],[np.sin(a),np.cos(a)]])
-                pose[:2]+=R@local*dt
-                pose[2]+=rotation_signee*dt
+                    p=state['pwm']
+                    avance,gauche=({'FORWARD':(p,0),'BACK':(-p,0),'STRAFE_L':(0,p),'STRAFE_R':(0,-p)}.get(cmd,(0,0)))
+                    tourne=p*(1 if cmd=='LEFT' else -1 if cmd=='RIGHT' else 0)
+                pose[:]=deplacer(pose,avance,gauche,tourne,dt)
     except KeyboardInterrupt:pass
     finally:
         fin.set()

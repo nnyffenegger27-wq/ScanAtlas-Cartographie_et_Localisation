@@ -150,6 +150,41 @@ class Verrou(Base):
             self.app.session.robot = None
 
 
+class Direct(Base):
+    def test_ordres_refuses_sans_robot(self):
+        s, r = self.req('POST', '/api/auto', {'actif': True})
+        self.assertEqual(s, 400); self.assertIn('Connecte', r['erreur'])
+        s, r = self.req('POST', '/api/replacer', {'x': 0, 'y': 0, 'cap': 0})
+        self.assertEqual(s, 400)
+        self.assertEqual(self.req('POST', '/api/replacer', {'x': 'a', 'y': 0, 'cap': 0})[0], 400)
+        self.assertEqual(self.req('POST', '/api/replacer', {'x': 0})[0], 400)
+        self.assertEqual(self.req('POST', '/api/auto', {'actif': False})[0], 200)     # arrêter hors exploration : sans effet
+
+    def test_grille_du_direct_vide_puis_compressee(self):
+        self.assertEqual(self.req('GET', '/api/direct/grille')[1], {'vide': True})
+        # un scan suivi donne une grille ; on l'injecte sans robot en construisant la carte directe à la main
+        from simulation import SalleVirtuelle, SALLE_DEMO
+        from cartographie_direct import CarteDirecte
+        salle, carte = SalleVirtuelle(SALLE_DEMO, pose=(0, 0, 0)), CarteDirecte()
+        for _ in range(3):
+            salle.avancer((30, 0, 0), .1)
+            etat = carte.traiter(salle.trame())
+        self.app.session.dernier_etat = etat
+        try:
+            c = http.client.HTTPConnection('127.0.0.1', self.port)
+            c.request('GET', '/api/direct/grille', headers={'X-Jeton': self.app.jeton, 'Accept-Encoding': 'gzip'})
+            r = c.getresponse(); brut = r.read()
+            self.assertEqual(r.getheader('Content-Encoding'), 'gzip')
+            import gzip
+            g = json.loads(gzip.decompress(brut))
+            self.assertFalse(g['vide']); self.assertGreater(g['largeur'], 10); self.assertGreater(g['cles'], 0)
+            import base64
+            self.assertEqual(len(base64.b64decode(g['donnees'])), g['largeur']*g['hauteur'])
+            self.assertLess(len(brut), len(g['donnees']))             # la compression sert
+        finally:
+            self.app.session.dernier_etat = None
+
+
 class Flux(Base):
     def test_le_flux_envoie_l_etat_a_la_connexion(self):
         c = http.client.HTTPConnection('127.0.0.1', self.port, timeout=5)

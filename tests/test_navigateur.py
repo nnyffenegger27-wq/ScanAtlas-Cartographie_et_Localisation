@@ -72,6 +72,38 @@ class Navigateur(unittest.TestCase):
         self.assertIsNone(self.app.session.demo)
         self.assertEqual(self.erreurs, [])
 
+    def test_couches_replacer_et_exploration_depuis_l_interface(self):
+        page = self.page()
+        requetes = []
+        page.on('request', lambda r: requetes.append((r.method, r.url.split('?')[0].split('/api')[-1], r.post_data)))
+        page.goto(self.url+'#direct')
+        page.click('#accueil-demo')
+        page.wait_for_function("document.getElementById('etat-suivi-texte').textContent.includes('suivie')", timeout=20000)
+        page.click('#seg-couches-direct button[data-couche=grille]')
+        page.wait_for_function("() => true")
+        page.wait_for_timeout(1800)
+        self.assertTrue(any(m == 'GET' and u == '/direct/grille' for m, u, _ in requetes))   # la grille n'est demandée que visible
+        # replacer : un clic-glisser sur la carte envoie point + cap
+        page.click('#bouton-replacer')
+        boite = page.locator('#toile-direct').bounding_box()
+        x, y = boite['x']+boite['width']/2, boite['y']+boite['height']/2
+        page.mouse.move(x, y); page.mouse.down(); page.mouse.move(x+80, y, steps=4); page.mouse.up()
+        page.wait_for_timeout(500)
+        envoi = [json.loads(d) for m, u, d in requetes if u == '/replacer']
+        self.assertEqual(len(envoi), 1)
+        self.assertAlmostEqual(envoi[0]['cap'], 0., delta=1.)                 # glissé vers la droite = cap 0°
+        # exploration : le bouton bascule et la commande part
+        page.wait_for_function("document.getElementById('etat-suivi-texte').textContent.includes('suivie')", timeout=15000)
+        page.click('#bouton-auto')
+        page.wait_for_function("document.getElementById('bouton-auto').textContent.includes('Arrêter')", timeout=5000)
+        self.assertTrue(self.app.session.explorateur.actif)
+        page.click('#bouton-auto')
+        page.wait_for_function("document.getElementById('bouton-auto').textContent.includes('Explorer')", timeout=5000)
+        self.assertFalse(self.app.session.explorateur.actif)
+        page.click('#puce-connexion'); page.click('#bouton-demo')
+        page.wait_for_function("document.getElementById('puce-texte').textContent.includes('Hors')", timeout=8000)
+        self.assertEqual(self.erreurs, [])
+
 
 if __name__ == '__main__':
     unittest.main()

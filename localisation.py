@@ -7,6 +7,7 @@ Le score décrit l'accord des points, jamais une erreur de localisation vraie.
 from dataclasses import dataclass
 from time import perf_counter
 import numpy as np
+from scipy.spatial import cKDTree
 from cartographie import Scan, mesures_valides
 
 
@@ -265,15 +266,22 @@ def valider_solution(resultat, source, cible, distance_max, concordance_min=.65)
     return resultat
 
 
+_arbre_en_cache = (None, None)
+
+
 def plus_proches(points, reference):
-    """Recherche exacte par blocs pour borner la mémoire sans dépendance SciPy."""
-    indices, distances = [], []
-    for debut in range(0, len(points), 128):
-        d = np.sum((points[debut:debut+128, None]-reference[None])**2, axis=2)
-        idx = np.argmin(d, axis=1)
-        indices.extend(idx)
-        distances.extend(np.sqrt(d[np.arange(len(idx)), idx]))
-    return np.asarray(indices), np.asarray(distances)
+    """Plus proche voisin exact (arbre k-d). L'arbre de la dernière référence est gardé : une ICP interroge
+    la même référence des dizaines de fois, sa construction n'est payée qu'une fois."""
+    global _arbre_en_cache
+    points = np.asarray(points, float)
+    if not len(points) or not len(reference):
+        return np.zeros(len(points), int), np.full(len(points), np.inf)
+    cache = _arbre_en_cache                      # lecture unique : sûr entre fils
+    if cache[0] is not reference:
+        cache = (reference, cKDTree(reference))
+        _arbre_en_cache = cache
+    distances, indices = cache[1].query(points)
+    return indices, distances
 
 
 def icp_scan(mobile, reference, pose_initiale=None, mini=.05, maxi=12., intensite=0,
