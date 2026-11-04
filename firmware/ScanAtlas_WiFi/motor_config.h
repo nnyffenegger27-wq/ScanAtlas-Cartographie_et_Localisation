@@ -47,6 +47,30 @@ constexpr int I2C_WHEEL_MOTOR[4]={1,0,3,2};
 // -1 inverse le sens d'une roue ; une puissance positive pilote le canal pair (2, 4, 6, 8).
 constexpr int I2C_WHEEL_SIGN[4]={1,1,1,1};
 
+// 3) Sens des axes (valables pour les deux pilotes) : -1 inverse un mouvement entier.
+//    Surge = avancer / reculer, Sway = déplacement latéral gauche / droite, Yaw = rotation.
+//    Le sway est inversé ici (-1) d'après l'essai sur le robot : Q (gauche) allait à droite.
+#ifndef AXIS_SURGE_SIGN
+#define AXIS_SURGE_SIGN 1
+#endif
+#ifndef AXIS_SWAY_SIGN
+#define AXIS_SWAY_SIGN -1
+#endif
+#ifndef AXIS_YAW_SIGN
+#define AXIS_YAW_SIGN 1
+#endif
+
+// 4) Échelle de puissance : le pourcentage 0..100 de l'application devient une valeur de PWM
+//    de MOTOR_DUTY_MIN à MOTOR_DUTY_MAX (sur 0..255). 100 % = MOTOR_DUTY_MAX.
+//    MOTOR_DUTY_MIN est le seuil de démarrage des moteurs (par exemple 50 si les roues ne
+//    tournent pas aux petites valeurs) ; 0 = pas de seuil.
+#ifndef MOTOR_DUTY_MIN
+#define MOTOR_DUTY_MIN 0
+#endif
+#ifndef MOTOR_DUTY_MAX
+#define MOTOR_DUTY_MAX 255
+#endif
+
 // Passer à true uniquement pour le diagnostic série, roues levées.
 // Wi-Fi et lidar ne démarrent pas dans ce mode. Valable pour les deux pilotes.
 constexpr bool MOTOR_DIAGNOSTIC=false;

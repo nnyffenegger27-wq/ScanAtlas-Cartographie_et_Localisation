@@ -177,6 +177,8 @@ class RobotWifi:
             thread.start()
 
     def _etat(self, texte):
+        if self.journal is not None:
+            self.journal.evenement(texte)
         try:
             self.etats.put_nowait(texte)
         except queue.Full:

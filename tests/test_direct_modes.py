@@ -29,6 +29,18 @@ class ModesDirects(unittest.TestCase):
         e=c.traiter(trame_pose([.2,0,9],9),enrichir=True)
         self.assertTrue(e.accepte,e.message);self.assertGreater(len(c.cles),cles)
 
+    def test_localisation_seule_sans_carte_amorce_une_reference(self):
+        c=CarteDirecte()
+        e=c.traiter(trame_pose([0,0,0],1),enrichir=False)
+        self.assertTrue(e.accepte,e.message);self.assertEqual(len(c.cles),1)
+        self.assertIn('référence',e.message)
+        points=c.points.copy()
+        for i in range(2,6):
+            e=c.traiter(trame_pose([i*.02,0,i],i),enrichir=False)
+            self.assertTrue(e.accepte,e.message)
+        self.assertEqual(len(c.cles),1);self.assertGreater(c.pose[0],.05)
+        np.testing.assert_array_equal(points,c.points)
+
     def test_reference_copiee_et_vecteurs_preserves(self):
         scan=trame_pose([0,0,0],1).scan();scan.pose=[2,3,20]
         segments=[np.array([[1,1],[3,1.]])]

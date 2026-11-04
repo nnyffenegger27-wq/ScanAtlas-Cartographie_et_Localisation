@@ -119,6 +119,14 @@ La carte moteur est pilotée par un bus I2C logiciel (bibliothèque `MecanumCar_
 
 Une puissance positive agit sur le canal pair (2, 4, 6, 8), comme « avancer » dans la bibliothèque d'origine. Le sens d'avance de chaque roue reste à vérifier sur chaque robot.
 
+### Sens des axes et vitesse (les deux pilotes)
+
+Dans `motor_config.h` :
+
+- **`AXIS_SURGE_SIGN`, `AXIS_SWAY_SIGN`, `AXIS_YAW_SIGN`** (1 ou -1) inversent un mouvement entier (avancer, déplacement latéral, rotation) sans toucher au câblage. Le sway est à **-1** par défaut : sur le robot essayé, Q (gauche) partait à droite. Si le vôtre est correct dans l'autre sens, mettre 1.
+- **`MOTOR_DUTY_MIN` / `MOTOR_DUTY_MAX`** (sur 0..255) : le pourcentage de l'application (0..100) est converti en PWM dans cet intervalle ; 100 % = `MOTOR_DUTY_MAX` (255 par défaut). Avant ce réglage, le pourcentage était envoyé tel quel comme PWM sur 255, donc 100 % ne donnait que 39 % de puissance : c'est la cause de la lenteur observée. Si les roues ne tournent pas aux petites valeurs, mettre par exemple `MOTOR_DUTY_MIN` à 50.
+- Alimentation : les moteurs doivent être alimentés par les piles 18650 (interrupteur de la carte sur ON). Sur le seul USB, la tension chute dès que les moteurs démarrent : lenteur, puis redémarrage de l'ESP32 (« suspendu »). Le moniteur série à 115200 affiche la cause du dernier démarrage, `BROWNOUT` en cas de chute de tension.
+
 ### Vérifier les roues (les deux pilotes)
 
 Passer `MOTOR_DIAGNOSTIC=true`, téléverser, ouvrir le moniteur série à 115200, roues levées. `1` à `4` donnent une impulsion dans un sens sur le moteur 1..4 (M1..M4 en PWM ; Upper_R, Upper_L, Lower_R, Lower_L en I2C) ; `a` à `d` dans l'autre sens. Impulsion de 250 ms à puissance 50 ; espace arrête. Ce mode ne démarre ni Wi-Fi ni lidar. Remettre la valeur à false et téléverser pour piloter normalement. Les GPIO de la console et du lidar sont réservés. Ces essais n'ont pas été réalisés physiquement ici.

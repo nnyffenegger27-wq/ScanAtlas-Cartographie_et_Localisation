@@ -37,6 +37,15 @@ class JournalDirect:
         except (OSError,ValueError) as exc:
             self.erreur='Journal indisponible : '+str(exc)
 
+    def evenement(self,texte):
+        """Une ligne horodatée dans evenements.log : connexion, coupures, pertes de suivi."""
+        try:
+            with self.lock:
+                with (self.dossier/'evenements.log').open('a',encoding='utf-8') as fichier:
+                    fichier.write(datetime.now().strftime('%H:%M:%S.%f')[:-3]+'  '+str(texte)+'\n')
+        except OSError as exc:
+            self.erreur='Journal indisponible : '+str(exc)
+
     def brut(self,trame):
         self.ecrire(dict(type='scan',sequence=trame.sequence,fin_us=trame.fin_us,
                          duree_us=trame.duree_us,mesures=trame.mesures.tolist()))

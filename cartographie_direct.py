@@ -204,9 +204,12 @@ class CarteDirecte:
             if self.annuler.is_set():
                 raise ValueError('Cartographie arrêtée.')
             ep, ea = erreur_pose(scan.pose, self.pose_cle)
-            cle = self.enrichir and (self.fin_us is None or ep >= .15 or ea >= 5. or trame.fin_us-self.fin_cle >= 2_000_000)
-            if not self.enrichir and not len(self.points):
-                raise ValueError('Localisation seule : charger une carte ou activer la cartographie pour créer une référence.')
+            # Carte vide en « Localisation seule » : le premier scan reçu sert de référence (origine fixe)
+            # plutôt que de ne rien faire ; les suivants sont ensuite localisés sans enrichir la carte.
+            amorce = not self.enrichir and not len(self.points)
+            cle = (self.enrichir or amorce) and (self.fin_us is None or ep >= .15 or ea >= 5. or trame.fin_us-self.fin_cle >= 2_000_000)
+            if amorce:
+                message = 'Localisation seule sans carte : ce scan sert de référence (origine fixe).'
             if cle:
                 if len(self.cles) >= 2000:
                     raise ValueError('Limite de 2000 scans clés : enregistrer la carte.')

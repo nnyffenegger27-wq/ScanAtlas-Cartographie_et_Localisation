@@ -662,3 +662,15 @@ Coupures de scans : les journaux de l'application (dossier `AppData\Local\ScanAt
 Direct filaire : nouvelle liaison USB qui porte les mêmes trames SA06 et les mêmes commandes SA1 / SA2, négociée par `LIVE jeton débit` à 115200 puis passée à 921 600 bauds, avec bail de 300 ms et retour automatique à 115200. Fichiers : `firmware/ScanAtlas_WiFi/usb_live.h` (analyse et état de session), gestion dans `ScanAtlas_WiFi.ino`, client `robot_usb.py` (démultiplexage trames / acquittements texte, resynchronisation après octets abîmés, DTR/RTS non activés pour ne pas redémarrer la carte), choix Wi-Fi / USB filaire dans l'interface. Difficulté : la console porte à la fois des données binaires et du texte ; les journaux série sont donc coupés pendant la liaison filaire, et seul `loop()` écrit sur le port pour éviter tout mélange à l'intérieur d'une trame.
 
 Validation : 14 tests dédiés (démultiplexeur, client contre un faux firmware qui simule le changement de débit, mauvais débit, firmware muet, robot occupé, flux interrompu, interface, logique C++ de session compilée sur l'hôte) ; le sketch est en outre vérifié par g++ (syntaxe seule) contre de faux en-têtes ESP32 avec les deux pilotes moteur. Non essayé : câble, robot et compilation ESP32 réels.
+
+## 4 novembre 2026 — Sway inversé, lenteur, Localisation seule vide
+
+Constats de l'utilisateur : le sway est inversé ; le robot, même filaire, se « suspend » vite ; en Localisation seule, rien ne se passe et aucun point ne s'affiche ; le robot avance très lentement (soupçon : alimenté par l'USB seul, pas par les 18650).
+
+Causes et corrections :
+- Sway : constantes `AXIS_SURGE_SIGN` / `AXIS_SWAY_SIGN` / `AXIS_YAW_SIGN` dans `motor_config.h`, appliquées dans `drive` et `apply` (sway à -1 par défaut). Tests hôte avec et sans inversion.
+- Lenteur : le pourcentage 0..100 de l'application était écrit directement comme PWM sur 0..255, soit au plus 39 % de la puissance. Nouvelle conversion `powerToDuty` avec `MOTOR_DUTY_MIN` / `MOTOR_DUTY_MAX`. L'alimentation USB seule reste un second suspect (chute de tension).
+- Localisation seule : avec une carte vide, l'application refusait chaque scan (message d'erreur) donc rien n'était calculé ni dessiné. Le premier scan sert maintenant de référence (origine fixe) et les suivants sont localisés sans enrichir la carte. De plus, un scan non accepté est dessiné en rouge à la dernière pose connue, et les passages suivi actif / suivi perdu sont écrits dans `evenements.log` du dossier de journal.
+- « Suspendu » : cause non démontrée. Hypothèse principale : chute de tension (BROWNOUT) quand les moteurs démarrent sur l'USB seul. À confirmer avec le moniteur série à 115200 (la raison du dernier redémarrage est affichée au démarrage) et avec `evenements.log`.
+
+Validation : 205 tests réussis. Non essayé sur le robot.

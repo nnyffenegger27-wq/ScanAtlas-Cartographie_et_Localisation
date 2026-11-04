@@ -65,5 +65,5 @@ c.drive(60,0,0);c.apply(STOP,65);for(unsigned v:values)assert(v==0);
 ''')
             for version in (2,3):
                 (d/'esp_arduino_version.h').write_text(f'#define ESP_ARDUINO_VERSION_MAJOR {version}\n')
-                subprocess.run(['g++','-std=c++17','-Wall','-Wextra','-I',str(d),'-I',str(dossier),str(d/'main.cpp'),'-o',str(d/'test')],check=True,capture_output=True)
+                subprocess.run(['g++','-std=c++17','-Wall','-Wextra','-DAXIS_SWAY_SIGN=1','-DMOTOR_DUTY_MAX=100','-I',str(d),'-I',str(dossier),str(d/'main.cpp'),'-o',str(d/'test')],check=True,capture_output=True)
                 subprocess.run([str(d/'test')],check=True,capture_output=True)

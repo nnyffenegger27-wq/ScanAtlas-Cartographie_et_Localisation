@@ -2,6 +2,7 @@
 import csv
 from copy import deepcopy
 import queue
+from dataclasses import replace
 import threading
 import time
 import tkinter as tk
@@ -438,6 +439,8 @@ class InterfaceWifi:
                 if etat is not None:
                     precedent = self.wifi_etat
                     self.wifi_etat = etat
+                    if self.wifi_journal is not None and (precedent is None or precedent.accepte != etat.accepte):
+                        self.wifi_journal.evenement('Suivi actif.' if etat.accepte else 'Suivi perdu : '+etat.message)
                     self.wifi_dernier_resultat = time.monotonic()
                     self.wifi_info.set(f'{etat.message} {etat.cles} scans clés · {len(etat.segments)} segments · calcul {1000*etat.duree:.0f} ms · {robot.recus} tours reçus. {self.wifi_journal.erreur if self.wifi_journal else ""}')
                     pose=etat.trajectoire[-1] if len(etat.trajectoire) else np.zeros(3)
@@ -447,7 +450,7 @@ class InterfaceWifi:
                     self.wifi_metriques['calcul'].set(f'{etat.duree*1000:.0f} ms')
                     self.wifi_metriques['carte'].set(f'{len(etat.segments)} segments')
                     self.wifi_badge.configure(text='SUIVI ACTIF' if etat.accepte else 'CARTE EN PAUSE · PILOTAGE MANUEL DISPONIBLE',foreground=ACCENT if etat.accepte else '#be3d4c')
-                    if ((precedent is None or precedent.accepte != etat.accepte or (etat.accepte and time.monotonic()-self.wifi_dernier_dessin >= .25)) and
+                    if ((precedent is None or precedent.accepte != etat.accepte or time.monotonic()-self.wifi_dernier_dessin >= .25) and
                         str(self.onglets.select())==str(self.wifi_cadre)):
                         self.wifi_dessiner(etat)
                         self.wifi_dernier_dessin = time.monotonic()
@@ -534,7 +537,17 @@ class InterfaceWifi:
         nuage.set_visible(self.wifi_vue.get()=='Points')
         segments.set_segments(etat.segments);segments.set_visible(self.wifi_voir_segments.get() and self.wifi_vue.get()!='Points')
         filtre=self.wifi_carte.filtres if self.wifi_carte is not None else {}
-        pts=etat.scan.points()[mesures_valides(etat.scan,**filtre)] if etat.accepte else np.empty((0,2))
+        if etat.accepte:
+            pts=etat.scan.points()[mesures_valides(etat.scan,**filtre)]
+            couleur='#e1a14a'
+        else:
+            # Suivi perdu ou pas de référence : le scan reste visible, posé à la dernière pose connue
+            # (ou à l'origine), en rouge, pour voir que le lidar fonctionne et ce qu'il perçoit.
+            pose=list(etat.trajectoire[-1]) if len(etat.trajectoire) else [0.,0.,0.]
+            placé=replace(etat.scan,pose=pose)
+            pts=placé.points()[mesures_valides(placé,**filtre)]
+            couleur='#d64e5a'
+        courant.set_color(couleur)
         courant.set_offsets(pts);courant.set_visible(self.wifi_voir_scan.get())
         grille=etat.grille
         if grille is not None and grille is not self.wifi_grille_affichee:

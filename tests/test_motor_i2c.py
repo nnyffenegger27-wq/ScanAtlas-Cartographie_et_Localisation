@@ -109,7 +109,7 @@ class MotorI2CTests(unittest.TestCase):
         self._tmp.cleanup()
 
     def test_pilote_i2c_canaux_sens_et_ordre(self):
-        programme = compiler(self.d, I2C_MAIN, 'i2c', extra=['-DMOTOR_DRIVER=2'])
+        programme = compiler(self.d, I2C_MAIN, 'i2c', extra=['-DMOTOR_DRIVER=2', '-DAXIS_SWAY_SIGN=1', '-DMOTOR_DUTY_MAX=100'])
         subprocess.run([str(programme)], check=True, capture_output=True)
 
     def test_selection_du_pilote(self):
