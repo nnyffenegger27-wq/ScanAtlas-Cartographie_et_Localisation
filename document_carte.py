@@ -73,6 +73,7 @@ class DocumentCarte:
         self.resolution = .05
         self.version = 0
         self.nom = 'Sans titre'
+        self.vue_directe = None      # carte fusionnée du direct, valable tant que la version n'a pas changé
 
     # -- état -----------------------------------------------------------------------------------
     def _change(self):
@@ -105,8 +106,12 @@ class DocumentCarte:
             self.visibles.extend([True]*len(scans))
             self._change()
 
-    def remplacer_par_direct(self, cles, ignores=()):
-        """Le direct publie ses scans clés : ils remplacent les scans inclus, les scans exclus sont conservés."""
+    def remplacer_par_direct(self, cles, ignores=(), vue=None):
+        """Le direct publie ses scans clés : ils remplacent les scans inclus, les scans exclus sont conservés.
+
+        `vue` = dict(points, appuis, grille) : la carte fusionnée du direct (nuage dédoublonné, segments fusionnés,
+        grille d'occupation). Tant que le document n'est pas modifié, l'onglet Carte affiche cette même carte au lieu
+        de la recalculer depuis chaque scan clé : une seule carte pour tous les onglets, et pas de segments en double."""
         with self.verrou:
             exclus = [(s, v) for s, oui, v in zip(self.scans, self.inclus, self.visibles) if not oui]
             ancien = {id(s): v for s, oui, v in zip(self.scans, self.inclus, self.visibles) if oui}
@@ -114,6 +119,7 @@ class DocumentCarte:
             self.inclus = [False]*len(exclus) + [True]*len(cles)
             self.visibles = [v for _, v in exclus] + [ancien.get(id(s), True) for s in cles]
             self._change()
+            self.vue_directe = None if vue is None else dict(vue, version=self.version)
 
     def supprimer(self, indice):
         with self.verrou:
@@ -232,11 +238,18 @@ class DocumentCarte:
                                    points=len(s.mesures), etendue=round(float(d['etendue']), 1), etat=d['etat'],
                                    recalage=(s.suivi_recalage or {}).get('message')))
             return dict(version=self.version, nom=self.nom, scans=sortie, filtres=dict(self.filtres),
-                        resolution=self.resolution)
+                        resolution=self.resolution, fusion=self._vue() is not None)
+
+    def _vue(self):
+        v = self.vue_directe
+        return v if v is not None and v['version'] == self.version else None
 
     def nuage(self):
         """Points locaux (mm) de chaque scan et sa pose : le navigateur place, déplace et dessine."""
         with self.verrou:
+            vue = self._vue()
+            if vue is not None:        # carte du direct : un seul nuage fusionné, déjà dans le repère de la carte
+                return dict(version=self.version, fusion=True, scans=[dict(id=-1, pose=[0., 0., 0.], pts=_entier_mm(vue['points']))])
             sortie = []
             for i, (s, vis) in enumerate(zip(self.scans, self.visibles)):
                 if not vis:
@@ -250,6 +263,10 @@ class DocumentCarte:
 
     def grille(self):
         """Carte d'occupation des scans inclus : 0 = inconnu, 1 à 255 = probabilité d'occupation."""
+        with self.verrou:
+            vue = self._vue()
+        if vue is not None and vue['grille'] is not None:
+            return grille_vers_json(vue['grille'])
         scans = self.scans_inclus()
         if not scans:
             raise ValueError('Aucun scan inclus.')
@@ -260,6 +277,10 @@ class DocumentCarte:
 
     def plan(self):
         """Carte vectorielle : segments fusionnés des scans inclus."""
+        with self.verrou:
+            vue = self._vue()
+        if vue is not None:
+            return dict(segments=[[round(float(v), 3) for v in np.asarray(seg).ravel()] for seg, _ in vue['appuis']])
         scans = self.scans_inclus()
         if not scans:
             raise ValueError('Aucun scan inclus.')

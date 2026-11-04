@@ -19,9 +19,13 @@ from suivi_lidar import ReferenceSuivi, icp_droites, predire, vitesses, corriger
 
 
 def reduire(points, pas=.05, maximum=40000):
+    """Un point par cellule de `pas` (le premier rencontré), dans l'ordre d'origine."""
     if not len(points):
         return np.empty((0, 2))
-    _, idx = np.unique(np.floor(points/pas).astype(np.int64), axis=0, return_index=True)
+    cellules = np.floor(points/pas).astype(np.int64)
+    cellules -= cellules.min(axis=0)
+    cle = cellules[:, 0]*(int(cellules[:, 1].max())+1)+cellules[:, 1]      # clé entière : np.unique 1-D, bien plus rapide que axis=0
+    _, idx = np.unique(cle, return_index=True)
     pts = points[np.sort(idx)]
     if len(pts) > maximum:
         raise ValueError('Carte pleine : enregistrer et commencer une nouvelle carte.')
@@ -68,6 +72,18 @@ class EtatDirect:
 # ce nombre de scans consécutifs n'ont pas été suivis normalement : une mauvaise position retrouvée ne doit
 # jamais déposer de scans clés dans la carte.
 PROBATION_SCANS = 3
+
+# Un scan devient « clé » (il entre dans la carte) quand le robot a bougé de 15 cm ou tourné de 5° : la carte est donc
+# construite en roulant, pas seulement à l'arrêt. Le coût d'un scan clé ne dépend plus de la taille de la carte
+# (≈ 40 ms), donc ce n'est plus un risque de gel ; le suivi, lui, tourne à chaque tour de lidar.
+CLE_DISTANCE = .15
+CLE_ANGLE = 5.
+CLE_DELAI_US = 3_000_000        # robot qui bouge très lentement : au plus un scan clé toutes les 3 s…
+IMMOBILE_DISTANCE, IMMOBILE_ANGLE = .04, 1.5      # …mais jamais pendant qu'il est à l'arrêt (pas de scan clé inutile)
+
+# Un point de la carte est périmé quand les rayons d'un nouveau scan l'ont traversé assez souvent : son
+# log-odds de la grille d'occupation est repassé sous ce seuil (impact +0,85, rayon traversant -0,4).
+SEUIL_PERIME = -.8
 
 
 class CarteDirecte:
@@ -305,8 +321,9 @@ class CarteDirecte:
             # plutôt que de ne rien faire ; les suivants sont ensuite localisés sans enrichir la carte.
             amorce = not self.enrichir and not len(self.points)
             surveille = sous_surveillance or self.probation > 0
-            cle = (self.enrichir or amorce) and (self.fin_us is None or (not surveille and (
-                ep >= .15 or ea >= 5. or trame.fin_us-self.fin_cle >= 2_000_000)))
+            immobile = ep < IMMOBILE_DISTANCE and ea < IMMOBILE_ANGLE
+            cle = (self.enrichir or amorce) and (self.fin_us is None or (not surveille and not immobile and (
+                ep >= CLE_DISTANCE or ea >= CLE_ANGLE or trame.fin_us-self.fin_cle >= CLE_DELAI_US)))
             if surveille and self.enrichir and self.fin_us is not None:
                 message += ' Carte non enrichie pendant la vérification de la position.'
             if amorce:
@@ -314,16 +331,18 @@ class CarteDirecte:
             if cle:
                 if len(self.cles) >= 2000:
                     raise ValueError('Limite de 2000 scans clés : enregistrer la carte.')
-                nouveaux_points = reduire(np.vstack([self.points, transformer(pts, scan.pose)]))
-                nouveaux_appuis = self._ajouter_segments(scan)
+                # Copie à l'insertion seulement : l'UI ne lit jamais une grille en mutation.
+                nouvelle_grille = deepcopy(self.grille) if self.grille is not None else Grille.creer([scan],self.resolution,**self.filtres)
+                nouvelle_grille.mettre_a_jour(scan,**self.filtres)
+                # Ce que ce scan a vu traverser disparaît de la carte (objet déplacé, porte refermée, personne passée).
+                anciens = self.points[self._log_odds(nouvelle_grille, self.points) > SEUIL_PERIME]
+                nouveaux_points = reduire(np.vstack([anciens, transformer(pts, scan.pose)]))
+                nouveaux_appuis = self._ajouter_segments(scan, self._appuis_valides(nouvelle_grille))
                 # Seuls les huit derniers scans clés validés servent au suivi local.
                 # La référence garde aussi la couverture de la carte importée.
                 proches = nouveaux_points[np.linalg.norm(nouveaux_points-np.asarray(scan.pose[:2]),axis=1)<14.]
                 local = proches if len(proches)>=30 else nouveaux_points
                 nouvelle_reference = ReferenceSuivi(local)
-                # Copie à l'insertion seulement : l'UI ne lit jamais une grille en mutation.
-                nouvelle_grille = deepcopy(self.grille) if self.grille is not None else Grille.creer([scan],self.resolution,**self.filtres)
-                nouvelle_grille.mettre_a_jour(scan,**self.filtres)
                 # Publication atomique : aucun état partiellement inséré sur une erreur.
                 self.points, self.appuis, self.grille = nouveaux_points, nouveaux_appuis, nouvelle_grille
                 self.reference_locale = nouvelle_reference
@@ -416,27 +435,85 @@ class CarteDirecte:
         self.historique_poses = []
         self.probation = PROBATION_SCANS
 
-    def _ajouter_segments(self, scan):
-        carte = [(s.copy(), p.copy()) for s, p in self.appuis]
+    @staticmethod
+    def _log_odds(grille, points):
+        """Log-odds de la cellule de chaque point ; +∞ (jamais périmé) hors de la grille ou jamais observé."""
+        if not len(points):
+            return np.empty(0)
+        ij = np.floor((points-grille.origine)/grille.resolution).astype(int)
+        ny, nx = grille.log_odds.shape
+        dedans = (ij[:, 0] >= 0) & (ij[:, 0] < nx) & (ij[:, 1] >= 0) & (ij[:, 1] < ny)
+        lo = np.full(len(points), np.inf)
+        ij = ij[dedans]
+        lo[dedans] = np.where(grille.observe[ij[:, 1], ij[:, 0]], grille.log_odds[ij[:, 1], ij[:, 0]], np.inf)
+        return lo
+
+    def _appuis_valides(self, grille):
+        """Segments de la carte sans ceux dont la majorité des mesures sources a été traversée par de nouveaux rayons."""
+        gardes = []
+        for segment, supports in self.appuis:
+            if np.mean(self._log_odds(grille, supports) <= SEUIL_PERIME) < .5:
+                gardes.append((segment, supports))
+        return gardes
+
+    def _ajouter_segments(self, scan, appuis=None):
+        """Fusionne les segments du scan dans la carte : un mur vu plusieurs fois reste un seul segment."""
+        carte = list(self.appuis if appuis is None else appuis)      # les entrées ne sont jamais modifiées sur place
+        tableau = np.array([s for s, _ in carte]).reshape(-1, 2, 2)
         for nouveau, pts in extraire_segments(scan, retour_supports=True, saut=.25, erreur=.05, **self.filtres):
-            for i in range(len(carte)-1, -1, -1):
-                ancien, appuis = carte[i]
-                if not proches(ancien, nouveau, angle_max=6., distance_max=.10):
-                    continue
-                supports = reduire(np.vstack([appuis, pts]), pas=.025, maximum=10000)
-                # Appuis bornés par segment, régulièrement répartis dans l'ordre projeté.
-                if len(supports) > 160:
-                    u = (nouveau[1]-nouveau[0])/longueur(nouveau)
-                    supports = supports[np.argsort(supports@u)][np.linspace(0,len(supports)-1,160).astype(int)]
-                fusion = ajuster_segment(supports)
-                if longueur(fusion) <= 1e-8:
-                    continue
-                u = (fusion[1]-fusion[0])/longueur(fusion)
-                if np.max(np.abs((supports-fusion[0])@np.array([-u[1],u[0]]))) <= .05:
-                    nouveau, pts = fusion, supports
-                    carte.pop(i)
+            fusionne = True
+            while fusionne:
+                fusionne = False
+                # Préfiltre vectorisé (angle et écart latéral des extrémités) : seuls les voisins plausibles passent
+                # par le test exact `proches`.
+                for i in self._voisins(tableau, nouveau, 6., .10)[::-1]:
+                    ancien, appuis_i = carte[i]
+                    if not proches(ancien, nouveau, angle_max=6., distance_max=.10):
+                        continue
+                    supports = reduire(np.vstack([appuis_i, pts]), pas=.025, maximum=10000)
+                    # Appuis bornés par segment, régulièrement répartis dans l'ordre projeté.
+                    if len(supports) > 160:
+                        u = (nouveau[1]-nouveau[0])/longueur(nouveau)
+                        supports = supports[np.argsort(supports@u)][np.linspace(0,len(supports)-1,160).astype(int)]
+                    fusion = ajuster_segment(supports)
+                    if longueur(fusion) <= 1e-8:
+                        continue
+                    u = (fusion[1]-fusion[0])/longueur(fusion)
+                    if np.max(np.abs((supports-fusion[0])@np.array([-u[1],u[0]]))) <= .05:
+                        nouveau, pts = fusion, supports
+                        carte.pop(i)
+                        tableau = np.delete(tableau, i, axis=0)
+                        fusionne = True
+                        break
             carte.append((nouveau, pts))
+            tableau = np.concatenate([tableau, nouveau[None]])
         if len(carte) > 2000:
             raise ValueError('Limite de 2000 segments : enregistrer la carte.')
         return carte
 
+    @staticmethod
+    def _voisins(tableau, nouveau, angle_max, distance_max):
+        """Indices des segments de `tableau` (n, 2, 2) à peu près parallèles à `nouveau` et à moins de distance_max de sa droite,
+        et inversement. Superset de ce que `proches` accepte ; l'ordre croissant est conservé."""
+        if not len(tableau):
+            return []
+        a0, v = tableau[:, 0], tableau[:, 1]-tableau[:, 0]
+        lv = np.linalg.norm(v, axis=1)
+        u = nouveau[1]-nouveau[0]
+        lu = np.linalg.norm(u)
+        ok = (lv > 1e-9) & (lu > 1e-9)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            cos = np.abs(v@u)/(lv*lu)
+            ok &= cos >= np.cos(np.deg2rad(angle_max))-1e-9
+            marge = distance_max+1e-6
+            # extrémités du nouveau par rapport à la droite de chaque ancien
+            n = np.column_stack([-v[:, 1], v[:, 0]])/lv[:, None]
+            ok &= np.maximum(np.abs(np.einsum('ij,ij->i', nouveau[0]-a0, n)), np.abs(np.einsum('ij,ij->i', nouveau[1]-a0, n))) <= marge
+            # extrémités de chaque ancien par rapport à la droite du nouveau
+            nn = np.array([-u[1], u[0]])/lu
+            ok &= np.maximum(np.abs((a0-nouveau[0])@nn), np.abs((tableau[:, 1]-nouveau[0])@nn)) <= marge
+        # recouvrement des boîtes englobantes élargies
+        bas = np.minimum(tableau[:, 0], tableau[:, 1])-marge
+        haut = np.maximum(tableau[:, 0], tableau[:, 1])+marge
+        ok &= np.all((bas <= np.maximum(nouveau[0], nouveau[1])) & (haut >= np.minimum(nouveau[0], nouveau[1])), axis=1)
+        return np.flatnonzero(ok).tolist()

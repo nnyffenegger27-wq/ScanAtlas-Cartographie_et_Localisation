@@ -153,8 +153,9 @@ def deplacer(pose, avance, gauche, tourne, dt, murs=SALLE_DEMO, rayon=RAYON_ROBO
 
 class SalleVirtuelle:
     """Robot + salle avancés à pas de temps fixe, pour tester sans temps réel."""
-    def __init__(self, murs=SALLE_DEUX_PIECES, pose=(0., -1., 0.), graine=1, derive=0.):
+    def __init__(self, murs=SALLE_DEUX_PIECES, pose=(0., -1., 0.), graine=1, derive=0., bruit=.003):
         self.murs = murs
+        self.bruit = bruit               # écart-type du bruit de mesure en mètres (un LD06 réel : 1 à 2 cm)
         self.pose = np.array(pose, float)
         self.rng = np.random.default_rng(graine)
         self.t = 0.
@@ -171,4 +172,4 @@ class SalleVirtuelle:
     def trame(self):
         self.sequence += 1
         fin = 1_000_000+int(self.t*1e6)
-        return TrameScan(self.sequence, fin, 100000, mesures_simulees(self.pose, self.rng, self.murs))
+        return TrameScan(self.sequence, fin, 100000, mesures_simulees(self.pose, self.rng, self.murs, bruit=self.bruit))

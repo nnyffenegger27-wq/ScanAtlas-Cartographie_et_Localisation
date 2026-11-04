@@ -17,9 +17,9 @@ def points_locaux(etat):
     return np.column_stack([r*np.cos(th), r*np.sin(th)])
 
 
-def explorer(murs, depart, duree_max=240., puissance=60, mapping=lambda c: c, **options):
+def explorer(murs, depart, duree_max=240., puissance=60, mapping=lambda c: c, bruit=.003, **options):
     """Boucle : robot simulé → CarteDirecte (SLAM) → Explorateur → commande. Retourne un compte rendu."""
-    salle = SalleVirtuelle(murs, pose=depart, derive=.05)
+    salle = SalleVirtuelle(murs, pose=depart, derive=.05, bruit=bruit)
     carte, ex = CarteDirecte(), Explorateur()
     ex.demarrer(0.)
     cmd, dt = (0., 0., 0.), .1

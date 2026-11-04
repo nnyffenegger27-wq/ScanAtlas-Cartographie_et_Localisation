@@ -9,6 +9,7 @@ import json
 import queue
 import gzip
 import secrets
+import sys
 import threading
 import time
 import webbrowser
@@ -308,6 +309,9 @@ class ServeurLocal(ThreadingHTTPServer):
 
 def demarrer(port=8765, ouvrir=True, fabrique_robot=None):
     """Lance le serveur (bloquant). Si le port est pris, essaie les suivants."""
+    # Les fils de calcul (suivi, carte) et la boucle de commande du robot se partagent le GIL : un intervalle de
+    # commutation court garde la boucle de commande (50 ms) réactive même pendant un gros calcul.
+    sys.setswitchinterval(.002)
     app = Application(fabrique_robot=fabrique_robot)
     serveur = None
     for essai in range(port, port+20):

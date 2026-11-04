@@ -11,9 +11,10 @@ export function creerCarte() {
   vue.surSurvol = ([x, y]) => { $('coordonnees').textContent = `x ${x.toFixed(2)} m   y ${y.toFixed(2)} m`; };
 
   // ---------------------------------------------------------------- chargement
+  let dernierRechargement = 0, rechargementPlanifie = null;
   async function recharger() {
     if (!S.affiche) { S.sale = true; return; }
-    S.sale = false;
+    S.sale = false; dernierRechargement = Date.now();
     const liste = await agir(lire('/api/carte'));
     if (!liste) return;
     const change = !S.liste || liste.version !== S.liste.version;
@@ -49,7 +50,10 @@ export function creerCarte() {
   function dessiner(ctx, v, c) {
     if (!S.liste) return;
     if (S.couches.has('grille') && S.grille) dessinerGrille(ctx, v, c);
-    if (S.couches.has('points') && S.nuage) {
+    if (S.couches.has('points') && S.nuage && S.nuage.fusion) {
+      // carte du direct : un seul nuage fusionné, le même que celui de l'écran Direct
+      for (const s of S.nuage.scans) nuagePoints(ctx, v, s.pts, s.pose, 2.4, c.point, .8);
+    } else if (S.couches.has('points') && S.nuage) {
       for (const s of S.nuage.scans) {
         const meta = S.liste.scans[s.id]; if (!meta || s.id === S.choisi) continue;
         nuagePoints(ctx, v, s.pts, indexPose(s.id), 2.4, c.point, meta.inclus ? .8 : .28);
@@ -64,7 +68,7 @@ export function creerCarte() {
     }
     // positions des scans : petit repère, plus marqué pour le scan choisi
     for (const m of S.liste.scans) {
-      if (!m.visible) continue;
+      if (!m.visible || S.liste.fusion) continue;       // carte fusionnée : pas un repère par scan clé
       robot(ctx, v, indexPose(m.id), m.id === S.choisi ? c.accent : c.texte, false, c, m.id === S.choisi ? 9 : 5);
     }
   }
@@ -195,7 +199,13 @@ export function creerCarte() {
 
   return {
     montrer(oui) { S.affiche = oui; if (oui) { vue.redimensionner(); if (S.sale || !S.liste) recharger(); else vue.demander(); } },
-    document() { if (S.affiche) recharger(); else S.sale = true; },
+    // Pendant qu'une carte se construit, le document change à chaque scan clé : on ne recharge qu'une fois par seconde.
+  document() {
+    if (!S.affiche) { S.sale = true; return; }
+    const reste = 1000 - (Date.now() - dernierRechargement);
+    if (reste <= 0) recharger();
+    else if (!rechargementPlanifie) rechargementPlanifie = setTimeout(() => { rechargementPlanifie = null; recharger(); }, reste);
+  },
     etat(e) {
       const v = e.connexion !== 'hors_ligne'; if (v !== S.verrou) { S.verrou = v; if (S.liste) interface_(); }
     },

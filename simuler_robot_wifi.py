@@ -29,9 +29,11 @@ def main():
             except socket.timeout:continue
             p=raw.decode('ascii',errors='ignore').split();now=time.monotonic();rep=''
             with lock:
-                if now-state['last']>.3:state['token']=None;state['cmd']='STOP'
+                # comme le firmware : silence > 300 ms = moteurs coupés ; > 6 s = session perdue ; > 1 s = une autre session peut la reprendre
+                if now-state['last']>.3:state['cmd']='STOP'
+                if now-state['last']>6.:state['token']=None
                 if len(p)==2 and p[0]=='HELLO' and len(p[1])==32:
-                    if state['token'] is None:
+                    if state['token'] is None or (state['token']!=p[1] and now-state['last']>1.):
                         state.update(token=p[1],adresse=addr,last=now,seq=0,cmd='STOP')
                     rep='READY '+p[1]+' SA2' if state['token']==p[1] and state['adresse']==addr else 'BUSY'
                 elif (len(p)==5 and p[0]=='SA1' and p[1]==state['token'] and addr==state['adresse'] and p[3] in COMMANDS and p[3]!='DRIVE'):

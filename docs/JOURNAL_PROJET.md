@@ -776,3 +776,32 @@ Résultat en boucle fermée, 60 % de puissance, glissement aléatoire des roues 
 Difficultés : les tests de la session et du navigateur qui explorent « la salle de démonstration » dépendaient de la petite salle ; ils la demandent maintenant par son nom (l'appartement ne tiendrait pas en temps réel dans un test). Deux valeurs attendues fausses dans mon test du lidar (rayon qui rase le bord d'un pilier ; table basse sur la trajectoire) : c'était le test qui avait tort, pas la simulation.
 
 Tests : `tests/test_exploration.py` (sortie du salon par la porte ; exploration complète de l'appartement avec `SCANATLAS_LENT=1`, 36 s), `tests/test_simulation.py` (constructeurs, départ dégagé de chaque salle, **toutes les pièces atteignables depuis le départ** avec la marge de sécurité de l'exploration, collisions, distances lidar), choix de salle dans la session et le navigateur.
+
+## 4 novembre 2026 (soir) — gel après ~100 scans, déconnexions, segments superposés, points périmés, carte unique
+
+Retour d'essai : à partir de ~100 scans clés ça commence à freezer, vers 230 le robot se déconnecte (« même en simulation »), beaucoup de segments se superposent dans la carte vectorielle, il faut retirer les points rendus obsolètes par un nouveau scan, et une seule carte doit être ouverte dans tous les onglets.
+
+Diagnostic (reproduit en temps réel : application complète, processus du robot simulé, sockets ; échantillonneur d'arrêts côté PC, traces côté robot) :
+- Le traitement d'un scan ne prenait que 3 à 6 ms et il n'y avait aucun retard de file : ce n'était pas une surcharge de calcul au sens habituel. Le PC *s'arrêtait* 100 à 320 ms par moments (82 arrêts de plus de 100 ms en 8 minutes), la boucle de commande n'envoyait plus rien pendant plus de 300 ms, et le robot simulé coupait alors toute la session (« Flux lidar fermé ») : 3 à 5 déconnexions en 8 minutes.
+- Cause principale : le journal réécrivait **toute** la session de secours (tous les scans clés, `json.dumps` qui tient le GIL) à chaque scan clé, dans le fil de calcul : 59 des 82 arrêts. Coût proportionnel au nombre de scans, donc l'apparition du gel vers 100 scans et des coupures vers 230.
+- Cause secondaire : un scan clé coûtait 97 ms en moyenne et jusqu'à 230 ms en fin d'exploration (plus que la période du lidar de 100 ms), dominé par la fusion des segments (≈ 1000 appels du test `proches` par scan clé, en Python) et par `np.unique(axis=0)` sur la carte de points.
+- Aggravant : un scan clé toutes les 2 s même robot immobile (65 scans clés en 140 s à l'arrêt).
+- Défaut du simulateur : il coupait la session à 300 ms de silence, alors que le firmware ne coupe que les moteurs à 300 ms et la session à 6 s (`protocol.h`). Le simulateur suit maintenant le firmware (reprise de session possible après 1 s de silence).
+
+Corrections : journal entièrement dans un fil d'écriture, session de secours écrite scan par scan, au plus toutes les 20 s et à la fermeture ; préfiltre vectorisé des segments voisins (le test exact ne passe plus que sur quelques candidats) ; `reduire` sur clé entière ; plus de scan clé à l'arrêt ; intervalle de commutation des fils réduit à 2 ms dans le serveur ; carte et segments retirés quand ils sont traversés par de nouveaux rayons.
+
+Mesures : coût d'un scan clé 97 → 38 ms en moyenne et **constant** quelle que soit la taille de la carte (il montait à 230 ms) ; application réelle en temps réel dans l'appartement, 8 minutes, 426 scans clés : **0 déconnexion** (3 à 5 avant), 0 arrêt du PC de plus de 100 ms (82 avant, jusqu'à 320 ms), retard de file au plus 1 scan. Exploration complète équivalente (quatre départs : 1296 s avant, 1337 s après avec des scans clés tous les 25 cm, puis 1338 s avec les seuils de 15 cm / 5° réadoptés ; 4 à 6 cm d'erreur de suivi, même qualité).
+
+Segments superposés : l'onglet Carte recalculait le plan depuis **tous** les scans clés (`carte_vectorielle`, 18 s pour 250 scans, sur le fil du serveur) et, avec un bruit de 1,2 cm comme un vrai LD06, doublait 159 m de segments sur 232 m ; la carte fusionnée du direct n'en double que 16 m sur 151 m. L'écran Carte affiche maintenant la carte fusionnée du direct (nuage, segments, grille) tant que le document n'est pas modifié : une seule carte pour tous les onglets, rien à recalculer, plus de traits épais. Le rechargement de l'écran Carte est limité à une fois par seconde pendant qu'une carte se construit.
+
+Points périmés : un point de la carte dont la cellule de grille est repassée sous le seuil libre (−0,8 de log-odds) après de nouveaux rayons est retiré ; même règle pour un segment dont la moitié des mesures sources est périmée. Test : un meuble ajouté puis retiré disparaît de la carte (31 points restaient sans cette règle, 0 avec), les murs ne sont pas grignotés.
+
+Limites : mesures faites sur ce PC de développement (2 cœurs) ; la machine de l'utilisateur, plus lente, n'est pas mesurée mais le coût est maintenant constant. Le simulateur de bruit (1,2 cm) est un réglage, pas une mesure du vrai LD06. Le seuil de péremption peut effacer un vrai mur vu une seule fois en rasant puis traversé par des rayons voisins ; il est réécrit au scan suivant qui le voit.
+
+Retours du même essai, **notés mais pas traités** (à reprendre ensuite) :
+1. Déconnexions encore présentes sur le vrai robot : `[WinError 10051]` (réseau inaccessible) pendant la reconnexion, essai 6/8. À investiguer côté Windows et Wi-Fi (changement de réseau, adaptateur) avec un nouvel `evenements.log`.
+2. Message « Le robot ne va pas dans la direction commandée (écart de 89°) » : sens des axes du châssis ou orientation du lidar (la détection d'exploration a fonctionné comme prévu).
+3. Yaw pur : seuls les moteurs d'une diagonale devraient tourner ; actuellement les quatre tournent et le robot pivote sur un cercle d'environ 50 cm de diamètre au lieu de sur place (firmware / cinématique à revoir).
+4. Exploration : le robot va trop vite ; envisager des étapes de 50 cm avec scan, en gardant la localisation pendant le déplacement. Précision de l'utilisateur : la carte peut être construite en continu si le coût est maîtrisé (c'est le cas maintenant : scans clés tous les 15 cm / 5°).
+
+Validation : 216 tests réussis (nouveaux : `tests/test_charge_carte.py` — `reduire`, préfiltre, scans clés à l'arrêt et en mouvement, points périmés, journal hors du chemin critique, carte unique).
