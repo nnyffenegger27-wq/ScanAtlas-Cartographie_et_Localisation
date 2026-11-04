@@ -43,7 +43,7 @@ journal_direct.py                tours.jsonl, session_secours.json, evenements.l
 encart_commandes.py, apparence.py, manette.py   pavé de commandes, palette, manette XInput
 simuler_robot_wifi.py            robot simulé sur le PC (sans matériel)
 firmware/ScanAtlas_WiFi/         firmware ESP32 (voir §5)
-tests/                           206 tests, voir §8
+tests/                           208 tests, voir §8
 docs/                            documentation (ce fichier, guide, journal, etc.)
 outils/                          scripts d'évaluation reproductibles (python outils/<nom>.py)
 materiel/                        firmware de démonstration d'origine du châssis, test lidar, CAO
@@ -93,7 +93,7 @@ Compilation : Arduino IDE, carte « ESP32 Dev Module », Arduino-ESP32 2.0.17, o
 ## 8. Tester
 
 ```
-python -m unittest discover -s tests          # 206 tests, ~45 s
+python -m unittest discover -s tests          # 208 tests, ~45 s
 ```
 
 Tk est nécessaire pour les tests d'interface (Linux sans écran : `xvfb-run -a python -m unittest discover -s tests`). Le test `tests/test_usb_direct.py` contient de faux en-têtes Arduino pour vérifier la syntaxe du `.ino` avec g++. Les tests moteurs compilent les vrais en-têtes du firmware avec g++ (`tests/test_motor_*.py`). Banc de suivi : `python outils/evaluer_wifi.py`. Robot simulé : `python simuler_robot_wifi.py`.
@@ -101,7 +101,7 @@ Tk est nécessaire pour les tests d'interface (Linux sans écran : `xvfb-run -a 
 ## 9. Suite prévue (par ordre)
 
 1. **Valider sur le robot** : piles 18650, firmware à jour, sens du sway, vitesse, Localisation seule, filaire. Lire `evenements.log` et le moniteur série en cas de coupure.
-2. **Refonte du design** : interface sobre, élégante, ergonomique (palette neutre, hiérarchie claire, un panneau de contrôle clair, carte au centre). Fichiers concernés : `apparence.py`, `interface_wifi.py`, `app.py`, `encart_commandes.py`.
+2. **Refonte du design** : première passe faite (thème central dans `apparence.py`, espace Robot réorganisé, pilotage toujours visible). Reste à valider sur Windows (police, DPI) et à harmoniser les onglets Cartographie et Localisation (titres, espacements, panneaux en cartes).
 3. **Prédiction par commandes** : utiliser les commandes envoyées pour initialiser le recalage lidar (modèle de mouvement), avec recherche élargie si le lidar contredit la prédiction. Idée demandée par l'utilisateur pour plus tard.
 4. **Capture directe dans Localisation** et SLAM « en direct » plus poussé (fermeture de boucle, optimisation de graphe de poses) selon la vidéo de référence, une fois ses attentes précisées.
 5. Pas de rapport Word pour l'instant (demande de l'utilisateur) ; tenir `JOURNAL_PROJET.md` à jour avec les difficultés rencontrées.

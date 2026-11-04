@@ -16,7 +16,7 @@ from robot_wifi import RobotWifi, dernier
 from robot_usb import RobotUsb
 from cartographie_direct import CarteDirecte
 from cartographie import mesures_valides
-from apparence import curseur, FOND, SURFACE, ENCRE, SECONDAIRE, ACCENT
+from apparence import curseur, carte_ui, habiller_barre, FOND, SURFACE, ENCRE, SECONDAIRE, ACCENT, DANGER, SUCCES
 from encart_commandes import EncartCommandes, pourcentages
 
 # Clavier AZERTY : Z/S = surge, Q/D = sway, A/E = yaw. Les flèches restent un équivalent
@@ -82,62 +82,72 @@ class InterfaceWifi:
         self.manette=ManetteXbox()
         self.wifi_demo_process=None
         self.wifi_journal=None
-        entete=ttk.Frame(cadre);entete.pack(fill='x',pady=(0,8))
+        entete=ttk.Frame(cadre);entete.pack(fill='x',pady=(2,10))
         ttk.Label(entete,text='Robot en direct',style='Titre.TLabel').pack(side='left')
-        ttk.Button(entete,text='ARRÊT · ESPACE',command=self.wifi_arreter,style='Danger.TButton').pack(side='right',padx=5)
-        ttk.Button(entete,text='Démonstration',command=self.wifi_demo).pack(side='right')
-        self.wifi_panes=ttk.Panedwindow(cadre,orient='horizontal');
+        # Connexion dans l'en-tête : état et liaison toujours visibles, la colonne de droite reste pour le pilotage.
+        liaison=ttk.Frame(entete);liaison.pack(side='left',padx=(28,0))
+        liaisons=ttk.Combobox(liaison,textvariable=self.wifi_liaison,values=['Wi-Fi','USB filaire'],state='readonly',width=11)
+        liaisons.pack(side='left');liaisons.bind('<<ComboboxSelected>>',lambda e:self.wifi_liaison_changer())
+        ttk.Entry(liaison,textvariable=self.wifi_hote,width=16).pack(side='left',padx=6)
+        ttk.Button(liaison,text='Connecter',command=self.wifi_connecter,style='Accent.TButton').pack(side='left')
+        ttk.Button(liaison,text='Déconnecter',command=self.wifi_deconnecter,style='Ghost.TButton').pack(side='left',padx=(4,0))
+        ttk.Button(entete,text='ARRÊT · ESPACE',command=self.wifi_arreter,style='Danger.TButton').pack(side='right')
+        ttk.Button(entete,text='Démonstration',command=self.wifi_demo).pack(side='right',padx=8)
+        self.wifi_badge=ttk.Label(entete,text='HORS CONNEXION',style='Badge.TLabel')
+        self.wifi_badge.pack(side='right',padx=8)
+        self.wifi_panes=ttk.Panedwindow(cadre,orient='horizontal')
         carte=ttk.Frame(self.wifi_panes)
-        lateral=ttk.Frame(self.wifi_panes,width=295)
-        defilement=tk.Canvas(lateral,width=290,background=FOND,highlightthickness=0)
+        lateral=ttk.Frame(self.wifi_panes,width=330)
+        fixe=ttk.Frame(lateral,padding=(14,0,8,0));fixe.pack(side='bottom',fill='x')  # Le pilotage reste toujours visible.
+        defilement=tk.Canvas(lateral,width=325,background=FOND,highlightthickness=0)
         ascenseur=ttk.Scrollbar(lateral,orient='vertical',command=defilement.yview)
         defilement.configure(yscrollcommand=ascenseur.set)
         ascenseur.pack(side='right',fill='y');defilement.pack(fill='both',expand=True)
-        panneau=ttk.Frame(defilement,padding=(12,0))
+        panneau=ttk.Frame(defilement,padding=(14,0,8,0))
         fenetre=defilement.create_window((0,0),window=panneau,anchor='nw')
         panneau.bind('<Configure>',lambda e:defilement.configure(scrollregion=defilement.bbox('all')))
         defilement.bind('<Configure>',lambda e:defilement.itemconfigure(fenetre,width=e.width))
         self.wifi_panes.add(carte,weight=5);self.wifi_panes.add(lateral,weight=1)
         self.wifi_panneau=lateral
-        affichage=ttk.Frame(carte);affichage.pack(fill='x',pady=(0,6))
+        # Bandeau d'instruments au-dessus de la carte : une seule ligne, lisible d'un coup d'œil.
+        bandeau=carte_ui(carte,fill='x',pady=(0,8))
+        rangee=ttk.Frame(bandeau,style='Card.TFrame');rangee.pack(fill='x')
+        for i,(cle,texte) in enumerate([('pose','POSITION X / Y (M)'),('angle','ORIENTATION'),('concordance','CONCORDANCE À 12 CM'),
+                                        ('calcul','CALCUL PAR TOUR'),('carte','CARTE VECTORIELLE')]):
+            bloc=ttk.Frame(rangee,style='Card.TFrame');bloc.grid(row=0,column=i,sticky='w',padx=(0,28))
+            ttk.Label(bloc,text=texte,style='MetricNom.TLabel').pack(anchor='w')
+            ttk.Label(bloc,textvariable=self.wifi_metriques[cle],style='Metric.TLabel').pack(anchor='w')
+        affichage=ttk.Frame(carte);affichage.pack(fill='x',pady=(0,4))
         for vue in ('Points','Grille','Vectorielle'):
-            ttk.Radiobutton(affichage,text=vue,variable=self.wifi_vue,value=vue,command=self.wifi_actualiser_vue).pack(side='left',padx=3)
-        ttk.Button(affichage,text='Vue complète',command=self.wifi_centrer).pack(side='right')
-        ttk.Button(affichage,text='Agrandir',command=self.wifi_agrandir).pack(side='right',padx=3)
-        couches=ttk.Frame(carte);couches.pack(fill='x')
+            ttk.Radiobutton(affichage,text=vue,variable=self.wifi_vue,value=vue,command=self.wifi_actualiser_vue).pack(side='left',padx=(0,10))
+        ttk.Separator(affichage,orient='vertical').pack(side='left',fill='y',padx=6,pady=3)
         for texte,var in [('Scan courant',self.wifi_voir_scan),('Segments',self.wifi_voir_segments),('Trajectoire centrée',self.wifi_suivre)]:
-            ttk.Checkbutton(couches,text=texte,variable=var,command=self.wifi_actualiser_vue).pack(side='left',padx=4)
+            ttk.Checkbutton(affichage,text=texte,variable=var,command=self.wifi_actualiser_vue).pack(side='left',padx=(0,10))
+        ttk.Button(affichage,text='Vue complète',command=self.wifi_centrer).pack(side='right')
+        ttk.Button(affichage,text='Agrandir',command=self.wifi_agrandir).pack(side='right',padx=6)
         fig=Figure(figsize=(10,7),dpi=100,facecolor=SURFACE,constrained_layout=True)
         self.wifi_axes=fig.add_subplot(111)
         self.wifi_canvas=FigureCanvasTkAgg(fig,carte)
-        NavigationToolbar2Tk(self.wifi_canvas,carte).pack(side='bottom',fill='x')
+        habiller_barre(NavigationToolbar2Tk(self.wifi_canvas,carte)).pack(side='bottom',fill='x')
         self.wifi_canvas.get_tk_widget().pack(fill='both',expand=True)
         self.wifi_axes.set_aspect('equal',adjustable='box')
-        ttk.Label(panneau,text='Connexion',style='Section.TLabel').pack(anchor='w')
-        liaisons=ttk.Combobox(panneau,textvariable=self.wifi_liaison,values=['Wi-Fi','USB filaire'],state='readonly')
-        liaisons.pack(fill='x',pady=(5,0));liaisons.bind('<<ComboboxSelected>>',lambda e:self.wifi_liaison_changer())
-        ttk.Entry(panneau,textvariable=self.wifi_hote).pack(fill='x',pady=5)
-        ttk.Label(panneau,text='Wi-Fi : adresse du robot · USB : port (auto ou COM8)',style='SousTitre.TLabel',wraplength=270).pack(anchor='w')
-        ligne=ttk.Frame(panneau);ligne.pack(fill='x')
-        ttk.Button(ligne,text='Connecter',command=self.wifi_connecter,style='Accent.TButton').pack(side='left')
-        ttk.Button(ligne,text='Déconnecter',command=self.wifi_deconnecter).pack(side='right')
-        ttk.Separator(panneau).pack(fill='x',pady=12)
-        ttk.Label(panneau,text='Carte de départ',style='Section.TLabel').pack(anchor='w')
-        ttk.Combobox(panneau,textvariable=self.wifi_reference,values=['Nouvelle carte','Scans cochés Carte'],state='readonly',width=26).pack(fill='x',pady=5)
-        ttk.Label(panneau,text='La carte de session est copiée au démarrage. Nouvelle carte applique ce choix.',wraplength=270,style='SousTitre.TLabel').pack(anchor='w')
-        modes=ttk.Combobox(panneau,textvariable=self.wifi_mode,values=['Cartographier','Localisation seule'],state='readonly')
-        modes.pack(fill='x',pady=(10,4));modes.bind('<<ComboboxSelected>>',lambda e:self.wifi_mode_changer())
-        ttk.Button(panneau,text='Rechercher ma position · 360°',command=self.wifi_relocaliser).pack(fill='x',pady=3)
-        ttk.Button(panneau,text='Reprendre près de la dernière pose',command=self.wifi_reprendre).pack(fill='x')
-        ttk.Separator(panneau).pack(fill='x',pady=12)
-        ttk.Label(panneau,text='Pilotage',style='Section.TLabel').pack(anchor='w')
-        ttk.Checkbutton(panneau,text='Clavier actif',variable=self.wifi_actif,command=self.wifi_activer).pack(anchor='w')
-        ttk.Checkbutton(panneau,text='Manette Xbox',variable=self.wifi_manette_active,command=self.wifi_activer_manette).pack(anchor='w')
-        ttk.Label(panneau,text='Stick gauche : surge + sway · stick droit : yaw\nRB : cartographie activée / en pause · B ou Espace : arrêt et désactivation',
-                  style='SousTitre.TLabel',wraplength=270).pack(anchor='w',pady=(2,4))
-        self.wifi_encart=EncartCommandes(panneau);self.wifi_encart.pack(fill='x',pady=(2,6))
-        self.wifi_zone=tk.Label(panneau,text='Clique ici puis : Z S avancer / reculer · Q D gauche / droite · A E tourner',takefocus=True,
-            background=FOND,foreground=SECONDAIRE,pady=8,wraplength=270)
+        # Colonne de droite : trois blocs, dans l'ordre d'utilisation (connecter, choisir, piloter).
+        bloc=carte_ui(panneau,'Carte et mode',fill='x',pady=(0,10))
+        ttk.Combobox(bloc,textvariable=self.wifi_reference,values=['Nouvelle carte','Scans cochés Carte'],state='readonly',width=26).pack(fill='x')
+        modes=ttk.Combobox(bloc,textvariable=self.wifi_mode,values=['Cartographier','Localisation seule'],state='readonly')
+        modes.pack(fill='x',pady=(8,6));modes.bind('<<ComboboxSelected>>',lambda e:self.wifi_mode_changer())
+        ttk.Button(bloc,text='Rechercher ma position · 360°',command=self.wifi_relocaliser).pack(fill='x',pady=(0,4))
+        ttk.Button(bloc,text='Reprendre près de la dernière pose',command=self.wifi_reprendre).pack(fill='x')
+        bloc=carte_ui(fixe,'Pilotage',fill='x',pady=(0,6))
+        choix=ttk.Frame(bloc,style='Card.TFrame');choix.pack(fill='x')
+        ttk.Checkbutton(choix,text='Clavier actif',variable=self.wifi_actif,command=self.wifi_activer,style='Card.TCheckbutton').pack(side='left')
+        ttk.Checkbutton(choix,text='Manette Xbox',variable=self.wifi_manette_active,command=self.wifi_activer_manette,style='Card.TCheckbutton').pack(side='left',padx=(14,0))
+        ttk.Label(bloc,text='Manette : stick gauche = surge + sway, stick droit = yaw · RB cartographie · B arrêt',
+                  style='Card.TLabel',wraplength=262).pack(anchor='w',pady=(2,4))
+        self.wifi_encart=EncartCommandes(bloc);self.wifi_encart.pack(fill='x',pady=(0,6))
+        self.wifi_zone=tk.Label(bloc,text='Clique ici puis : Z S avancer / reculer · Q D gauche / droite · A E tourner',takefocus=True,
+            background='#eef1f4',foreground=SECONDAIRE,pady=5,wraplength=262,highlightthickness=2,
+            highlightbackground='#eef1f4',highlightcolor=ACCENT)
         self.wifi_zone.pack(fill='x')
         self.wifi_zone.bind('<Button-1>',lambda e:self.wifi_zone.focus_set())
         self.wifi_zone.bind('<KeyPress>',self.wifi_touche);self.wifi_zone.bind('<KeyRelease>',self.wifi_relacher)
@@ -145,24 +155,20 @@ class InterfaceWifi:
         self.bind('<KeyPress-space>',lambda e:self.wifi_arreter(),add='+')
         self.bind('<KeyPress-Escape>',lambda e:self.wifi_arreter(),add='+')
         self.onglets.bind('<<NotebookTabChanged>>',self.wifi_changer_onglet,add='+')
-        ttk.Label(panneau,text='Puissance maximale · PWM / 255').pack(anchor='w')
-        self.wifi_curseur_pwm=curseur(panneau,self.wifi_pwm,0,100)
-        ttk.Label(panneau,textvariable=self.wifi_pwm).pack(anchor='e')
-        ttk.Button(panneau,text='ARRÊT · ESPACE',command=self.wifi_arreter,style='Danger.TButton').pack(fill='x',pady=8)
-        ttk.Label(panneau,textvariable=self.wifi_commande,wraplength=270,style='SousTitre.TLabel').pack(fill='x')
-        self.wifi_badge=ttk.Label(panneau,text='HORS CONNEXION',style='Section.TLabel',wraplength=270)
-        self.wifi_badge.pack(anchor='w',pady=(10,6))
-        for cle,texte in [('pose','Position x / y (m)'),('angle','Orientation'),('concordance','Concordance à 12 cm'),('calcul','Calcul par tour'),('carte','Carte vectorielle')]:
-            ligne=ttk.Frame(panneau);ligne.pack(fill='x',pady=2)
-            ttk.Label(ligne,text=texte,style='SousTitre.TLabel').pack(side='left')
-            ttk.Label(ligne,textvariable=self.wifi_metriques[cle]).pack(side='right')
-        actions=ttk.Frame(cadre);actions.pack(side='bottom',fill='x',pady=6)
+        titre=ttk.Frame(bloc,style='Card.TFrame');titre.pack(fill='x',pady=(6,0))
+        ttk.Label(titre,text='Puissance maximale',style='CardTexte.TLabel').pack(side='left')
+        ttk.Label(titre,text=' %',style='CardTexte.TLabel').pack(side='right')
+        ttk.Label(titre,textvariable=self.wifi_pwm,style='CardTexte.TLabel').pack(side='right')
+        self.wifi_curseur_pwm=curseur(bloc,self.wifi_pwm,0,100,style='Card.Horizontal.TScale')
+        ttk.Button(bloc,text='ARRÊT · ESPACE',command=self.wifi_arreter,style='Danger.TButton').pack(fill='x',pady=(4,4))
+        ttk.Label(bloc,textvariable=self.wifi_commande,wraplength=262,style='Card.TLabel').pack(fill='x')
+        actions=ttk.Frame(cadre);actions.pack(side='bottom',fill='x',pady=(8,2))
         ttk.Button(actions,text='Nouvelle carte',command=self.wifi_nouvelle_carte).pack(side='left')
-        ttk.Button(actions,text='Vers Cartographie',command=self.wifi_vers_session).pack(side='left',padx=4)
+        ttk.Button(actions,text='Vers Cartographie',command=self.wifi_vers_session).pack(side='left',padx=6)
         ttk.Button(actions,text='Enregistrer la session directe…',command=self.wifi_sauver).pack(side='left')
         ttk.Button(actions,text='Dossier des essais',command=self.wifi_ouvrir_journal).pack(side='right',padx=3)
         ttk.Button(actions,text='Exporter les segments…',command=self.wifi_exporter).pack(side='right')
-        ttk.Label(cadre,textvariable=self.wifi_info,wraplength=1200,style='SousTitre.TLabel').pack(side='bottom',fill='x')
+        ttk.Label(cadre,textvariable=self.wifi_info,wraplength=1200,style='SousTitre.TLabel').pack(side='bottom',fill='x',pady=(6,0))
         self.wifi_panes.pack(fill='both',expand=True)
         self.after(75,self.wifi_poll)
 
@@ -449,7 +455,7 @@ class InterfaceWifi:
                     self.wifi_metriques['concordance'].set(f'{etat.concordance:.0f} %' if np.isfinite(etat.concordance) else '--')
                     self.wifi_metriques['calcul'].set(f'{etat.duree*1000:.0f} ms')
                     self.wifi_metriques['carte'].set(f'{len(etat.segments)} segments')
-                    self.wifi_badge.configure(text='SUIVI ACTIF' if etat.accepte else 'CARTE EN PAUSE · PILOTAGE MANUEL DISPONIBLE',foreground=ACCENT if etat.accepte else '#be3d4c')
+                    self.wifi_badge.configure(text='SUIVI ACTIF' if etat.accepte else 'CARTE EN PAUSE · PILOTAGE MANUEL DISPONIBLE',foreground=SUCCES if etat.accepte else DANGER)
                     if ((precedent is None or precedent.accepte != etat.accepte or time.monotonic()-self.wifi_dernier_dessin >= .25) and
                         str(self.onglets.select())==str(self.wifi_cadre)):
                         self.wifi_dessiner(etat)

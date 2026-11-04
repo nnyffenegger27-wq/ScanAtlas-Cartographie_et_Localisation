@@ -23,7 +23,7 @@ from localisation_globale import localisation_globale, METHODE_GLOBALE
 from assemblage_global import assembler_scans
 from interface_tp import InterfaceTP
 from interface_wifi import InterfaceWifi
-from apparence import appliquer_theme, curseur, PLAGES, cadre_defilant
+from apparence import appliquer_theme, curseur, PLAGES, cadre_defilant, habiller_barre, FOND
 from localisation_tp import LOCALE as TP_LOCALE, MULTI as TP_MULTI
 
 AIDE = '''PARCOURS CONSEILLÉ
@@ -132,7 +132,7 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
         corps = self.corps = ttk.Panedwindow(self, orient='horizontal')
         corps.pack(fill='both', expand=True, padx=12)
         panneau = self.panneau_scans = ttk.Frame(corps, width=325)
-        defilement = tk.Canvas(panneau, width=310, highlightthickness=0,background='#f7f8fa')
+        defilement = tk.Canvas(panneau, width=310, highlightthickness=0,background=FOND)
         ascenseur = ttk.Scrollbar(panneau, orient='vertical', command=defilement.yview)
         defilement.configure(yscrollcommand=ascenseur.set)
         ascenseur.pack(side='right', fill='y')
@@ -238,7 +238,7 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
             fig = Figure(figsize=(7,5), dpi=100, constrained_layout=True)
             self.axes[titre] = fig.add_subplot(111)
             canvas = FigureCanvasTkAgg(fig, cadre)
-            barre_navigation=NavigationToolbar2Tk(canvas,cadre,pack_toolbar=False)
+            barre_navigation=habiller_barre(NavigationToolbar2Tk(canvas,cadre,pack_toolbar=False))
             barre_navigation.pack(side='bottom',fill='x')
             canvas.get_tk_widget().pack(fill='both',expand=True)
             barre_navigation.update()

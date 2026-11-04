@@ -133,7 +133,7 @@ Passer `MOTOR_DIAGNOSTIC=true`, téléverser, ouvrir le moniteur série à 11520
 
 ## Direct filaire (USB)
 
-Le panneau Connexion propose **Wi-Fi** ou **USB filaire**. En USB, le PC garde sa connexion internet (le hotspot du robot la coupe) et le Wi-Fi est hors de cause : c'est le moyen le plus simple de savoir si une perte de scans vient du Wi-Fi.
+La barre de connexion, en haut de l'espace **Robot en direct**, propose **Wi-Fi** ou **USB filaire** (adresse du robot, ou port : `auto` ou `COM8`). En USB, le PC garde sa connexion internet (le hotspot du robot la coupe) et le Wi-Fi est hors de cause : c'est le moyen le plus simple de savoir si une perte de scans vient du Wi-Fi.
 
 1. Téléverser le firmware `ScanAtlas_WiFi` à jour (la liaison filaire en fait partie).
 2. Brancher le robot en USB avec un câble de données, **fermer le moniteur série d'Arduino** (il occuperait le port).

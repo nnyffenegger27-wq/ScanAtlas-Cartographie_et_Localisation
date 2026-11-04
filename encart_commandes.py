@@ -13,14 +13,14 @@ Le calcul est séparé du dessin (fonctions pures en haut du fichier) pour pouvo
 """
 import math
 import tkinter as tk
-from apparence import ENCRE, SECONDAIRE, BORDURE
+from apparence import ENCRE, SECONDAIRE, BORDURE, ACCENT, SUCCES
 
-VERT = '#2f9e6e'
+VERT = SUCCES
 CASE = '#ffffff'
 CASE_TEXTE = '#4d5f73'
-FOND_CONNECTE = '#e6f2ea'
-FOND_HORS_LIGNE = '#f2eadf'
-BLEU = '#2a6fdb'
+FOND_CONNECTE = '#e8f2ec'
+FOND_HORS_LIGNE = '#eff1f4'
+BLEU = ACCENT
 
 def pourcentages(surge, sway, yaw, pwm):
     """Niveaux [-1, 1] × réglage PWM → entiers signés de -100 à 100."""
@@ -68,7 +68,7 @@ def forme_rotation(gauche):
 
 class EncartCommandes(tk.Canvas):
     def __init__(self, parent, **options):
-        super().__init__(parent, height=214, highlightthickness=1, highlightbackground=BORDURE,
+        super().__init__(parent, height=196, highlightthickness=1, highlightbackground=BORDURE,
                          background=FOND_HORS_LIGNE, **options)
         self._valeurs = (0, 0, 0)
         self._connecte = False
@@ -118,8 +118,8 @@ class EncartCommandes(tk.Canvas):
         self.create_text(10, 12, anchor='w', font=('TkDefaultFont', 9, 'bold'),
                          fill=ENCRE if self._connecte else SECONDAIRE,
                          text='ROBOT CONNECTÉ' if self._connecte else 'ROBOT NON CONNECTÉ · TEST DES COMMANDES')
-        trou, marge, haut = 5, 10, 26
-        cote = max(36, min(56, (largeur-2*marge-2*trou)/3))
+        trou, marge, haut = 5, 10, 24
+        cote = max(36, min(50, (largeur-2*marge-2*trou)/3))
         x0 = (largeur-(3*cote+2*trou))/2
         fractions = cellules_pave(*self._valeurs)
         # (nom, icône, côté d'où part le remplissage) par case, ligne par ligne.

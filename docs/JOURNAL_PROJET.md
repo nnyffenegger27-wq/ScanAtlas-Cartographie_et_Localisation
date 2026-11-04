@@ -674,3 +674,11 @@ Causes et corrections :
 - « Suspendu » : cause non démontrée. Hypothèse principale : chute de tension (BROWNOUT) quand les moteurs démarrent sur l'USB seul. À confirmer avec le moniteur série à 115200 (la raison du dernier redémarrage est affichée au démarrage) et avec `evenements.log`.
 
 Validation : 205 tests réussis. Non essayé sur le robot.
+
+## 4 novembre 2026 — Rangement du dépôt, document de reprise, refonte visuelle
+
+Rangement : la documentation passe dans `docs/`, les scripts d'évaluation reproductibles dans `outils/` (ils ajoutent eux-mêmes la racine au chemin d'import ; commande `python outils/<nom>.py`), le firmware de démonstration d'origine du châssis, le test lidar et la CAO dans `materiel/`. Les modules Python restent à plat à la racine pour ne pas casser les imports ni les tests. Les deux fichiers `.pyc` qui étaient suivis par Git sont retirés. `docs/REPRISE_PROJET.md` et `AGENTS.md` résument l'état, l'architecture, les décisions et la suite pour un nouvel intervenant.
+
+Refonte visuelle (sobre, ergonomique) : palette neutre (fond gris clair, cartes blanches à bordure fine, un accent bleu-vert foncé, vert / rouge réservés à l'état), boutons secondaires grisés pour se distinguer des cartes, onglets soulignés, curseurs et barres de défilement discrets, graphiques Matplotlib harmonisés (cadre léger, grille claire, titres sobres) via `apparence.py` (`appliquer_theme`, `style_matplotlib`, `carte_ui`, `habiller_barre`). Espace Robot : connexion et état dans l'en-tête, bandeau d'instruments (position, orientation, concordance, calcul, carte) au-dessus de la carte, colonne de droite en blocs, **bloc Pilotage fixé en bas** pour que le pavé et l'arrêt restent visibles sans défilement (vérifié par un test à 1366 × 768). Zone de focus clavier entourée d'un liseré visible. Le pavé garde ses fonctionnalités ; ses couleurs sont adoucies.
+
+Difficulté : la colonne de droite dépassait la hauteur de l'écran et cachait le pavé derrière un ascenseur ; la connexion a donc été déplacée dans l'en-tête et le bloc de pilotage compacté. Validation : 208 tests réussis, captures d'écran faites sous Linux avec écran virtuel ; rendu Windows (police Segoe UI, DPI) non vérifié.
