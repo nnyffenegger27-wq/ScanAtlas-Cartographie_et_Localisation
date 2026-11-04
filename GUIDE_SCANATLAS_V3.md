@@ -104,7 +104,7 @@ Huit sorties PWM directes (LEDC, 20 kHz) vers les entrées de la carte moteur.
 | M3A / M3B | 2 / 4 |
 | M4A / M4B | 16 / 17 |
 
-Ce relevé reste à confirmer sur chaque robot. Réglages : `MOTOR_PINS` fixe les GPIO de ces entrées ; `WHEEL_MOTOR` associe M1..M4 aux roues avant gauche, avant droite, arrière gauche et arrière droite ; `WHEEL_SIGN` inverse une polarité si nécessaire ; `MOTOR_PWM_HZ` règle la fréquence.
+Ce relevé reste à confirmer sur chaque robot. Réglages dans `motor_config.h` : **`PIN_M1A` … `PIN_M4B`** (un nom par entrée de la carte moteur) fixent les GPIO, il suffit d'écrire le bon numéro ; les GPIO acceptés et interdits sont listés dans le fichier ; `WHEEL_MOTOR` associe M1..M4 aux roues avant gauche, avant droite, arrière gauche et arrière droite ; `WHEEL_SIGN` inverse une polarité si nécessaire ; `MOTOR_PWM_HZ` règle la fréquence.
 
 ### Pilote I2C (`MOTOR_DRIVER_I2C`)
 

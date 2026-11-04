@@ -13,9 +13,22 @@
 #endif
 
 // 2a) Profil PWM : utilisé seulement si MOTOR_DRIVER == MOTOR_DRIVER_PWM.
-// Profil proposé à partir du câblage relevé, à vérifier sur chaque robot.
-// Entrées fixes de la carte moteur : M1A M1B M2A M2B M3A M3B M4A M4B.
-constexpr int MOTOR_PINS[8]={5,18,19,21,2,4,16,17};
+//
+// >>> BROCHES : écrire ici le numéro de GPIO de l'ESP32 relié à chaque entrée de la carte moteur. <<<
+// Chaque moteur Mx a deux entrées : A (un sens) et B (l'autre sens).
+constexpr int PIN_M1A=5;
+constexpr int PIN_M1B=18;
+constexpr int PIN_M2A=19;
+constexpr int PIN_M2B=21;
+constexpr int PIN_M3A=2;
+constexpr int PIN_M3B=4;
+constexpr int PIN_M4A=16;
+constexpr int PIN_M4B=17;
+// GPIO acceptés : 0, 2, 4, 5, 12 à 19, 21 à 23, 25 à 27 (chacun une seule fois).
+// Interdits : 1 et 3 (console USB), 6 à 11 (mémoire flash), 32 et 33 (lidar), 34 à 39 (entrées seulement).
+// Une valeur interdite ou en double bloque le démarrage moteur, avec un message sur le moniteur série.
+// Valeurs de départ d'après le câblage relevé : à vérifier sur chaque robot.
+constexpr int MOTOR_PINS[8]={PIN_M1A,PIN_M1B,PIN_M2A,PIN_M2B,PIN_M3A,PIN_M3B,PIN_M4A,PIN_M4B};
 // Ordre logique : avant gauche, avant droite, arrière gauche, arrière droite.
 // Chaque valeur désigne M1..M4 (indices 0..3). L'emplacement reste à confirmer.
 constexpr int WHEEL_MOTOR[4]={0,1,2,3};
