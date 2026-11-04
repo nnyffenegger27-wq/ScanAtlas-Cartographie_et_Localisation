@@ -4,9 +4,9 @@
 > | Branche | Ce que c'est | Pour quoi faire |
 > |---|---|---|
 > | **`jours-1-2`** (ici) | Jours 1 et 2, Tkinter, historique d'origine | Vérifier les commits, relire le travail du TP |
-> | `main` | Refonte du 4 novembre : même application, robot Wi-Fi piloté, carte du robot PWM | Point de départ du jour 3 |
-> | `claude/commandes-combinees` | Tkinter la plus avancée : SLAM en direct, commandes combinées | Dernière version Python Tkinter qui fonctionne |
-> | `claude/interface-web` | **Version finale** : interface web, exploration autonome | Ce qu'on lance et ce qu'on présente (onglet « Le projet » = compte rendu) |
+> | `version-2-refonte-tkinter` | Refonte du 4 novembre : même application, robot Wi-Fi piloté, carte du robot PWM | Point de départ du jour 3 |
+> | `version-3-tkinter-avancee` | Tkinter la plus avancée : SLAM en direct, commandes combinées | Dernière version Python Tkinter qui fonctionne |
+> | `main` | **Version finale** : interface web, exploration autonome | Ce qu'on lance et ce qu'on présente (onglet « Le projet » = compte rendu) |
 >
 > ### Où trouver chaque étape de l'énoncé dans cette branche
 >
@@ -20,7 +20,7 @@
 > | J2 · localisation sur grille, carte vectorielle, scan de référence | `localisation_tp.py`, `interface_tp.py` (onglet Localisation), `TP_JOUR2_RESULTATS.md` | `9220ff7` |
 > | J2 · comparaison chiffrée (erreur, temps, taux de réussite, 42 essais) | `evaluer_tp_jour2.py`, `exemples/evaluation_tp_jour2*.csv`, `exemples/TP_JOUR2_*.png` | `9220ff7` |
 > | J2 · autres méthodes (ICP, recherche large, localisation globale 360°) | `localisation.py`, `localisation_globale.py`, `recalage_capture.py`, `LOCALISATION_JOUR2.md`, `FIABILITE_LOCALISATION.md` | `0d25dfd`, `6ca10b4`, `5eb2f9f`, `2f9ba1f` |
-> | J3 · SLAM, exploration, carte de la salle | pas dans cette branche : voir `claude/commandes-combinees` (Tkinter) et `claude/interface-web` (web) | |
+> | J3 · SLAM, exploration, carte de la salle | pas dans cette branche : voir `version-3-tkinter-avancee` (Tkinter) et `main` (web) | |
 >
 > **Lancer cette version** : Python 3.10+, `installer_windows.bat` puis `lancer_windows.bat` (ou `pip install -r requirements.txt` puis `python app.py`). Tests : `python -m unittest discover -s tests`.
 
