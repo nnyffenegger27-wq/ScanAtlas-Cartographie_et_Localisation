@@ -1,3 +1,5 @@
+> **Note (interface web).** Les écrans, onglets et fichiers Tkinter cités ici (`app.py`, `interface_wifi.py`, `interface_tp.py`…) ont été remplacés par l'interface web : voir [GUIDE_WEB.md](GUIDE_WEB.md). Les principes, calculs et résultats décrits restent valables.
+
 # Vers un robot de cartographie vectorielle en temps réel
 
 Étude du 3 novembre 2026. **Statut : choix d’architecture et plan d’intégration.** Cette étape ne remplace pas encore le solveur de l’application et n’ajoute pas de commande moteur active. Les fonctionnalités déjà implémentées restent décrites dans LOCALISATION_GLOBALE.md.

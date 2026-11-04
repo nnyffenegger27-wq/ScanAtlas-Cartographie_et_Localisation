@@ -9,9 +9,6 @@ from cartographie import demonstration,Grille
 from localisation_tp import ReferenceGrille,ReferenceVectorielle,ReferenceScan,localiser_sur_reference,LOCALE,MULTI
 from localisation import erreur_pose
 from evaluer_tp_jour2 import construire_references
-from app import Atelier
-from interface_tp import InterfaceTP
-from test_interface_sans_ecran import Variable
 
 
 class DistancesReferences(unittest.TestCase):
@@ -66,62 +63,6 @@ class LocalisationTroisTypes(unittest.TestCase):
         r=localiser_sur_reference(m,v,LOCALE)
         self.assertFalse(r.applicable)
 
-class InterfaceReference(unittest.TestCase):
-    def interface(self,type_ref='Grille'):
-        r,m=demonstration();modeles,g,v=construire_references(r)
-        class Choix:
-            def current(self):return 0
-        class Label:
-            def configure(self,**kw):self.texte=kw['text']
-        a=SimpleNamespace(scans=[r,m],inclus=[True,False],visibles=[True,True],grille=g,vecteurs=v,
-            scans_grille={id(r)},scans_vecteurs={id(r)},choix_reference_tp=Choix(),references_tp=[r,m],
-            vars={'tp_reference':Variable(type_ref),'tp_methode':Variable(MULTI)},info_tp=Label(),
-            travail=False,annuler=threading.Event(),messages=queue.Queue(),statut=Variable(),resultat_tp=None)
-        a.filtres=lambda:dict(mini=.05,maxi=12,intensite=0);a.indice=lambda:1
-        a.annuler_geste=lambda:None;a.dessiner_tp=lambda *args:None;a.actualiser=lambda *args:None
-        def invalider(**kw):a.resultat_tp=None
-        a.invalider=invalider
-        for nom in ['preparer_reference_tp','contexte_tp_valide','lancer_localisation_tp','recevoir_localisation_tp','appliquer_localisation_tp']:
-            setattr(a,nom,MethodType(getattr(InterfaceTP,nom),a))
-        return a
-
-    def test_mobile_dans_reference_interdit(self):
-        for type_ref,cle in [('Grille','scans_grille'),('Carte vectorielle','scans_vecteurs')]:
-            a=self.interface(type_ref);getattr(a,cle).add(id(a.scans[1]))
-            with self.assertRaisesRegex(ValueError,'mobile'):a.preparer_reference_tp()
-
-    def test_reference_modifiee_ou_selection_mobile_invalide_resultat(self):
-        for type_ref in ['Grille','Carte vectorielle','Scan']:
-            a=self.interface(type_ref);c=a.preparer_reference_tp();self.assertTrue(a.contexte_tp_valide(c))
-            if type_ref=='Grille':a.grille.log_odds[0,0]+=.1
-            elif type_ref=='Carte vectorielle':a.vecteurs[0][0,0]+=.1
-            else:a.scans[0].pose[0]+=.1
-            self.assertFalse(a.contexte_tp_valide(c))
-        a=self.interface();c=a.preparer_reference_tp();a.indice=lambda:0;self.assertFalse(a.contexte_tp_valide(c))
-
-    def test_calcul_et_application_reels_sur_grille(self):
-        a=self.interface();mesures=a.scans[1].mesures.copy();pose_ref=list(a.scans[0].pose)
-        a.scans[1].pose=(np.array(a.scans[1].pose)+[.3,-.2,6]).tolist()
-        class Thread:
-            def __init__(self,target,**kw):self.target=target
-            def start(self):self.target()
-        with patch('interface_tp.threading.Thread',Thread):a.lancer_localisation_tp()
-        while not a.messages.empty():
-            type_,data=a.messages.get()
-            if type_=='tp_resultat':a.recevoir_localisation_tp(data)
-            elif type_=='erreur':self.fail(data)
-        self.assertIsNotNone(a.resultat_tp)
-        a.appliquer_localisation_tp()
-        self.assertEqual(a.scans[0].pose,pose_ref);np.testing.assert_array_equal(a.scans[1].mesures,mesures)
-        self.assertLess(erreur_pose(a.scans[1].pose,[-.8,.4,15])[0],.1)
-
-    def test_appliquer_refuse_echec_et_resultat_perime(self):
-        a=self.interface();c=a.preparer_reference_tp()
-        r=localiser_sur_reference(a.scans[1],c['modele'],LOCALE,pose_initiale=[100,100,90])
-        a.resultat_tp=(c,r)
-        with self.assertRaisesRegex(ValueError,'refusée'):a.appliquer_localisation_tp()
-        a.scans[1].pose[0]+=1
-        with self.assertRaisesRegex(ValueError,'périmé'):a.appliquer_localisation_tp()
 
 
 class Evaluation(unittest.TestCase):

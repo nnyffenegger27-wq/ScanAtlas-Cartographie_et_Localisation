@@ -11,5 +11,5 @@ if errorlevel 1 (
  pause
  exit /b 1
 )
-.venv\Scripts\python.exe app.py
+.venv\Scripts\python.exe scanatlas.py
 if errorlevel 1 pause

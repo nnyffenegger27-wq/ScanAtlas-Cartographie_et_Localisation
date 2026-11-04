@@ -27,7 +27,7 @@ def pourcentages(surge, sway, yaw, puissance, rotation_max):
     """Niveaux [-1, 1] → pourcentages signés ; la rotation est plafonnée (un tour lidar déformé n'est plus recalable)."""
     puissance = max(0., min(100., float(puissance)))
     plafond = max(10., min(100., float(rotation_max)))/100
-    borne = lambda v: max(-1., min(1., float(v)))
+    borne = lambda v: max(-1., min(1., float(v))) if np.isfinite(float(v)) else 0.
     return (int(round(borne(surge)*puissance)), int(round(borne(sway)*puissance)),
             int(round(borne(yaw)*plafond*puissance)))
 
@@ -173,9 +173,10 @@ class SessionDirecte:
         self.publier_etat()
 
     def piloter(self, surge, sway, yaw):
-        vecteur = tuple(max(-1., min(1., float(v))) for v in (surge, sway, yaw))
-        if not np.isfinite(vecteur).all():
+        brut = [float(v) for v in (surge, sway, yaw)]
+        if not np.isfinite(brut).all():        # avant de borner : min(1, nan) vaudrait 1 (pleine vitesse)
             raise ValueError('Consigne invalide.')
+        vecteur = tuple(max(-1., min(1., v)) for v in brut)
         with self.verrou:
             self.consigne, self.consigne_t = vecteur, time.monotonic()
 
@@ -305,6 +306,7 @@ class SessionDirecte:
         processus = demo['processus']
         if processus.poll() is None:
             processus.terminate()
+        threading.Thread(target=processus.wait, daemon=True).start()      # évite un processus zombie
         liaison, hote, instantane = demo['avant']
         self.liaison, self.hote = liaison, hote
         self.carte, self.dernier_etat, self.dernier_scan = None, None, None
@@ -324,6 +326,8 @@ class SessionDirecte:
         with self.verrou:
             self.arret_calcul = threading.Event()
             robot, journal, generation = self.robot, self.journal, self.generation
+            if robot is None:           # déconnecté entre-temps : rien à calculer
+                return
             arret, recup = self.arret_calcul, self.reglages['recup_auto']
             self.thread_calcul = threading.Thread(target=self._calculer, args=(robot, journal, generation, arret, recup), daemon=True)
             self.thread_calcul.start()

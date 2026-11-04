@@ -1,3 +1,5 @@
+> **Note (interface web).** Les écrans, onglets et fichiers Tkinter cités ici (`app.py`, `interface_wifi.py`, `interface_tp.py`…) ont été remplacés par l'interface web : voir [GUIDE_WEB.md](GUIDE_WEB.md). Les principes, calculs et résultats décrits restent valables.
+
 # ScanAtlas — Interface et robot en direct
 
 Mise à jour du 4 novembre 2026. Cette version ajoute la nouvelle interface, les cartes reprises et le pilotage PWM direct. Les anciennes instructions de firmware à deux fils sont remplacées par ce guide.

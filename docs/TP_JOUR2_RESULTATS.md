@@ -1,3 +1,5 @@
+> **Note (interface web).** Les écrans, onglets et fichiers Tkinter cités ici (`app.py`, `interface_wifi.py`, `interface_tp.py`…) ont été remplacés par l'interface web : voir [GUIDE_WEB.md](GUIDE_WEB.md). Les principes, calculs et résultats décrits restent valables.
+
 # TP Jour 2 — trois localisations et évaluation chiffrée
 
 ## Ce qui est implémenté

@@ -58,48 +58,6 @@ class Robustesse(unittest.TestCase):
         apres=recherche_icp(m,r)
         np.testing.assert_allclose(avant.pose,apres.pose)
 
-class LotInterface(unittest.TestCase):
-    def interface(self):
-        from types import SimpleNamespace, MethodType
-        from app import Atelier
-        from test_interface_sans_ecran import Variable
-        import threading
-        r,m=demonstration()
-        class Label:
-            def configure(self, **kw): self.texte=kw['text']
-        a=SimpleNamespace(scans=[r,m],inclus=[True,True],annuler=threading.Event(),travail=False,
-            statut=Variable(),info_localisation=Label())
-        a.filtres=lambda:dict(mini=.05,maxi=12,intensite=0)
-        a.invalider=lambda:None;a.actualiser=lambda:None
-        a.annuler_lot=MethodType(Atelier.annuler_lot,a)
-        return a
-
-    def test_application_et_annulation_du_lot(self):
-        from app import Atelier
-        a=self.interface(); originaux=copy.deepcopy(a.scans)
-        copies=copy.deepcopy(a.scans);lot=copy.deepcopy(a.scans)
-        for s in lot: s.suivi_recalage={'valide':True,'etat':'recalage'}
-        lot[1].pose=[.2,.3,4]
-        Atelier.recevoir_lot(a,((list(a.scans),copies,a.filtres()),lot))
-        self.assertEqual(a.scans[1].pose,[.2,.3,4])
-        a.annuler_lot()
-        for s,o in zip(a.scans,originaux):
-            self.assertEqual(s.pose,o.pose)
-            np.testing.assert_array_equal(s.mesures,o.mesures)
-            self.assertEqual(s.suivi_recalage,o.suivi_recalage)
-
-    def test_resultat_perime_ou_annule_ne_change_aucune_pose(self):
-        from app import Atelier
-        for cas in ['pose','filtre','ordre','annulation']:
-            a=self.interface();scans=list(a.scans);copies=copy.deepcopy(scans);filtres=a.filtres();lot=copy.deepcopy(scans)
-            lot[1].pose=[20,20,20]
-            if cas=='pose': a.scans[0].pose[0]+=1
-            if cas=='filtre': a.filtres=lambda:dict(mini=.1,maxi=12,intensite=0)
-            if cas=='ordre': a.scans.reverse()
-            if cas=='annulation': a.annuler.set()
-            avant=[list(s.pose) for s in a.scans]
-            Atelier.recevoir_lot(a,((scans,copies,filtres),lot))
-            self.assertEqual([s.pose for s in a.scans],avant)
 
 class Ambiguite(unittest.TestCase):
     def test_salle_carree_refuse_orientations_equivalentes(self):

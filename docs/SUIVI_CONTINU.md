@@ -1,3 +1,5 @@
+> **Note (interface web).** Les écrans, onglets et fichiers Tkinter cités ici (`app.py`, `interface_wifi.py`, `interface_tp.py`…) ont été remplacés par l'interface web : voir [GUIDE_WEB.md](GUIDE_WEB.md). Les principes, calculs et résultats décrits restent valables.
+
 > **Version du 4 novembre 2026** — Interface en trois espaces, carte reprise, localisation seule, grille en direct, PWM et USB/Wi-Fi réunis. Consulter [le guide actuel](GUIDE_SCANATLAS_V3.md). Les descriptions antérieures ci-dessous peuvent correspondre à une version précédente.
 
 # Suivi continu et interface simplifiée

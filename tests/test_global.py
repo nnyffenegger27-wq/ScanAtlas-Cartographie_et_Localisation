@@ -8,7 +8,6 @@ from cartographie import Scan, demonstration
 from localisation import ResultatICP, erreur_pose
 from localisation_globale import localisation_globale, METHODE_GLOBALE
 from assemblage_global import assembler_scans
-from app import Atelier
 
 
 def calcul(pose,ok=True):
@@ -80,53 +79,6 @@ class Groupes(unittest.TestCase):
         self.assertEqual(chercher.call_count,1)
         self.assertEqual(resultat[1].pose,[20.2,.3,4])
 
-class AcquisitionGlobale(unittest.TestCase):
-    def interface(self):
-        from test_recalage_capture import CaptureInterface
-        a=CaptureInterface().interface()
-        a.parametres_recalage=lambda:(METHODE_GLOBALE,{})
-        a.recevoir_capture_globale=MethodType(Atelier.recevoir_capture_globale,a)
-        a.after=lambda *args:None
-        a.poll=MethodType(Atelier.poll,a)
-        return a
-
-    def test_case_active_global_thread_messages_application(self):
-        a=self.interface();r,m=demonstration();a.scans=[r];a.inclus=[True];a.visibles=[True]
-        class Thread:
-            def __init__(self,target,**kw):self.target=target
-            def start(self):self.target()
-        with patch('app.threading.Thread',Thread),patch('acquisition.capturer',return_value=[m]):
-            Atelier.lancer_capture(a)
-        with patch('app.messagebox.showwarning') as avertir:
-            Atelier.poll(a)
-        avertir.assert_not_called()
-        self.assertFalse(a.travail)
-        self.assertEqual(len(a.scans),2)
-        self.assertTrue(a.scans[1].suivi_recalage['valide'])
-        ep,ea=erreur_pose(a.scans[1].pose,m.pose)
-        self.assertLess(ep,.1);self.assertLess(ea,2)
-        self.assertIn('concordance',a.info_capture.texte.lower())
-
-    def test_resultat_perime_garde_capture_et_anciennes_poses(self):
-        a=self.interface();r,m=demonstration();a.scans=[r];a.inclus=[True];a.visibles=[True]
-        copies=copy.deepcopy(a.scans);lot=copy.deepcopy(a.scans+[m])
-        for s in lot:s.suivi_recalage={'valide':True,'groupe':0,'message':'accepté'}
-        r.pose=[5,5,0]
-        with patch('app.messagebox.showwarning'):
-            Atelier.recevoir_capture_globale(a,([r],copies,a.filtres(),lot,[m]))
-        self.assertEqual(r.pose,[5,5,0]);self.assertFalse(a.inclus[1]);self.assertFalse(a.visibles[1])
-        self.assertEqual(len(a.scans),2)
-        self.assertEqual(a.scans[1].suivi_recalage['etat'],'perime')
-
-    def test_dernier_scan_en_attente_ne_bloque_pas_capture_globale(self):
-        a=self.interface();r,m=demonstration();r.suivi_recalage={'valide':False,'etat':'attente','groupe':1}
-        a.scans=[r];a.inclus=[False];a.visibles=[False]
-        class Thread:
-            def __init__(self,target,**kw):self.target=target
-            def start(self):self.target()
-        with patch('app.threading.Thread',Thread),patch('acquisition.capturer',return_value=[m]),patch('app.assembler_scans',return_value=[r,m]) as assembler:
-            Atelier.lancer_capture(a)
-        assembler.assert_called_once()
 
 class PontsEtSessions(unittest.TestCase):
     def test_un_pont_insuffisant_ne_fusionne_pas_le_groupe(self):
@@ -155,20 +107,3 @@ class PontsEtSessions(unittest.TestCase):
         self.assertEqual(lot[-1].suivi_recalage['etat'],'pont')
         self.assertEqual(lot[-1].suivi_recalage['accord_fin'],1.)
 
-    def test_session_conserve_groupes_et_active_mode_global(self):
-        import tempfile
-        from pathlib import Path
-        from test_interface_sans_ecran import interface_factice,Variable
-        a=interface_factice()
-        a.vars['icp_methode']=Variable(METHODE_GLOBALE)
-        a.scans[0].suivi_recalage={'valide':True,'etat':'ancrage','groupe':0,'methode':METHODE_GLOBALE,'pose_ancre':[0.,0.,0.]}
-        a.scans[1].suivi_recalage={'valide':False,'etat':'attente','groupe':2,'methode':METHODE_GLOBALE,'accord_fin':.27,'message':'en attente'}
-        a.inclus[1]=False;a.visibles[1]=False
-        with tempfile.TemporaryDirectory() as d:
-            p=Path(d)/'session.json'
-            with patch('app.filedialog.asksaveasfilename',return_value=str(p)): a.sauver_session()
-            a.scans=[]
-            with patch('app.filedialog.askopenfilename',return_value=str(p)): a.ouvrir_session()
-        self.assertEqual(a.vars['icp_methode'].get(),METHODE_GLOBALE)
-        self.assertEqual(a.scans[1].suivi_recalage['groupe'],2)
-        self.assertFalse(a.inclus[1]);self.assertFalse(a.visibles[1])

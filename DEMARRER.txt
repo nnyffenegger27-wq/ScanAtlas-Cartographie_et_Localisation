@@ -1,14 +1,13 @@
-LD06 ATELIER — DÉMARRAGE WINDOWS
+SCANATLAS — DÉMARRAGE WINDOWS
 
-1. Décompresse entièrement ce dossier ZIP.
+1. Décompresse entièrement ce dossier (ou clone le dépôt).
 2. Double-clique sur installer_windows.bat (Python 3.10+ doit être installé).
-3. Double-clique sur lancer_windows.bat.
-4. Clique sur « Démonstration simulée » pour essayer sans matériel.
+3. Double-clique sur lancer_windows.bat : ton navigateur s'ouvre sur ScanAtlas.
+   (fenêtre noire = le serveur local ; la fermer quitte l'application)
+4. Sans robot : « Connexion » en haut à droite puis « Essayer avec un robot simulé ».
 
-Pour tes mesures réelles : Acquisition USB, ou Importer CSV.
-Ferme le moniteur série Arduino avant la capture USB.
+Avec le robot : allume-le, connecte le PC à son Wi-Fi « ScanAtlas » (ou branche le câble USB,
+après avoir fermé le moniteur série Arduino), puis Connexion > Connecter.
+Pilotage : Z Q S D, A E pour tourner, Espace = arrêt — ou la manette (RB change de mode).
 
-Le guide docs/LISEZ_MOI.md explique chaque étape et le code.
-Le bouton « Comprendre l'application » affiche aussi les explications.
-
-La démonstration est SIMULÉE : elle ne remplace pas tes scans réels de salle.
+Le guide est dans docs/GUIDE_WEB.md.

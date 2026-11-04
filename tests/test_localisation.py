@@ -6,8 +6,6 @@ import unittest
 import numpy as np
 from cartographie import Scan, demonstration
 from localisation import icp_scan, recherche_icp, erreur_pose, transformer, points_filtres
-from app import Atelier
-from test_interface_sans_ecran import interface_factice, Variable
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 
@@ -136,56 +134,6 @@ class RechercheLarge(unittest.TestCase):
                         score_pose(source, cible, [100, 100, 0], .5))
 
 
-class Application(unittest.TestCase):
-    def interface(self):
-        a = interface_factice()
-        for nom in ['contexte_localisation_valide', 'appliquer_localisation', 'recevoir_localisation', 'dessiner_localisation']:
-            setattr(a, nom, types.MethodType(getattr(Atelier, nom), a))
-        ref, mob = a.scans
-        a.paire_localisation = lambda: (ref, mob)
-        a.invalider = lambda **k: setattr(a, 'resultat_localisation', None)
-        a.actualiser = lambda *args: None
-        class Label:
-            def configure(self, **kw): self.text = kw.get('text', '')
-        a.info_localisation = Label()
-        fig = Figure()
-        a.axes['Localisation'] = fig.add_subplot(111)
-        a.canvas['Localisation'] = FigureCanvasAgg(fig)
-        contexte = (ref, mob, list(ref.pose), list(mob.pose), ref.mesures.copy(), mob.mesures.copy(), a.filtres())
-        return a, contexte
-
-    def test_apercu_puis_application_mobile_seul(self):
-        a, contexte = self.interface()
-        ref, mob = a.scans
-        vraie = list(mob.pose)
-        mob.pose = [-.5, .2, 21.]
-        contexte = (*contexte[:3], list(mob.pose), *contexte[4:])
-        avant = list(mob.pose)
-        v = icp_scan(mob, ref)
-        a.recevoir_localisation((contexte, v, ref, mob))
-        self.assertEqual(mob.pose, avant)
-        ref_avant = list(ref.pose)
-        a.appliquer_localisation()
-        self.assertLess(erreur_pose(mob.pose, vraie)[0], .01)
-        self.assertEqual(ref.pose, ref_avant)
-
-    def test_resultat_perime_refuse_pose_filtres_mesures_choix(self):
-        for changement in ['pose', 'filtres', 'mesures', 'choix']:
-            a, contexte = self.interface()
-            ref, mob = a.scans
-            a.resultat_localisation = (contexte, icp_scan(mob, ref))
-            if changement == 'pose': ref.pose[0] += .1
-            if changement == 'filtres': a.vars['intensite'].set(221)
-            if changement == 'mesures': mob.mesures[0, 1] += .1
-            if changement == 'choix': a.paire_localisation = lambda: (mob, ref)
-            with self.subTest(changement=changement), self.assertRaises(ValueError):
-                a.appliquer_localisation()
-
-    def test_echec_non_applicable(self):
-        a, contexte = self.interface()
-        a.resultat_localisation = (contexte, icp_scan(a.scans[1], a.scans[0], pose_initiale=[100, 100, 0]))
-        with self.assertRaisesRegex(ValueError, 'pas applicable'):
-            a.appliquer_localisation()
 
 
 if __name__ == '__main__':

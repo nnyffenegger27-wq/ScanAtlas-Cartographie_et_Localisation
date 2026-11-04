@@ -80,7 +80,7 @@ def main():
             finally:client.close()
     threads=[threading.Thread(target=f,daemon=True) for f in (commandes,scans)]
     for t in threads:t.start()
-    print('SIMULATION uniquement — onglet Robot Wi-Fi : 127.0.0.1. Ctrl+C pour quitter.',flush=True)
+    print('SIMULATION uniquement — adresse du robot : 127.0.0.1. Ctrl+C pour quitter.',flush=True)
     last=time.monotonic()
     try:
         while not fin.wait(.02):

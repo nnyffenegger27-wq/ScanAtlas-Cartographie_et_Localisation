@@ -2,13 +2,13 @@
 
 Document écrit pour qu'un nouvel intervenant (personne ou assistant) reprenne le travail sans l'historique des conversations. À lire en premier ; le détail daté des essais est dans [JOURNAL_PROJET.md](JOURNAL_PROJET.md), l'usage dans [GUIDE_SCANATLAS_V3.md](GUIDE_SCANATLAS_V3.md).
 
-Mis à jour le 4 novembre 2026. Ce qui n'a pas été essayé sur le vrai robot est signalé comme tel : aucun test matériel n'a pu être fait par l'assistant, seulement des tests sur ordinateur.
+Mis à jour le 4 novembre 2026 (interface web, branche `claude/interface-web`). Ce qui n'a pas été essayé sur le vrai robot est signalé comme tel : aucun test matériel n'a pu être fait par l'assistant, seulement des tests sur ordinateur.
 
 ## 1. Le projet en une page
 
-ScanAtlas : application Python (Tkinter + Matplotlib) qui reçoit en direct les tours d'un lidar LD06 monté sur un robot Keyestudio Mecanum Car V2 (carte ESP32), pilote le robot au clavier ou à la manette Xbox, et construit une carte 2D tout en localisant le robot dessus (SLAM 2D par recalage de scans).
+ScanAtlas : application (serveur Python local + interface web dans le navigateur) qui reçoit en direct les tours d'un lidar LD06 monté sur un robot Keyestudio Mecanum Car V2 (carte ESP32), pilote le robot au clavier ou à la manette Xbox, et construit une carte 2D tout en localisant le robot dessus (SLAM 2D par recalage de scans).
 
-- Dépôt : `nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation`, branche de travail `claude/commandes-combinees`.
+- Dépôt : `nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation`, branches : `claude/commandes-combinees` (dernière version avec l'interface Tkinter) et `claude/interface-web` (interface web, sans Tkinter ni Matplotlib).
 - Poste de l'utilisateur : Windows ; dossier `C:\Users\nyffe\Documents\GitHub\LD06-Cartographie_et_Localisation`. Journaux de l'application : `C:\Users\nyffe\AppData\Local\ScanAtlas\journaux\`.
 - Langue du projet, des messages et des échanges : français.
 - But final demandé par l'utilisateur : un SLAM temps réel sur le robot, « comme dans la vidéo » https://www.youtube.com/watch?v=Pq5y7eDiReU (titre : solution SLAM exécutée sur un microcontrôleur de type Arduino). **La vidéo n'a pas pu être regardée** ; seule la notion « cartographie et localisation en direct pendant que le robot roule » est retenue. À préciser avec l'utilisateur (2 ou 3 comportements attendus) avant d'investir dans une grosse refonte.
@@ -31,20 +31,20 @@ Alimentation : les moteurs doivent être alimentés par les piles 18650 (interru
 
 ```
 README.md, DEMARRER.txt, *.bat   démarrage Windows (installer_windows.bat puis lancer_windows.bat)
-app.py                           fenêtre principale (3 espaces) ; lance interface_tp / interface_wifi
-interface_wifi.py                espace « Robot » : connexion Wi-Fi ou USB, pilotage, carte en direct
-interface_tp.py, evaluer_tp_jour2.py   comparaison TP (grille / segments / scan)
-robot_wifi.py                    transport Wi-Fi (UDP commandes + TCP scans), bail de commande, état
-robot_usb.py                     transport filaire (poignée de main LIVE, démultiplexage SA06 / texte)
+scanatlas.py, serveur.py         point d'entrée ; serveur HTTP local (127.0.0.1, jeton, REST + flux SSE)
+web/                             interface : index.html, style.css, modules JS (main, direct, carte, vue, pilotage, api)
+session_directe.py               connexion, pilotage, reconnexion, démo, suivi en direct (sans interface)
+document_carte.py                carte partagée : scans, filtres, import/export, recalage, assemblage
+robot_wifi.py, robot_usb.py      transports Wi-Fi (UDP commandes + TCP scans) et USB-série ; bail de commande
 cartographie_direct.py           CarteDirecte : suivi ICP, scans clés, carte incrémentale
 suivi_lidar.py, localisation*.py ICP, localisation globale 360°, localisation TP
-cartographie.py, acquisition.py, recalage_capture.py, manipulation.py, assemblage_global.py   outils du TP
+cartographie.py, recalage_capture.py, assemblage_global.py   outils de carte (CSV, grille, segments, assemblage)
+evaluer_tp_jour2.py              comparaison TP des trois références (script, voir outils/)
 journal_direct.py                tours.jsonl, session_secours.json, evenements.log
-encart_commandes.py, apparence.py, manette.py   pavé de commandes, palette, manette XInput
 simuler_robot_wifi.py            robot simulé sur le PC (sans matériel)
 firmware/ScanAtlas_WiFi/         firmware ESP32 (voir §5)
-tests/                           225 tests, voir §8
-docs/                            documentation (ce fichier, guide, journal, etc.)
+tests/                           voir §8
+docs/                            documentation (ce fichier, GUIDE_WEB, journal, archives Tk)
 outils/                          scripts d'évaluation reproductibles (python outils/<nom>.py)
 materiel/                        firmware de démonstration d'origine du châssis, test lidar, CAO
 ```
@@ -54,14 +54,14 @@ Les modules Python sont à plat à la racine (imports simples, tests sans instal
 ## 4. Chaîne de traitement
 
 1. Le firmware lit le LD06, découpe en tours, envoie des trames SA06 (angle 1/100°, distance mm, intensité ; fin de tour en µs ESP32).
-2. `robot_wifi.RobotWifi` (ou `robot_usb.RobotUsb`, même interface) reçoit dans des threads, valide (CRC, séquence, durée) et dépose le dernier tour dans une file. **Aucun thread ne touche Tk.**
-3. `interface_wifi.wifi_poll` (tâche Tk, boucle régulière) prend le dernier tour, le confie à un calcul hors thread UI (`CarteDirecte.traiter`), dessine la carte (Matplotlib) et envoie la commande de pilotage.
+2. `robot_wifi.RobotWifi` (ou `robot_usb.RobotUsb`, même interface) reçoit dans des threads, valide (CRC, séquence, durée) et dépose le dernier tour dans une file. L'interface ne touche jamais ces threads.
+3. `session_directe.SessionDirecte` : un fil de calcul prend le dernier tour (`CarteDirecte.traiter`) et publie `scan` / `carte` vers le navigateur (flux SSE) ; une boucle de sécurité à 50 ms envoie la commande de pilotage (consigne valable 0,35 s) ; le navigateur dessine sur un canvas.
 4. `CarteDirecte.traiter` : prédiction SE(2), ICP robuste point-vers-droite (`suivi_lidar`), contrôle d'acceptation (erreur résiduelle, recouvrement), création de scans clés (déplacement ≥ 0,15 m, 5° ou 2 s), carte vectorielle et grille. Modes : Cartographie + localisation, Localisation seule (carte figée), localisation globale 360° si position inconnue.
 5. `journal_direct` enregistre chaque tour (`tours.jsonl`), une session de secours et les événements (`evenements.log` : suivi actif / perdu, états de liaison).
 
 Rotation rapide : `suivi_lidar.corriger_mouvement` redresse le tour (rotation + translation par instant de mesure) avec la vitesse estimée par l'historique de poses, deux passes ; plafond de rotation de 60 % dans l'interface (`wifi_yaw_max`).
 
-Perte de suivi (`CarteDirecte.traiter`, `_recuperer`) : refus d'un recalage → état perdu ; fenêtre de retour proportionnelle au temps écoulé ; après 1 s recherche élargie autour de la dernière pose (`localisation_globale(centre, rayon)`), après 6 s recherche sur toute la carte toutes les 3 s. Cache du champ de distances et de la grille libre sur la sous-carte. Reconnexion automatique dans `interface_wifi.py` (`wifi_poll`, `wifi_reconnecter`) et nouvel essai d'ouverture du port dans `robot_usb.py`.
+Perte de suivi (`CarteDirecte.traiter`, `_recuperer`) : refus d'un recalage → état perdu ; fenêtre de retour proportionnelle au temps écoulé ; après 1 s recherche élargie autour de la dernière pose (`localisation_globale(centre, rayon)`), après 6 s recherche sur toute la carte toutes les 3 s. Cache du champ de distances et de la grille libre sur la sous-carte. Reconnexion automatique dans `session_directe.py` (`_perte`, `_tour`) et nouvel essai d'ouverture du port dans `robot_usb.py`.
 
 Localisation seule avec carte vide : le premier scan sert de référence (origine fixe), les suivants sont localisés sans enrichir la carte. Un scan non accepté est dessiné en rouge à la dernière pose connue (ne rien afficher était le défaut constaté).
 
@@ -97,17 +97,17 @@ Compilation : Arduino IDE, carte « ESP32 Dev Module », Arduino-ESP32 2.0.17, o
 ## 8. Tester
 
 ```
-python -m unittest discover -s tests          # 225 tests, ~65 s
+python -m unittest discover -s tests          # 167 tests, ~60 s
 ```
 
-Tk est nécessaire pour les tests d'interface (Linux sans écran : `xvfb-run -a python -m unittest discover -s tests`). Le test `tests/test_usb_direct.py` contient de faux en-têtes Arduino pour vérifier la syntaxe du `.ino` avec g++. Les tests moteurs compilent les vrais en-têtes du firmware avec g++ (`tests/test_motor_*.py`). Banc de suivi : `python outils/evaluer_wifi.py`. Robot simulé : `python simuler_robot_wifi.py`.
+Plus besoin de Tk ni d'écran virtuel. `tests/test_navigateur.py` pilote un vrai Chromium et est ignoré sans Playwright (`pip install playwright && playwright install chromium`). Le test `tests/test_usb_direct.py` contient de faux en-têtes Arduino pour vérifier la syntaxe du `.ino` avec g++. Les tests moteurs compilent les vrais en-têtes du firmware avec g++ (`tests/test_motor_*.py`). Banc de suivi : `python outils/evaluer_wifi.py`. Robot simulé : `python simuler_robot_wifi.py`.
 
 ## 9. Suite prévue (par ordre)
 
 1. **Valider sur le robot** : piles 18650, firmware à jour, sens du sway, vitesse, Localisation seule, filaire. Lire `evenements.log` et le moniteur série en cas de coupure.
-2. **Refonte du design** : première passe faite (thème central dans `apparence.py`, espace Robot réorganisé, pilotage toujours visible). Reste à valider sur Windows (police, DPI) et à harmoniser les onglets Cartographie et Localisation (titres, espacements, panneaux en cartes).
+2. **Interface web** : valider sur Windows (rendu, manette dans le navigateur, port occupé), puis fusionner `claude/interface-web` si elle convient ; retours d'usage à noter dans le journal.
 3. **Prédiction par commandes** : utiliser les commandes envoyées pour initialiser le recalage lidar (modèle de mouvement), avec recherche élargie si le lidar contredit la prédiction. Idée demandée par l'utilisateur pour plus tard.
-4. **Capture directe dans Localisation** et SLAM « en direct » plus poussé (fermeture de boucle, optimisation de graphe de poses) selon la vidéo de référence, une fois ses attentes précisées.
+4. SLAM « en direct » plus poussé (fermeture de boucle, optimisation de graphe de poses) selon la vidéo de référence, une fois ses attentes précisées.
 5. Pas de rapport Word pour l'instant (demande de l'utilisateur) ; tenir `JOURNAL_PROJET.md` à jour avec les difficultés rencontrées.
 
 ## 10. Conventions de travail

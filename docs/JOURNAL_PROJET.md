@@ -726,3 +726,21 @@ Démonstration : le bouton lançait un robot simulé et réglait l'adresse sur 1
 Lenteur : mesures sous Linux avec écran virtuel. Démarrage ≈ 2,4 s (imports 1,3 s, construction de la fenêtre 1 s) ; ouverture d'un onglet ≤ 0,3 s à vide. Avec 150 scans chargés, l'onglet Cartographie coûtait 1,2 s à chaque affichage et l'ajout des scans 1,4 s : un nuage, une flèche et une ligne de légende par scan (600 dessins de collections, 300 éléments de légende). Au-delà de 25 scans visibles, le nuage est dessiné en un bloc (une case de 3 cm par point, une seule série de flèches, pas de légende) : 0,27 s et 0,35 s. Le plus gros du coût était donc le dessin Matplotlib, pas Python. Non mesuré sous Windows (antivirus, premier lancement avec construction du cache de polices Matplotlib).
 
 Validation : 225 tests réussis.
+
+## 4 novembre 2026 — Passage à une interface web (branche `claude/interface-web`)
+
+Demande de l'utilisateur : une application plus finie, plus facile à prendre en main, sobre et avec une direction artistique, sans doublons ; passer sur le web si c'est plus performant. Décision : le calcul reste en Python (numpy / scipy : ICP, localisation globale) et l'interface devient une page servie en local ; Tkinter et Matplotlib disparaissent. Raisons : démarrage et changement d'écran instantanés (plus de figures Matplotlib reconstruites), dessin sur canvas 2D (milliers de points sans coût par scan), manette lue par le navigateur (Gamepad API), et une seule interface à maintenir.
+
+Direction artistique « relevé » : papier chaud, encre bleu-nuit, un seul accent vert d'eau, chiffres en police à chasse fixe, thème sombre automatique, aucune dépendance externe. Deux écrans seulement (Direct, Carte) contre cinq onglets. Doublons supprimés : un seul réglage de connexion, un seul arrêt, un seul « Me retrouver », une seule carte (Acquisition et Capture directe = Direct ; Nuages, Grille, Segments, Carte vectorielle = couches de Carte ; Localisation = recalage dans l'inspecteur + assemblage).
+
+Architecture : `serveur.py` (HTTP 127.0.0.1, vérification de `Host`, jeton aléatoire, flux SSE), `session_directe.py` (ex-logique de l'espace Robot, sans interface), `document_carte.py` (carte unique partagée par le direct et l'atelier). Voir `docs/GUIDE_WEB.md`.
+
+Difficultés et défauts trouvés par les nouveaux tests :
+- Une consigne `NaN` envoyée au pilotage était « bornée » par `min(1, nan)` à +1, soit pleine vitesse avant : refus des valeurs non finies avant de borner (serveur et conversion en pourcentages).
+- Course entre `connecter` et le lancement du calcul si on se déconnecte aussitôt (thread de calcul avec `robot = None`) : le lancement est abandonné si le robot a disparu.
+- Processus du robot simulé non attendu à la sortie de la démonstration (zombie) : attente dans un fil.
+- Interface : valeurs de position qui passaient à la ligne, texte de manette trop long, échelle recouverte par la barre d'outils, champ vide sans fond sur la grille : corrigés après captures d'écran dans Chromium (clair, sombre, mobile).
+
+Tests : suppression des tests Tk (interface, apparence, pilotage combiné, manipulation à la souris, acquisition USB par onglet) ; conservation de tous les tests de calcul, de protocole, de firmware et de récupération ; ajout de `test_serveur.py` (sécurité, API carte, import, tâches, verrou, flux), `test_session_directe.py` (reconnexion, démo quittable, pilotage périmé = arrêt), `test_navigateur.py` (clavier, carte dessinée, démo depuis l'interface). Le clavier est maintenant testé dans le navigateur, plus en Python.
+
+Limites : **non essayé sur Windows ni avec le vrai robot** ; la manette via le navigateur n'a pas été essayée avec une vraie manette (la logique de zone morte et de boutons suit l'ancien module) ; le rendu a été vérifié sous Chromium Linux seulement. Le firmware (délai de bail, session de 6 s) doit toujours être reflashé.

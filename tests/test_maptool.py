@@ -6,7 +6,6 @@ from unittest.mock import patch
 import numpy as np
 from cartographie import lire_csv, exporter_scan, mesures_valides
 from localisation import points_filtres
-from test_interface_sans_ecran import interface_factice
 
 CONTENU = '''# Robot position: x=2m, y=-3m, theta=90deg
 angle_deg,r_m,x_rel_m,y_rel_m
@@ -75,25 +74,6 @@ class MapTool(unittest.TestCase):
             self.assertEqual(relu.pose, s.pose)
             np.testing.assert_allclose(relu.points(), s.points())
 
-    def test_session_conserve_pose_connue_et_intensite_absente(self):
-        a = interface_factice()
-        a.scans = lire_csv('test.csv', CONTENU)
-        a.inclus = a.visibles = [True]
-        a.scans[0].pose = [1., 2., 30.]
-        a.scans[0].suivi_recalage = dict(valide=True, etat='ancrage', message='premier')
-        with tempfile.TemporaryDirectory() as dossier:
-            p = Path(dossier)/'session.json'
-            with patch('app.filedialog.asksaveasfilename', return_value=str(p)):
-                a.sauver_session()
-            a.scans=[]
-            with patch('app.filedialog.askopenfilename', return_value=str(p)):
-                a.ouvrir_session()
-            s = a.scans[0]
-            self.assertEqual(s.pose, [1., 2., 30.])
-            self.assertEqual(s.pose_connue, [2., -3., 90.])
-            self.assertEqual(s.angle_reference, 0.)
-            self.assertFalse(s.intensite_disponible)
-            self.assertEqual(s.suivi_recalage, dict(valide=True, etat='ancrage', message='premier'))
 
 
 if __name__ == '__main__': unittest.main()

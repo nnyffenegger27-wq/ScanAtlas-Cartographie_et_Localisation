@@ -6,7 +6,6 @@ import numpy as np
 from cartographie import (EPS, Scan, Grille, lire_csv, exporter_scan, demonstration,
     intersection, decouper, proches, fusionner, angle_segments, extraire_segments,
     carte_vectorielle, cellules_ligne)
-from acquisition import AssembleurCSV
 
 
 def seg(a,b):
@@ -112,18 +111,6 @@ class Donnees(unittest.TestCase):
             with self.assertRaises(ValueError):
                 lire_csv(p)
 
-    def test_assembleur_ignore_debut_partiel_et_trous(self):
-        a=AssembleurCSV()
-        self.assertIsNone(a.ajouter('12,90,500,200,0,-500'))
-        for i in range(30):
-            self.assertIsNone(a.ajouter(f'{i},{359-i*12},1000,200,0,0'))
-        m=a.ajouter('')
-        self.assertEqual(m.shape,(30,3))
-        self.assertEqual(m[0,1],1)
-        a.ajouter('0,359,1000,200,0,0')
-        a.ajouter('2,357,1000,200,0,0')
-        self.assertIsNone(a.ajouter(''))
-        self.assertEqual(a.rejets,1)
 
     def test_grille_libre_impact_inconnu(self):
         s=Scan('rayon',np.array([[0,1,200.]]))

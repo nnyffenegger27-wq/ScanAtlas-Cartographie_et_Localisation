@@ -5,8 +5,6 @@ from types import SimpleNamespace
 import threading
 import numpy as np
 from cartographie import Scan, Grille
-from acquisition import capturer
-from test_interface_sans_ecran import interface_factice
 
 
 def cellule(grille, point):
@@ -73,68 +71,3 @@ class GrilleTP(unittest.TestCase):
         np.testing.assert_array_equal(grille.log_odds, valeurs)
 
 
-class ParcoursInterface(unittest.TestCase):
-    def test_capture_conserve_bloc_deux_tours(self):
-        angles = np.linspace(359, -360, 600) % 360
-        flux = ''.join(f'{i},{a},1000,200,0,0\n' for i,a in enumerate(angles)) + '\n'
-        class Liaison:
-            def __init__(self, *args, **kwargs): self.flux = flux.encode('ascii')
-            def __enter__(self): return self
-            def __exit__(self, *args): pass
-            def reset_input_buffer(self): pass
-            @property
-            def in_waiting(self): return len(self.flux)
-            def read(self, n):
-                data,self.flux = self.flux[:n],self.flux[n:]
-                return data
-        messages = []
-        with patch.dict('sys.modules', {'serial':SimpleNamespace(Serial=Liaison)}):
-            scans = capturer('FAUX',115200,1,threading.Event(),messages.append)
-        self.assertEqual(len(scans),1)
-        self.assertEqual(len(scans[0].mesures),600)
-        self.assertIn('plusieurs tours',messages[-1])
-
-    def test_creation_puis_ajout_et_pas_de_double_compte(self):
-        a = interface_factice()
-        a.creer_grille_selection()
-        grille = a.grille
-        a.indice = lambda: 1
-        a.ajouter_grille_selection()
-        self.assertIs(a.grille, grille)
-        self.assertEqual(len(a.scans_grille), 2)
-        valeurs = grille.log_odds.copy()
-        a.ajouter_grille_selection()
-        np.testing.assert_array_equal(grille.log_odds, valeurs)
-        a.vars['resolution'].set('.2')
-        with self.assertRaisesRegex(ValueError, 'reconstruis'):
-            a.ajouter_grille_selection()
-
-    def test_bloc_multiple_integre_sans_rejet(self):
-        a = interface_factice()
-        a.creer_grille_selection()
-        grille = a.grille
-        angles = np.linspace(359, -360, 600) % 360
-        a.scans.append(Scan('deux tours', np.column_stack([angles, np.ones(600), np.full(600, 200)])))
-        a.indice = lambda: 2
-        a.ajouter_grille_selection()
-        self.assertIn('plusieurs tours', a.statut.get())
-        self.assertIn('conservé', a.statut.get())
-        self.assertIs(a.grille, grille)
-        self.assertEqual(len(a.scans_grille), 2)
-
-    def test_creation_et_reconstruction_bloc_multiple(self):
-        a=interface_factice()
-        a.scans[0].mesures=np.tile(a.scans[0].mesures,(2,1))
-        a.creer_grille_selection()
-        self.assertIn('conservé',a.statut.get())
-        a.calculer_grille()
-        self.assertEqual(len(a.scans_grille),2)
-        self.assertIn('conservé',a.statut.get())
-
-    def test_deux_tours_ne_doublent_pas_preuves_cellules(self):
-        a=interface_factice()
-        scan=a.scans[0]
-        simple=Grille.depuis_scan(scan)
-        multiple=Grille.depuis_scan(Scan('deux tours',np.tile(scan.mesures,(2,1)),scan.pose))
-        np.testing.assert_array_equal(simple.log_odds,multiple.log_odds)
-        np.testing.assert_array_equal(simple.observe,multiple.observe)

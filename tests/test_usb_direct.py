@@ -287,36 +287,6 @@ class RobotUsbTests(unittest.TestCase):
         self.assertEqual(trouver_port('  /dev/ttyUSB0 '), '/dev/ttyUSB0')
 
 
-@unittest.skipUnless(os.environ.get('DISPLAY'), 'Écran Tk requis')
-class InterfaceUsb(unittest.TestCase):
-    def test_choix_de_la_liaison_et_connexion_usb(self):
-        from app import Atelier
-        app = Atelier(); app.geometry('1500x950')
-        firmware = FauxFirmware()
-        serie = FauxSerie(firmware)
-        try:
-            app.onglets.select(app.wifi_cadre); app.update()
-            self.assertEqual(app.wifi_liaison.get(), 'Wi-Fi'); self.assertEqual(app.wifi_hote.get(), '192.168.4.1')
-            app.wifi_liaison.set('USB filaire'); app.wifi_liaison_changer()
-            self.assertEqual(app.wifi_hote.get(), 'auto')                       # port choisi automatiquement
-            app.wifi_hote.set('COM8'); app.wifi_liaison.set('Wi-Fi'); app.wifi_liaison_changer()
-            self.assertEqual(app.wifi_hote.get(), '192.168.4.1')                # COM8 n'est pas une adresse : retour au Wi-Fi
-            app.wifi_hote.set('10.0.0.5'); app.wifi_liaison.set('USB filaire'); app.wifi_liaison_changer()
-            self.assertEqual(app.wifi_hote.get(), '10.0.0.5')                   # une saisie personnalisée n'est pas écrasée
-            app.wifi_hote.set('COM9')
-            with patch('interface_wifi.RobotUsb', side_effect=lambda hote: RobotUsb(hote, ouvrir=lambda port: serie)):
-                app.wifi_connecter()
-                self.assertIsInstance(app.wifi_robot, RobotUsb)
-                self.assertEqual(app.wifi_robot.hote, 'COM9')
-                fin = time.monotonic()+5
-                while time.monotonic() < fin and not (app.wifi_robot and app.wifi_robot.connecte.is_set() and app.wifi_robot.recus >= 2):
-                    app.update(); time.sleep(.01)
-                self.assertTrue(app.wifi_robot.connecte.is_set())
-                self.assertGreaterEqual(app.wifi_robot.recus, 2)
-                app.wifi_pilotage()
-                self.assertTrue(app.wifi_encart._connecte)                      # fond « connecté » aussi en filaire
-        finally:
-            app.wifi_deconnecter(); app.destroy(); firmware.stop.set()
 
 
 class FirmwareLiveCpp(unittest.TestCase):

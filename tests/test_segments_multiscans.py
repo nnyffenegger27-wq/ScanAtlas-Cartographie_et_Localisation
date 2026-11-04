@@ -1,12 +1,9 @@
 import unittest
 from unittest.mock import patch
 from types import SimpleNamespace
-from app import Atelier
-from test_interface_sans_ecran import Variable
 import numpy as np
-from cartographie import (Scan, extraire_multiscans, extraire_segments,
+from cartographie import (Scan, demonstration, extraire_multiscans, extraire_segments,
                          proches, carte_vectorielle, nettoyer_segments)
-from test_interface_sans_ecran import interface_factice
 
 
 def scan_points(points):
@@ -18,34 +15,15 @@ def scan_points(points):
 
 class SegmentsTousScans(unittest.TestCase):
     def test_extraction_par_scan_et_pose_sans_pont(self):
-        a=interface_factice()
-        a.scans[1].pose=[15.,0.,15.]
-        attendus=[extraire_segments(s,**a.options_segments()) for s in a.scans]
-        segments,origines=extraire_multiscans(a.scans,**a.options_segments())
+        scans=demonstration()
+        scans[1].pose=[15.,0.,15.]
+        attendus=[extraire_segments(s) for s in scans]
+        segments,origines=extraire_multiscans(scans)
         self.assertEqual(len(segments),sum(map(len,attendus)))
         self.assertEqual(origines,[0]*len(attendus[0])+[1]*len(attendus[1]))
-        # Un scan masqué mais coché Carte participe toujours.
-        a.visibles[1]=False
-        a.calculer_segments()
-        self.assertEqual(len(a.segments),len(segments))
-        a.inclus[1]=False
-        a.calculer_segments()
-        self.assertEqual(len(a.segments),len(attendus[0]))
-
-    def test_selection_nefface_plus_les_segments_multiscans(self):
-        a=interface_factice()
-        a.calculer_segments()
-        nombre=len(a.segments)
-        a.liste=SimpleNamespace(selection=lambda:['1'])
-        a.indice=lambda:1
-        a.info=SimpleNamespace(configure=lambda **kw:None)
-        a.vars.update({k:Variable(0) for k in ['x','y','orientation']})
-        Atelier.selection(a)
-        self.assertEqual(len(a.segments),nombre)
 
     def test_deux_tours_conserves_mais_non_relies(self):
-        a=interface_factice()
-        s=a.scans[0]
+        s=demonstration()[0]
         double=Scan('deux tours',np.tile(s.mesures,(2,1)),s.pose)
         self.assertEqual(len(extraire_segments(double)),2*len(extraire_segments(s)))
 

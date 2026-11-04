@@ -19,7 +19,7 @@ Un commit est un point de sauvegarde du code. Un tag nomme une version précise.
 Installe Git depuis https://git-scm.com/downloads si nécessaire. Décompresse
 entièrement le ZIP dans un nouveau dossier. Conserve le dossier `.git` inclus.
 Ouvre le dossier `LD06_Atelier` dans VS Code puis Terminal > Nouveau terminal.
-Toutes les commandes ci-dessous s'exécutent dans ce dossier, à côté de `app.py`.
+Toutes les commandes ci-dessous s'exécutent dans ce dossier, à côté de `scanatlas.py`.
 
 ```bash
 git --version

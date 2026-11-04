@@ -14,7 +14,6 @@ from cartographie import Scan
 from robot_wifi import (BailCommande, DecodeurScans, encoder_trame, TrameScan,
                         RobotWifi, dernier, valider_vecteur)
 from cartographie_direct import CarteDirecte
-from interface_wifi import ClavierRobot
 from localisation import erreur_pose
 
 
@@ -56,14 +55,10 @@ class Protocole(unittest.TestCase):
         for i in range(100):dernier(q,i)
         self.assertEqual(q.qsize(),1);self.assertEqual(q.get(),99)
 
-    def test_bail_ui_et_clavier(self):
+    def test_bail_expire_apres_le_delai(self):
         bail=BailCommande();bail.actualiser('FORWARD',65,maintenant=10)
         self.assertEqual(bail.lire(10.1)[0],'FORWARD')
         self.assertEqual(bail.lire(10.3)[0],'STOP')
-        c=ClavierRobot();c.presser('Up');self.assertEqual(c.commande(),'FORWARD')
-        c.presser('Down');self.assertEqual(c.commande(),'STOP')
-        c.relacher('Down');self.assertEqual(c.commande(),'FORWARD')
-        c.vider();self.assertEqual(c.commande(),'STOP')
 
     def test_bail_vecteur_expire_et_vecteur_nul_est_un_arret(self):
         bail=BailCommande()
@@ -77,26 +72,7 @@ class Protocole(unittest.TestCase):
         with self.assertRaises(ValueError):valider_vecteur('a',0,0)
         self.assertEqual(valider_vecteur(49.6,-0.4,100),(50,0,100))
 
-    def test_clavier_combine_et_touches_opposees(self):
-        c=ClavierRobot()
-        self.assertEqual(c.vecteur(),(0,0,0))
-        c.presser('Up');c.presser('q');c.presser('Left')
-        self.assertEqual(c.vecteur(),(1,1,1))          # avance + gauche + rotation gauche
-        c.presser('Down');self.assertEqual(c.vecteur(),(0,1,1))   # avance/recul s'annulent
-        c.relacher('Up');self.assertEqual(c.vecteur(),(-1,1,1))
-        c.presser('d');self.assertEqual(c.vecteur(),(-1,0,1))
-        c.presser('Right');self.assertEqual(c.vecteur(),(-1,0,0))
-        c.vider();self.assertEqual(c.vecteur(),(0,0,0))
 
-    def test_clavier_azerty_zs_qd_ae(self):
-        c=ClavierRobot()
-        for touche,attendu in (('z',(1,0,0)),('s',(-1,0,0)),('q',(0,1,0)),('d',(0,-1,0)),('a',(0,0,1)),('e',(0,0,-1))):
-            c.vider();c.presser(touche);self.assertEqual(c.vecteur(),attendu,touche)
-        c.vider()
-        for touche in 'zde':c.presser(touche)         # avancer en diagonale à droite en tournant à droite
-        self.assertEqual(c.vecteur(),(1,-1,-1))
-        c.presser('s');c.presser('q');c.presser('a')   # les opposés s'annulent
-        self.assertEqual(c.vecteur(),(0,0,0))
 
     def test_cpp_watchdog_parseur_et_trame_compatibles(self):
         dossier=Path(__file__).resolve().parents[1]/'firmware'/'ScanAtlas_WiFi'
