@@ -1,3 +1,29 @@
+> **Vous êtes sur la branche `jours-1-2` : le travail des jours 1 et 2 du TP, avec son historique complet (34 commits, 2 au 3 novembre 2026).**
+> C'est la première version complète, en Python/Tkinter. Elle est conservée telle qu'elle a été remise, pour que l'historique Git (`git log`) montre comment le travail a avancé.
+>
+> | Branche | Ce que c'est | Pour quoi faire |
+> |---|---|---|
+> | **`jours-1-2`** (ici) | Jours 1 et 2, Tkinter, historique d'origine | Vérifier les commits, relire le travail du TP |
+> | `main` | Refonte du 4 novembre : même application, robot Wi-Fi piloté, carte du robot PWM | Point de départ du jour 3 |
+> | `claude/commandes-combinees` | Tkinter la plus avancée : SLAM en direct, commandes combinées | Dernière version Python Tkinter qui fonctionne |
+> | `claude/interface-web` | **Version finale** : interface web, exploration autonome | Ce qu'on lance et ce qu'on présente (onglet « Le projet » = compte rendu) |
+>
+> ### Où trouver chaque étape de l'énoncé dans cette branche
+>
+> | Étape du TP | Fichier | Commits |
+> |---|---|---|
+> | J1 · 1 Extraction des données lidar | `acquisition.py`, `ESP32_LD06_Test/`, import CSV/ZIP dans `cartographie.py` (`lire_csv`) | `025d655`, `b859211` |
+> | J1 · 2 Visualisation, plusieurs scans en couleurs, pose modifiable | `app.py` (onglet Nuages), `manipulation.py` (souris) | `025d655`, `dd05339`, `4421b7c` |
+> | J1 · 3 Grid map (création, mise à jour, agrandissement) | `cartographie.py` (`Grille`, `cellules_ligne`) | `af28eda`, `dfab374` |
+> | J1 · 4 Segments (angle, proximité, fusion, intersection, découpage) | `cartographie.py` (`extraire_segments`, `angle_segments`, `proches`, `fusionner`, `intersection`, `decouper`), `tests/test_calculs.py` | `025d655`, `435c3f2` |
+> | J1 · 5 Carte vectorielle | `cartographie.py` (`carte_vectorielle`, `nettoyer_segments`), `SEGMENTS_MULTISCANS_ET_VECTORIELLE.md` | `435c3f2` |
+> | J2 · localisation sur grille, carte vectorielle, scan de référence | `localisation_tp.py`, `interface_tp.py` (onglet Localisation), `TP_JOUR2_RESULTATS.md` | `9220ff7` |
+> | J2 · comparaison chiffrée (erreur, temps, taux de réussite, 42 essais) | `evaluer_tp_jour2.py`, `exemples/evaluation_tp_jour2*.csv`, `exemples/TP_JOUR2_*.png` | `9220ff7` |
+> | J2 · autres méthodes (ICP, recherche large, localisation globale 360°) | `localisation.py`, `localisation_globale.py`, `recalage_capture.py`, `LOCALISATION_JOUR2.md`, `FIABILITE_LOCALISATION.md` | `0d25dfd`, `6ca10b4`, `5eb2f9f`, `2f9ba1f` |
+> | J3 · SLAM, exploration, carte de la salle | pas dans cette branche : voir `claude/commandes-combinees` (Tkinter) et `claude/interface-web` (web) | |
+>
+> **Lancer cette version** : Python 3.10+, `installer_windows.bat` puis `lancer_windows.bat` (ou `pip install -r requirements.txt` puis `python app.py`). Tests : `python -m unittest discover -s tests`.
+
 # LD06 Atelier
 
 Application Python locale pour le TP EIGSI de cartographie et localisation lidar.
