@@ -2,10 +2,10 @@
 import unittest
 from collections import deque
 import numpy as np
-from simulation import (SALLES, SALLE_PAR_DEFAUT, SALLE_APPARTEMENT, RAYON_ROBOT, cloison, rectangle, polygone,
+from atlas.simulation.simulation import (SALLES, SALLE_PAR_DEFAUT, SALLE_APPARTEMENT, RAYON_ROBOT, cloison, rectangle, polygone,
                         distance_aux_murs, deplacer, mesures_simulees)
 
-MARGE = .26      # distance aux murs que garde l'exploration (voir exploration.py)
+MARGE = .26      # distance aux murs que garde l'exploration (voir atlas/robot/exploration.py)
 
 
 def composante(murs, depart, pas=.05, marge=MARGE):

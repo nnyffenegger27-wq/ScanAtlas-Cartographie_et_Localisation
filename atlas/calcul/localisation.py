@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from time import perf_counter
 import numpy as np
 from scipy.spatial import cKDTree
-from cartographie import Scan, mesures_valides
+from atlas.calcul.cartographie import Scan, mesures_valides
 
 
 @dataclass

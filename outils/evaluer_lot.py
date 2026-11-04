@@ -4,12 +4,12 @@ La vérité n'entre jamais dans le recalage ; seul le premier scan fixe le repè
 """
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # modules de l'application à la racine
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # le paquet atlas est à la racine du dépôt
 import csv
 import numpy as np
-from cartographie import Scan, intersection
-from recalage_capture import recaler_lot
-from localisation import erreur_pose
+from atlas.calcul.cartographie import Scan, intersection
+from atlas.calcul.recalage_capture import recaler_lot
+from atlas.calcul.localisation import erreur_pose
 
 
 def generer():

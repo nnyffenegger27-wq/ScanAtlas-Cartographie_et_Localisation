@@ -4,17 +4,17 @@ Les en-têtes MapTool servent aux erreurs uniquement, jamais aux départs du cal
 """
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # modules de l'application à la racine
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # le paquet atlas est à la racine du dépôt
 import csv
 import sys
 import numpy as np
-from cartographie import lire_csv
-from localisation_globale import localisation_globale
-from localisation import erreur_pose
+from atlas.calcul.cartographie import lire_csv
+from atlas.calcul.localisation_globale import localisation_globale
+from atlas.calcul.localisation import erreur_pose
 
 
 def generer_convexe(pose,n=360):
-    from cartographie import Scan,intersection
+    from atlas.calcul.cartographie import Scan,intersection
     sommets=np.array([[-6,-4],[6,-3],[7,3],[2,5],[-5,4]],float)
     murs=[np.array([sommets[i],sommets[(i+1)%len(sommets)]]) for i in range(len(sommets))]
     origine=np.asarray(pose[:2]);mesures=[]
@@ -47,7 +47,7 @@ def evaluer(archive,sortie='exemples/localisation_globale_maptool.csv'):
 
 
 def evaluer_deplacements(sortie='exemples/localisation_globale_deplacements.csv'):
-    from cartographie import demonstration
+    from atlas.calcul.cartographie import demonstration
     r,m=demonstration();vraie=[m.pose[0],m.pose[1],180.]
     m.mesures[:,0]=(m.mesures[:,0]+m.pose[2]-180)%360
     cas=[('Demi-tour',r,m,vraie),
@@ -68,7 +68,7 @@ def evaluer_deplacements(sortie='exemples/localisation_globale_deplacements.csv'
 
 def evaluer_lot_global(sortie='exemples/localisation_globale_lot.csv'):
     from evaluer_lot import generer
-    from assemblage_global import assembler_scans
+    from atlas.calcul.assemblage_global import assembler_scans
     scans,vraies=generer()
     lot=assembler_scans(scans,progression=lambda t:None)
     lignes=[]

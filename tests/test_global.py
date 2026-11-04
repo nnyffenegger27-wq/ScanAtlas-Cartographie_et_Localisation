@@ -4,10 +4,10 @@ import unittest
 from types import MethodType
 from unittest.mock import patch
 import numpy as np
-from cartographie import Scan, demonstration
-from localisation import ResultatICP, erreur_pose
-from localisation_globale import localisation_globale, METHODE_GLOBALE
-from assemblage_global import assembler_scans
+from atlas.calcul.cartographie import Scan, demonstration
+from atlas.calcul.localisation import ResultatICP, erreur_pose
+from atlas.calcul.localisation_globale import localisation_globale, METHODE_GLOBALE
+from atlas.calcul.assemblage_global import assembler_scans
 
 
 def calcul(pose,ok=True):
@@ -49,7 +49,7 @@ class Groupes(unittest.TestCase):
         a,b=demonstration();c=copy.deepcopy(b);c.nom='C';d=copy.deepcopy(b);d.nom='pont'
         issues=[calcul([0,0,0],False),calcul([0,0,0],False),calcul([0,0,0],False),
                 calcul([1,0,0]),calcul([10,2,90]),calcul([2,1,0])]
-        with patch('assemblage_global.localisation_globale',side_effect=issues), patch('assemblage_global.plus_proches',side_effect=lambda pts,ref:(np.zeros(len(pts),int),np.zeros(len(pts)))):
+        with patch('atlas.calcul.assemblage_global.localisation_globale',side_effect=issues), patch('atlas.calcul.assemblage_global.plus_proches',side_effect=lambda pts,ref:(np.zeros(len(pts),int),np.zeros(len(pts)))):
             lot=assembler_scans([a,b,c,d])
         self.assertTrue(all(s.suivi_recalage['valide'] for s in lot))
         np.testing.assert_allclose(lot[1].pose,[11,0,90],atol=1e-8)
@@ -60,21 +60,21 @@ class Groupes(unittest.TestCase):
 
     def test_echec_ne_contamine_pas_carte_principale_et_persiste(self):
         a,b=demonstration()
-        with patch('assemblage_global.localisation_globale',return_value=calcul([9,9,9],False)):
+        with patch('atlas.calcul.assemblage_global.localisation_globale',return_value=calcul([9,9,9],False)):
             lot=assembler_scans([a,b])
         self.assertFalse(lot[1].suivi_recalage['valide'])
         self.assertEqual(lot[1].suivi_recalage['groupe'],1)
-        with patch('assemblage_global.localisation_globale',return_value=calcul([9,9,9],False)) as chercher:
+        with patch('atlas.calcul.assemblage_global.localisation_globale',return_value=calcul([9,9,9],False)) as chercher:
             reprise=assembler_scans(lot,reprendre=True)
         self.assertEqual(reprise[1].suivi_recalage['groupe'],1)
         self.assertEqual(chercher.call_count,1)
 
     def test_changement_ancre_invalide_reprise_des_poses(self):
         a,b=demonstration()
-        with patch('assemblage_global.localisation_globale',return_value=calcul([.2,.3,4])):
+        with patch('atlas.calcul.assemblage_global.localisation_globale',return_value=calcul([.2,.3,4])):
             lot=assembler_scans([a,b])
         lot[0].pose[0]=20
-        with patch('assemblage_global.localisation_globale',return_value=calcul([20.2,.3,4])) as chercher:
+        with patch('atlas.calcul.assemblage_global.localisation_globale',return_value=calcul([20.2,.3,4])) as chercher:
             resultat=assembler_scans(lot,reprendre=True)
         self.assertEqual(chercher.call_count,1)
         self.assertEqual(resultat[1].pose,[20.2,.3,4])
@@ -84,7 +84,7 @@ class PontsEtSessions(unittest.TestCase):
     def test_un_pont_insuffisant_ne_fusionne_pas_le_groupe(self):
         a,b=demonstration();pont=copy.deepcopy(b)
         issues=[calcul([0,0,0],False),calcul([10,2,90]),calcul([2,1,0]),calcul([0,0,0],False)]
-        with patch('assemblage_global.localisation_globale',side_effect=issues),patch('assemblage_global.plus_proches',side_effect=lambda p,q:(np.zeros(len(p),int),np.ones(len(p)))):
+        with patch('atlas.calcul.assemblage_global.localisation_globale',side_effect=issues),patch('atlas.calcul.assemblage_global.plus_proches',side_effect=lambda p,q:(np.zeros(len(p),int),np.ones(len(p)))):
             lot=assembler_scans([a,b,pont])
         self.assertFalse(lot[1].suivi_recalage['valide'])
         self.assertEqual(lot[1].suivi_recalage['groupe'],1)
@@ -101,7 +101,7 @@ class PontsEtSessions(unittest.TestCase):
             if len(appels)==1: d[:len(p)//2]=0
             else: d[len(p)//2:]=0
             return np.zeros(len(p),int),d
-        with patch('assemblage_global.localisation_globale',side_effect=[calcul([0,0,0],False),direct,x,y]),patch('assemblage_global.plus_proches',side_effect=distances):
+        with patch('atlas.calcul.assemblage_global.localisation_globale',side_effect=[calcul([0,0,0],False),direct,x,y]),patch('atlas.calcul.assemblage_global.plus_proches',side_effect=distances):
             lot=assembler_scans([a,b,pont])
         self.assertTrue(all(s.suivi_recalage['valide'] for s in lot))
         self.assertEqual(lot[-1].suivi_recalage['etat'],'pont')

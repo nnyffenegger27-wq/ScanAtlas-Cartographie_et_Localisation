@@ -4,7 +4,7 @@ import json
 import threading
 import time
 import unittest
-import serveur
+from atlas.application import serveur
 from test_session_directe import attendre
 
 
@@ -59,7 +59,7 @@ class Securite(Base):
         self.assertEqual(self.req('POST', '/api/arret', {}, hote='evil.example:80')[0], 403)
 
     def test_pas_d_evasion_hors_du_dossier_web(self):
-        for chemin in ('/static/../serveur.py', '/static/%2e%2e/serveur.py', '/static/..%2fserveur.py'):
+        for chemin in ('/static/../scanatlas.py', '/static/%2e%2e/scanatlas.py', '/static/..%2fscanatlas.py'):
             self.assertIn(self.req('GET', chemin, jeton=False)[0], (403, 404), chemin)
 
     def test_requetes_invalides(self):
@@ -163,8 +163,8 @@ class Direct(Base):
     def test_grille_du_direct_vide_puis_compressee(self):
         self.assertEqual(self.req('GET', '/api/direct/grille')[1], {'vide': True})
         # un scan suivi donne une grille ; on l'injecte sans robot en construisant la carte directe à la main
-        from simulation import SalleVirtuelle, SALLE_DEMO
-        from cartographie_direct import CarteDirecte
+        from atlas.simulation.simulation import SalleVirtuelle, SALLE_DEMO
+        from atlas.calcul.cartographie_direct import CarteDirecte
         salle, carte = SalleVirtuelle(SALLE_DEMO, pose=(0, 0, 0)), CarteDirecte()
         for _ in range(3):
             salle.avancer((30, 0, 0), .1)

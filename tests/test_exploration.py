@@ -2,11 +2,11 @@
 import os
 import unittest
 import numpy as np
-from cartographie import mesures_valides
-from cartographie_direct import CarteDirecte
-from exploration import Explorateur
-from localisation import erreur_pose
-from simulation import SalleVirtuelle, SALLE_DEMO, SALLE_DEUX_PIECES, SALLES, distance_aux_murs
+from atlas.calcul.cartographie import mesures_valides
+from atlas.calcul.cartographie_direct import CarteDirecte
+from atlas.robot.exploration import Explorateur
+from atlas.calcul.localisation import erreur_pose
+from atlas.simulation.simulation import SalleVirtuelle, SALLE_DEMO, SALLE_DEUX_PIECES, SALLES, distance_aux_murs
 
 
 def points_locaux(etat):

@@ -104,26 +104,25 @@ Windows : `installer_windows.bat`, puis `lancer_windows.bat` (dans le dossier t�
 
 ## 6. Plan du dépôt
 
-Les modules Python sont volontairement à plat à la racine (imports simples, tests sans installation).
+Le code Python est dans le paquet **`atlas/`**, rangé en quatre dossiers ; à la racine il ne reste que le point d'entrée et les lanceurs.
 
 | Élément | Rôle |
 | --- | --- |
-| `lancer_windows.bat`, `lancer_mac_linux.sh` | **lanceurs** (installent les dépendances au premier lancement) |
-| `scanatlas.py`, `serveur.py` | point d'entrée ; serveur HTTP local (127.0.0.1, jeton, flux d'événements) |
+| `lancer_windows.bat`, `lancer_mac_linux.sh`, `scanatlas.py` | **lanceurs** (installent les dépendances au premier lancement) et point d'entrée |
+| `atlas/application/` | `serveur.py` : serveur HTTP local (127.0.0.1, jeton, flux d'événements) · `document_carte.py` : la carte partagée (scans, filtres, import / export, recalage, assemblage, TP Jour 2) |
+| `atlas/robot/` | `robot_wifi.py`, `robot_usb.py` : liaisons · `session_directe.py` : pilotage, reconnexion, démonstration · `journal_direct.py` : journaux · `exploration.py` : exploration autonome |
+| `atlas/calcul/` | SLAM et TP : `cartographie_direct.py` + `suivi_lidar.py` (suivi en direct, carte incrémentale, replacement) · `cartographie.py` (grille, segments, carte vectorielle) · `localisation*.py`, `assemblage_global.py`, `recalage_capture.py` (ICP, recherche sur 360°, trois références) · `evaluer_tp_jour2.py` (les 42 essais) |
+| `atlas/simulation/` | `simulation.py` : salles simulées · `simuler_robot_wifi.py` : robot simulé sur le PC (démonstration et tests) |
 | `web/` | interface (HTML, CSS, JavaScript sans dépendance) ; `presentation.html` = onglet « Le projet » |
-| `session_directe.py`, `robot_wifi.py`, `robot_usb.py`, `journal_direct.py` | connexion au robot (Wi-Fi UDP/TCP, USB), pilotage, reconnexion, démonstration, journaux |
-| `cartographie_direct.py`, `suivi_lidar.py` | SLAM en direct : suivi ICP, scans clés, carte incrémentale, replacement |
-| `exploration.py`, `simulation.py`, `simuler_robot_wifi.py` | exploration autonome ; salles et robot simulés (démo et tests) |
-| `document_carte.py` | la carte partagée : scans, filtres, import / export, recalage, assemblage, TP Jour 2 |
-| `cartographie.py`, `localisation.py`, `localisation_globale.py`, `localisation_tp.py`, `assemblage_global.py`, `recalage_capture.py`, `evaluer_tp_jour2.py` | calcul du TP : grille, segments, carte vectorielle, ICP, localisation sur trois références, banc des 42 essais |
 | `firmware/ScanAtlas_WiFi/` | firmware de l'ESP32 (Wi-Fi, lidar, moteurs) |
 | `materiel/` | fichiers d'origine du châssis, test du lidar, support lidar (CAO) |
 | `Cartes/` | relevés réels et sessions ([README](Cartes/README.md)) |
 | `exemples/` | résultats des évaluations et scans simulés ([README](exemples/README.md)) |
-| `outils/` | scripts d'évaluation reproductibles et rejeu de journaux du robot |
+| `outils/` | scripts d'évaluation reproductibles (`python outils/<nom>.py`) et rejeu de journaux du robot |
 | `tests/` | tests automatiques (plus de 230) |
 | `docs/` | documentation ([index](docs/README.md)) |
 | `AGENTS.md` | consignes pour un assistant qui reprend le dépôt |
+
 
 ---
 

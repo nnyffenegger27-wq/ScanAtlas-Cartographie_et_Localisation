@@ -4,8 +4,8 @@ import io
 import threading
 import time
 import unittest
-import serveur
-from document_carte import DocumentCarte
+from atlas.application import serveur
+from atlas.application.document_carte import DocumentCarte
 
 
 class LocalisationTP(unittest.TestCase):

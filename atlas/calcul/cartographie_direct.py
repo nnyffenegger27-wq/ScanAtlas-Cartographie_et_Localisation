@@ -9,13 +9,13 @@ from time import perf_counter
 import threading
 import numpy as np
 from scipy.spatial import cKDTree
-from cartographie import (extraire_segments, ajuster_segment, proches, longueur,
+from atlas.calcul.cartographie import (extraire_segments, ajuster_segment, proches, longueur,
                          Scan, Grille, mesures_valides)
 from dataclasses import replace
-from localisation import points_filtres, transformer, erreur_pose, sous_carte
-from localisation_globale import localisation_globale
-from localisation_tp import localiser_sur_reference, LOCALE, MULTI
-from suivi_lidar import ReferenceSuivi, icp_droites, predire, vitesses, corriger_mouvement
+from atlas.calcul.localisation import points_filtres, transformer, erreur_pose, sous_carte
+from atlas.calcul.localisation_globale import localisation_globale
+from atlas.calcul.localisation_tp import localiser_sur_reference, LOCALE, MULTI
+from atlas.calcul.suivi_lidar import ReferenceSuivi, icp_droites, predire, vitesses, corriger_mouvement
 
 
 def reduire(points, pas=.05, maximum=40000):

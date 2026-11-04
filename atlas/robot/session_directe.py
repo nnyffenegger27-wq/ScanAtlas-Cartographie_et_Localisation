@@ -13,11 +13,11 @@ import threading
 import time
 from pathlib import Path
 import numpy as np
-from robot_wifi import RobotWifi, dernier
-from cartographie import mesures_valides
-from cartographie_direct import CarteDirecte
-from exploration import Explorateur
-from simulation import SALLES, SALLE_PAR_DEFAUT
+from atlas.robot.robot_wifi import RobotWifi, dernier
+from atlas.calcul.cartographie import mesures_valides
+from atlas.calcul.cartographie_direct import CarteDirecte
+from atlas.robot.exploration import Explorateur
+from atlas.simulation.simulation import SALLES, SALLE_PAR_DEFAUT
 
 VALIDITE_CONSIGNE = .35
 ESSAIS_RECONNEXION = 8
@@ -110,7 +110,7 @@ class SessionDirecte:
     @staticmethod
     def _fabrique_defaut(liaison, hote):
         if liaison == 'usb':
-            from robot_usb import RobotUsb
+            from atlas.robot.robot_usb import RobotUsb
             return RobotUsb(hote)
         return RobotWifi(hote)
 
@@ -123,7 +123,7 @@ class SessionDirecte:
 
     def ports(self):
         try:
-            from robot_usb import lister_ports
+            from atlas.robot.robot_usb import lister_ports
             return [dict(port=p, description=d) for p, d in lister_ports()]
         except Exception:
             return []
@@ -311,7 +311,7 @@ class SessionDirecte:
             if not automatique:
                 self.tentatives, self.reconnexion_a = 0, None
             self.actif_demande = True
-            from journal_direct import JournalDirect
+            from atlas.robot.journal_direct import JournalDirect
             try:
                 self.journal = JournalDirect()
             except OSError as exc:
@@ -362,8 +362,8 @@ class SessionDirecte:
         avant = (self.liaison, self.hote, self.doc.instantane())
         self.doc.vider()
         self.carte, self.dernier_etat, self.dernier_scan = None, None, None
-        script = Path(__file__).with_name('simuler_robot_wifi.py')
-        processus = subprocess.Popen([sys.executable, str(script), '--salle', salle])
+        racine = Path(__file__).resolve().parents[2]
+        processus = subprocess.Popen([sys.executable, '-m', 'atlas.simulation.simuler_robot_wifi', '--salle', salle], cwd=racine)
         with self.verrou:
             self.demo = dict(processus=processus, avant=avant, salle=salle)
         self.liaison, self.hote = 'wifi', '127.0.0.1'

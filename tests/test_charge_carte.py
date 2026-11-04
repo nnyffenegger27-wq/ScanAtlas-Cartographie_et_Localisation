@@ -7,12 +7,12 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 import numpy as np
-import journal_direct
-from cartographie import demonstration, proches
-from cartographie_direct import CarteDirecte, reduire, STATIQUES_MAX
-from document_carte import DocumentCarte, grille_vers_json, valider_session
-from journal_direct import JournalDirect
-from simulation import SalleVirtuelle, SALLE_DEMO, rectangle
+from atlas.robot import journal_direct
+from atlas.calcul.cartographie import demonstration, proches
+from atlas.calcul.cartographie_direct import CarteDirecte, reduire, STATIQUES_MAX
+from atlas.application.document_carte import DocumentCarte, grille_vers_json, valider_session
+from atlas.robot.journal_direct import JournalDirect
+from atlas.simulation.simulation import SalleVirtuelle, SALLE_DEMO, rectangle
 
 
 class Reduire(unittest.TestCase):
@@ -76,7 +76,7 @@ class LidarClairseme(unittest.TestCase):
     """LD06 en câble : ~260 points par tour (1,4°). Une référence d'un seul tour est trop clairsemée : le suivi doit
     rester accroché à l'arrêt (régression observée sur le robot : 13 à 50 % de scans acceptés, « Suivi perdu » en boucle)."""
     def test_suivi_accroche_a_l_arret_dans_une_grande_salle(self):
-        from simulation import SALLE_APPARTEMENT
+        from atlas.simulation.simulation import SALLE_APPARTEMENT
         salle = SalleVirtuelle(SALLE_APPARTEMENT, pose=(2., 4.6, 0.), bruit=.012, points=261, duree_tour=58000)
         carte, acceptes, n = CarteDirecte(), 0, 0
         for _ in range(int(40/.058)):
@@ -103,8 +103,8 @@ class ToursReels(unittest.TestCase):
     Avant correction : 13 à 21 % de scans acceptés, « Recalage refusé : 88 % à 12 cm, RMSE 0.101 m, déplacement 0.00 m »."""
     def test_suivi_a_l_arret_sur_de_vrais_tours(self):
         import gzip
-        import cartographie_direct
-        from robot_wifi import TrameScan
+        from atlas.calcul import cartographie_direct
+        from atlas.robot.robot_wifi import TrameScan
         horloge = [0.]
         avant, cartographie_direct.perf_counter = cartographie_direct.perf_counter, lambda: horloge[0]     # le temps réel du rejeu
         try:
@@ -126,8 +126,8 @@ class ToursReels(unittest.TestCase):
 def rejouer_fixture(nom, attendu):
     """Rejoue un extrait de journal du robot avec l'horloge du lidar ; renvoie (taux accepté, carte)."""
     import gzip
-    import cartographie_direct
-    from robot_wifi import TrameScan
+    from atlas.calcul import cartographie_direct
+    from atlas.robot.robot_wifi import TrameScan
     horloge = [0.]
     avant, cartographie_direct.perf_counter = cartographie_direct.perf_counter, lambda: horloge[0]
     try:
@@ -156,7 +156,7 @@ class ToursReelsWifi(unittest.TestCase):
 
 class CriterePrecision(unittest.TestCase):
     def test_suivi_fiable_ignore_les_points_sans_correspondance(self):
-        from cartographie_direct import suivi_fiable
+        from atlas.calcul.cartographie_direct import suivi_fiable
         base = dict(applicable=True, accord_fin=.8, rmse=.12)
         self.assertTrue(suivi_fiable(SimpleNamespace(**base, rmse_fin=.04)))      # 20 % de points inconnus, alignement net
         self.assertFalse(suivi_fiable(SimpleNamespace(**base, rmse_fin=.075)))    # alignement flou : refusé
@@ -205,7 +205,7 @@ class PlanSansDoublons(unittest.TestCase):
         self.assertLess(len(appuis), 40)                       # 4 murs, quelques objets : pas des centaines de morceaux
 
     def test_session_ouverte_affichee_comme_le_direct_puis_scan_par_scan_apres_modification(self):
-        from journal_direct import serialiser_scan
+        from atlas.robot.journal_direct import serialiser_scan
         scans = scans_bruites(45)
         doc = DocumentCarte()
         contenu = json.dumps(dict(version=2, parametres=dict(mini='0.05', maxi='12.0', intensite='0'),

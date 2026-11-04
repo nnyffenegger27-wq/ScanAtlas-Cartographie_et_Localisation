@@ -31,29 +31,30 @@ Alimentation : les moteurs doivent être alimentés par les piles 18650 (interru
 
 ```
 README.md                        présentation, démarrage, qui est quoi (branches)
-lancer_windows.bat, lancer_mac_linux.sh   lanceurs : installent les dépendances au premier lancement
-scanatlas.py, serveur.py         point d'entrée ; serveur HTTP local (127.0.0.1, jeton, REST + flux SSE)
-web/                             interface : index.html, style.css, modules JS (main, direct, carte, vue, pilotage, api)
-session_directe.py               connexion, pilotage, reconnexion, démo, suivi en direct (sans interface)
-document_carte.py                carte partagée : scans, filtres, import/export, recalage, assemblage
-robot_wifi.py, robot_usb.py      transports Wi-Fi (UDP commandes + TCP scans) et USB-série ; bail de commande
-cartographie_direct.py           CarteDirecte : suivi ICP, scans clés, carte incrémentale, replacement guidé (replacer)
-exploration.py                   exploration autonome : frontières, chemin (Dijkstra), commande avec évitement, détections
-simulation.py                    salles simulées (registre SALLES : appartement, deux pièces, salle simple ; constructeurs rectangle / polygone / cloison avec portes), lidar, collisions, cinématique
-suivi_lidar.py, localisation*.py ICP, localisation globale 360°, localisation TP
-cartographie.py, recalage_capture.py, assemblage_global.py   outils de carte (CSV, grille, segments, assemblage)
-evaluer_tp_jour2.py              comparaison TP des trois références (script, voir outils/)
-journal_direct.py                tours.jsonl, session_secours.json, evenements.log
-simuler_robot_wifi.py            robot simulé sur le PC (sans matériel) ; --salle appartement | deux_pieces | salle
+lancer_windows.bat, lancer_mac_linux.sh, scanatlas.py   lanceurs et point d'entrée
+atlas/                           le code Python (paquet) :
+  application/serveur.py         serveur HTTP local (127.0.0.1, jeton, REST + flux SSE)
+  application/document_carte.py  carte partagée : scans, filtres, import/export, recalage, assemblage, TP Jour 2
+  robot/session_directe.py       connexion, pilotage, reconnexion, démo, suivi en direct (sans interface)
+  robot/robot_wifi.py, robot_usb.py   transports Wi-Fi (UDP commandes + TCP scans) et USB-série ; bail de commande
+  robot/exploration.py           exploration autonome : frontières, chemin (Dijkstra), commande avec évitement, détections
+  robot/journal_direct.py        tours.jsonl, session_secours.json, evenements.log
+  calcul/cartographie_direct.py  CarteDirecte : suivi ICP, scans clés, carte incrémentale, replacement guidé (replacer)
+  calcul/suivi_lidar.py, localisation*.py   ICP, localisation globale 360°, localisation TP
+  calcul/cartographie.py, recalage_capture.py, assemblage_global.py   outils de carte (CSV, grille, segments, assemblage)
+  calcul/evaluer_tp_jour2.py     comparaison TP des trois références (python -m atlas.calcul.evaluer_tp_jour2)
+  simulation/simulation.py       salles simulées (registre SALLES : appartement, deux pièces, salle simple ; constructeurs rectangle / polygone / cloison avec portes), lidar, collisions, cinématique
+  simulation/simuler_robot_wifi.py   robot simulé sur le PC (sans matériel) ; --salle appartement | deux_pieces | salle
+web/                             interface : index.html, style.css, modules JS (main, direct, carte, vue, pilotage, api), presentation.html (« Le projet »)
 firmware/ScanAtlas_WiFi/         firmware ESP32 (voir §5)
 tests/                           voir §8
 docs/                            documentation : voir docs/README.md (guide, reprise, journal, methodes/, archives_tkinter/)
-Cartes/, exemples/               données réelles et résultats d'évaluation (un README dans chaque dossier)
 outils/                          scripts d'évaluation reproductibles (python outils/<nom>.py)
 materiel/                        firmware de démonstration d'origine du châssis, test lidar, CAO
+Cartes/, exemples/               données réelles et résultats d'évaluation (un README dans chaque dossier)
 ```
 
-Les modules Python sont à plat à la racine (imports simples, tests sans installation). Ne pas les déplacer sans adapter les tests et les lanceurs.
+Les imports sont absolus (`from atlas.calcul import cartographie`) ; les tests et les scripts d'`outils/` se lancent depuis la racine du dépôt, sans installation. Le robot simulé de la démonstration est lancé en sous-processus par `python -m atlas.simulation.simuler_robot_wifi`.
 
 ## 4. Chaîne de traitement
 

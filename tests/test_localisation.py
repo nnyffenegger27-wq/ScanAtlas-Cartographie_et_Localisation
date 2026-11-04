@@ -4,14 +4,14 @@ import threading
 import types
 import unittest
 import numpy as np
-from cartographie import Scan, demonstration
-from localisation import icp_scan, recherche_icp, erreur_pose, transformer, points_filtres
+from atlas.calcul.cartographie import Scan, demonstration
+from atlas.calcul.localisation import icp_scan, recherche_icp, erreur_pose, transformer, points_filtres
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 
 def scan_points(points, pose, nom='scan', reference=0):
-    locaux = (points-np.asarray(pose[:2])) @ __import__('localisation').rotation(pose[2])
+    locaux = (points-np.asarray(pose[:2])) @ __import__('atlas.calcul.localisation', fromlist=['rotation']).rotation(pose[2])
     angles = (np.rad2deg(np.arctan2(locaux[:, 1], locaux[:, 0]))+reference) % 360
     return Scan(nom, np.column_stack((angles, np.linalg.norm(locaux, axis=1), np.full(len(points), 230))), list(pose), angle_reference=reference)
 
@@ -126,7 +126,7 @@ class RechercheLarge(unittest.TestCase):
         self.assertFalse(v.applicable)
 
     def test_score_penalise_faible_recouvrement(self):
-        from localisation import score_pose
+        from atlas.calcul.localisation import score_pose
         ref, mob = demonstration()
         source = points_filtres(mob, dict(mini=.05, maxi=12, intensite=0), locaux=True)
         cible = points_filtres(ref, dict(mini=.05, maxi=12, intensite=0))

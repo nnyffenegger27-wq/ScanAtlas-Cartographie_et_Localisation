@@ -2,9 +2,9 @@ import copy
 import unittest
 from unittest.mock import patch
 import numpy as np
-from cartographie import demonstration
-from localisation import (ReferencePoints, sous_carte, valider_solution, ResultatICP, recherche_icp, erreur_pose)
-from recalage_capture import recaler_lot
+from atlas.calcul.cartographie import demonstration
+from atlas.calcul.localisation import (ReferencePoints, sous_carte, valider_solution, ResultatICP, recherche_icp, erreur_pose)
+from atlas.calcul.recalage_capture import recaler_lot
 
 
 def resultat(pose, applicable=True):
@@ -27,14 +27,14 @@ class Robustesse(unittest.TestCase):
 
     def test_accord_large_ne_suffit_pas(self):
         r,m=demonstration()
-        from localisation import points_filtres
+        from atlas.calcul.localisation import points_filtres
         p=points_filtres(r,dict(mini=.05,maxi=12,intensite=0))
         test=valider_solution(resultat([0,0,0]),p,p+[.3,.3],.5)
         self.assertFalse(test.applicable)
 
     def test_reference_lot_ne_contient_pas_scan_refuse(self):
         r,m=demonstration();n=copy.deepcopy(m);n.nom='troisième'
-        with patch('recalage_capture.recaler_capture') as calcul:
+        with patch('atlas.calcul.recalage_capture.recaler_capture') as calcul:
             mauvais=copy.deepcopy(m);mauvais.suivi_recalage={'valide':False,'message':'échec'}
             bon=copy.deepcopy(n);bon.pose=[.2,.3,4];bon.suivi_recalage={'valide':True}
             calcul.side_effect=[[mauvais],[bon]]
@@ -61,7 +61,7 @@ class Robustesse(unittest.TestCase):
 
 class Ambiguite(unittest.TestCase):
     def test_salle_carree_refuse_orientations_equivalentes(self):
-        from cartographie import Scan
+        from atlas.calcul.cartographie import Scan
         angles=np.arange(360.);a=np.deg2rad(angles)
         d=2/np.maximum(abs(np.cos(a)),abs(np.sin(a)))
         r=Scan('carré',np.column_stack([angles,d,np.full(360,220)]),[0,0,0],'SIMULATION',0.)

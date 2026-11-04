@@ -6,17 +6,17 @@ Les deux moteurs reçoivent les mêmes mesures synthétiques et horodatages.
 """
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # modules de l'application à la racine
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # le paquet atlas est à la racine du dépôt
 import argparse
 import csv
 import importlib.util
 from pathlib import Path
 import sys
 import numpy as np
-from cartographie_direct import CarteDirecte
-from simuler_robot_wifi import mesures_simulees
-from robot_wifi import TrameScan
-from localisation import erreur_pose
+from atlas.calcul.cartographie_direct import CarteDirecte
+from atlas.simulation.simuler_robot_wifi import mesures_simulees
+from atlas.robot.robot_wifi import TrameScan
+from atlas.calcul.localisation import erreur_pose
 
 
 def comparer(ancienne,sortie='exemples/comparaison_suivi_continu.csv'):

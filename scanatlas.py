@@ -3,7 +3,7 @@
     python scanatlas.py [--port 8765] [--sans-navigateur]
 """
 import argparse
-import serveur
+from atlas.application import serveur
 
 
 def main():

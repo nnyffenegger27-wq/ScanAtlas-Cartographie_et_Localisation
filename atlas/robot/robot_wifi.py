@@ -15,7 +15,7 @@ import threading
 import time
 import zlib
 import numpy as np
-from cartographie import Scan, ANGLE_REFERENCE_DEFAUT
+from atlas.calcul.cartographie import Scan, ANGLE_REFERENCE_DEFAUT
 
 HEADER = struct.Struct('<4sBBHIQIH')
 POINT = struct.Struct('<HHB')

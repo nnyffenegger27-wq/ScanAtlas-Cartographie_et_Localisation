@@ -6,8 +6,8 @@ validé. Les métadonnées sont persistées par les sessions existantes.
 """
 from copy import deepcopy
 import numpy as np
-from localisation import sous_carte, rotation, points_filtres, transformer, plus_proches
-from localisation_globale import localisation_globale, METHODE_GLOBALE
+from atlas.calcul.localisation import sous_carte, rotation, points_filtres, transformer, plus_proches
+from atlas.calcul.localisation_globale import localisation_globale, METHODE_GLOBALE
 
 
 def assembler_scans(scans, reprendre=False, annuler=None, progression=None, **options):

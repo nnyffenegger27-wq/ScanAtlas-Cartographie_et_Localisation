@@ -5,10 +5,10 @@ import unittest
 from types import SimpleNamespace,MethodType
 from unittest.mock import patch
 import numpy as np
-from cartographie import demonstration,Grille
-from localisation_tp import ReferenceGrille,ReferenceVectorielle,ReferenceScan,localiser_sur_reference,LOCALE,MULTI
-from localisation import erreur_pose
-from evaluer_tp_jour2 import construire_references
+from atlas.calcul.cartographie import demonstration,Grille
+from atlas.calcul.localisation_tp import ReferenceGrille,ReferenceVectorielle,ReferenceScan,localiser_sur_reference,LOCALE,MULTI
+from atlas.calcul.localisation import erreur_pose
+from atlas.calcul.evaluer_tp_jour2 import construire_references
 
 
 class DistancesReferences(unittest.TestCase):
@@ -67,7 +67,7 @@ class LocalisationTroisTypes(unittest.TestCase):
 
 class Evaluation(unittest.TestCase):
     def test_annulation_ne_remplace_pas_csv(self):
-        from evaluer_tp_jour2 import evaluer
+        from atlas.calcul.evaluer_tp_jour2 import evaluer
         import tempfile
         from pathlib import Path
         e=threading.Event();e.set()

@@ -13,8 +13,8 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import cartographie_direct as cd
-from robot_wifi import TrameScan
+from atlas.calcul import cartographie_direct as cd
+from atlas.robot.robot_wifi import TrameScan
 
 
 def rejouer(chemin):

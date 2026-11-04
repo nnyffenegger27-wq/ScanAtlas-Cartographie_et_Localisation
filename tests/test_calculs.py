@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 import numpy as np
-from cartographie import (EPS, Scan, Grille, lire_csv, exporter_scan, demonstration,
+from atlas.calcul.cartographie import (EPS, Scan, Grille, lire_csv, exporter_scan, demonstration,
     intersection, decouper, proches, fusionner, angle_segments, extraire_segments,
     carte_vectorielle, cellules_ligne)
 
@@ -97,7 +97,7 @@ class Donnees(unittest.TestCase):
             p=Path(d)/'scan.csv'
             p.write_text('N,Angle(°),Distance(mm),Intensity,x(mm),y(mm)\n0,0,1000,200,1000,0\n1,90,500,200,0,-500\n\n0,180,2000,220,-2000,0\n',encoding='utf-8')
             scans=lire_csv(p)
-            from cartographie import ANGLE_REFERENCE_DEFAUT
+            from atlas.calcul.cartographie import ANGLE_REFERENCE_DEFAUT
             self.assertEqual(scans[0].angle_reference,ANGLE_REFERENCE_DEFAUT)
             self.assertEqual(len(scans),2)
             self.assertEqual(scans[0].mesures[0,1],1)

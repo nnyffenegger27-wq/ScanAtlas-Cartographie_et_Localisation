@@ -37,7 +37,7 @@ Après mise à jour, relancer **lancer_windows.bat** (il réinstalle les dépend
 
 On peut aussi relancer le banc sans interface :
 
-`python evaluer_tp_jour2.py --sortie exemples/evaluation_tp_jour2.csv`
+`python -m atlas.calcul.evaluer_tp_jour2 --sortie exemples/evaluation_tp_jour2.csv`
 
 ## Protocole reproductible
 

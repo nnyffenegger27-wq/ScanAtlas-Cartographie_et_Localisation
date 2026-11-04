@@ -14,7 +14,7 @@ import threading
 import time
 import zlib
 import numpy as np
-from robot_wifi import (RobotWifi, TrameScan, HEADER, POINT, COMMANDS, DELAI_SANS_REPONSE, commande_simple, dernier)
+from atlas.robot.robot_wifi import (RobotWifi, TrameScan, HEADER, POINT, COMMANDS, DELAI_SANS_REPONSE, commande_simple, dernier)
 
 DEBIT_INITIAL = 115200
 DEBIT_DIRECT = 921600

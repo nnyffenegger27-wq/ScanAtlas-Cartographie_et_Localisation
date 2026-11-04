@@ -11,14 +11,14 @@ import threading
 from copy import deepcopy
 from pathlib import Path
 import numpy as np
-from cartographie import (Scan, Grille, lire_csv, exporter_scan, demonstration, mesures_valides,
+from atlas.calcul.cartographie import (Scan, Grille, lire_csv, exporter_scan, demonstration, mesures_valides,
                           carte_vectorielle, diagnostic_scan, ANGLE_REFERENCE_DEFAUT)
-from localisation import sous_carte, points_filtres
-from localisation_globale import localisation_globale
-from assemblage_global import assembler_scans
-from localisation_tp import (ReferenceGrille, ReferenceVectorielle, ReferenceScan,
+from atlas.calcul.localisation import sous_carte, points_filtres
+from atlas.calcul.localisation_globale import localisation_globale
+from atlas.calcul.assemblage_global import assembler_scans
+from atlas.calcul.localisation_tp import (ReferenceGrille, ReferenceVectorielle, ReferenceScan,
                              localiser_sur_reference, LOCALE, MULTI)
-from cartographie_direct import CarteDirecte
+from atlas.calcul.cartographie_direct import CarteDirecte
 
 FILTRES_DEFAUT = dict(mini=.05, maxi=12., intensite=0)
 RESOLUTIONS = (.02, .05, .10, .20)
@@ -384,7 +384,7 @@ class DocumentCarte:
     def evaluer_tp(self, annuler=None, progression=None):
         """Banc du TP Jour 2 : trois références × deux stratégies × sept départs sur les scans simulés du TP
         (ne touche pas à la carte). Garde le résultat pour les téléchargements CSV."""
-        from evaluer_tp_jour2 import calculer, csv_texte
+        from atlas.calcul.evaluer_tp_jour2 import calculer, csv_texte
         lignes, synthese = calculer(annuler, progression)
         with self.verrou:
             self.evaluation_tp = dict(essais=csv_texte(lignes), synthese=csv_texte(synthese))

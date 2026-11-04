@@ -10,11 +10,11 @@ import time
 import unittest
 from unittest.mock import patch
 import numpy as np
-from cartographie import Scan
-from robot_wifi import (BailCommande, DecodeurScans, encoder_trame, TrameScan,
+from atlas.calcul.cartographie import Scan
+from atlas.robot.robot_wifi import (BailCommande, DecodeurScans, encoder_trame, TrameScan,
                         RobotWifi, dernier, valider_vecteur)
-from cartographie_direct import CarteDirecte
-from localisation import erreur_pose
+from atlas.calcul.cartographie_direct import CarteDirecte
+from atlas.calcul.localisation import erreur_pose
 
 
 def salle():

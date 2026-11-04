@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch
 from types import SimpleNamespace
 import numpy as np
-from cartographie import (Scan, demonstration, extraire_multiscans, extraire_segments,
+from atlas.calcul.cartographie import (Scan, demonstration, extraire_multiscans, extraire_segments,
                          proches, carte_vectorielle, nettoyer_segments)
 
 
@@ -40,7 +40,7 @@ class Fusions(unittest.TestCase):
         for h in hauteurs:
             points=np.column_stack([np.linspace(1,3,20),np.full(20,h)])
             supports.append([(np.array([points[0],points[-1]]),points)])
-        with patch('cartographie.extraire_segments',side_effect=supports):
+        with patch('atlas.calcul.cartographie.extraire_segments',side_effect=supports):
             return carte_vectorielle(scans,angle_max=10,distance_max=1.,erreur=erreur)
 
     def test_meme_mur_fusionne(self):

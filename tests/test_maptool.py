@@ -4,8 +4,8 @@ from pathlib import Path
 from zipfile import ZipFile
 from unittest.mock import patch
 import numpy as np
-from cartographie import lire_csv, exporter_scan, mesures_valides
-from localisation import points_filtres
+from atlas.calcul.cartographie import lire_csv, exporter_scan, mesures_valides
+from atlas.calcul.localisation import points_filtres
 
 CONTENU = '''# Robot position: x=2m, y=-3m, theta=90deg
 angle_deg,r_m,x_rel_m,y_rel_m

@@ -1,17 +1,17 @@
 """Figures à partir du CSV mesuré ; aperçu calculé sur les trois références."""
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # modules de l'application à la racine
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # le paquet atlas est à la racine du dépôt
 import csv
 from pathlib import Path
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from cartographie import demonstration
-from evaluer_tp_jour2 import construire_references
-from localisation_tp import localiser_sur_reference,MULTI
-from localisation import points_filtres,transformer
+from atlas.calcul.cartographie import demonstration
+from atlas.calcul.evaluer_tp_jour2 import construire_references
+from atlas.calcul.localisation_tp import localiser_sur_reference,MULTI
+from atlas.calcul.localisation import points_filtres,transformer
 
 
 def produire():

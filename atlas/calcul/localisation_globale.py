@@ -6,8 +6,8 @@ précédente. Pas de vérité terrain dans le solveur.
 """
 from time import perf_counter
 import numpy as np
-from cartographie import Scan, Grille
-from localisation import (ResultatICP, champ_distances, points_filtres, transformer,
+from atlas.calcul.cartographie import Scan, Grille
+from atlas.calcul.localisation import (ResultatICP, champ_distances, points_filtres, transformer,
                           rotation, icp_scan, score_pose, valider_solution, erreur_pose, plus_proches)
 
 METHODE_GLOBALE = 'Carte cumulée · recherche globale 360°'

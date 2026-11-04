@@ -8,8 +8,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 import numpy as np
-from robot_wifi import encoder_trame
-from robot_usb import DemuxFlux, RobotUsb, DEBIT_INITIAL, DEBIT_DIRECT, trouver_port
+from atlas.robot.robot_wifi import encoder_trame
+from atlas.robot.robot_usb import DemuxFlux, RobotUsb, DEBIT_INITIAL, DEBIT_DIRECT, trouver_port
 
 DOSSIER = Path(__file__).resolve().parents[1]/'firmware/ScanAtlas_WiFi'
 

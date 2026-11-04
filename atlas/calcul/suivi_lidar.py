@@ -7,7 +7,7 @@ Les commandes moteur ne participent jamais à la prédiction.
 from time import perf_counter
 import numpy as np
 from scipy.spatial import cKDTree
-from localisation import ResultatICP, transformer
+from atlas.calcul.localisation import ResultatICP, transformer
 
 
 def composer(a, b):

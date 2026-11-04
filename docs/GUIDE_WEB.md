@@ -21,7 +21,7 @@ Principe (frontières) : une *frontière* est une zone libre de la carte touchan
 - Le robot se déplace **sans tourner** (mecanum) : pas de tour de lidar déformé, donc un suivi plus sûr. Le curseur *Puissance* est la vitesse maximale en ligne droite ; elle diminue près des obstacles et de la destination.
 - Sécurités, indépendantes de la carte : le lidar est lu en continu ; un obstacle dans le couloir de 38 cm devant le robot réduit puis annule l'avance (arrêt à 20 cm), un obstacle proche sur le côté le repousse (il glisse le long des murs). Si la position n'est plus suivie, le robot s'arrête et cherche où il est ; au bout de 45 s, l'exploration s'arrête et demande de le replacer.
 - Détections : si le robot ne bouge pas (obstacle, roues bloquées, puissance trop basse), il essaie une autre destination puis s'arrête après trois échecs ; s'il se déplace dans une autre direction que celle commandée (sens des moteurs ou orientation du lidar à vérifier), l'exploration s'arrête avec un message explicite. **Cette détection n'a été validée qu'en simulation.**
-- Réglage matériel : `RAYON_ROBOT` (26 cm, distance de planification aux murs) et `DISTANCE_ARRET` dans `exploration.py` sont à ajuster au châssis réel.
+- Réglage matériel : `RAYON_ROBOT` (26 cm, distance de planification aux murs) et `DISTANCE_ARRET` dans `atlas/robot/exploration.py` sont à ajuster au châssis réel.
 - Prérequis : robot connecté, position suivie, mode *Cartographier*.
 
 ## Écran Carte
@@ -37,14 +37,14 @@ Un seul réglage de connexion, un seul arrêt, un seul « Me retrouver », une s
 ## Architecture
 
 ```
-navigateur (web/)  ⇄  serveur.py (HTTP 127.0.0.1)  ⇄  SessionDirecte  ⇄  robot (UDP/TCP ou USB-série)
+navigateur (web/)  ⇄  atlas/application/serveur.py (HTTP 127.0.0.1)  ⇄  SessionDirecte  ⇄  robot (UDP/TCP ou USB-série)
    canvas 2D            REST/JSON + flux SSE            DocumentCarte
 ```
 
 - Le serveur écoute uniquement `127.0.0.1`, vérifie l'en-tête `Host` (anti « DNS rebinding ») et exige un jeton aléatoire (`X-Jeton`, injecté dans la page) pour toute requête `/api/`. Une autre page web ouverte dans le même navigateur ne peut donc pas piloter le robot.
 - `GET /api/flux` (Server-Sent Events) diffuse : `etat` (connexion, suivi, réglages), `scan` (points en mm entiers + pose, le navigateur les transforme), `carte` (points de la carte et grille, limités en fréquence), `document` (version de la carte), `message`, `tache` (progression d'un recalage ou d'un assemblage). Un client lent perd les événements intermédiaires au lieu de ralentir le robot.
 - Ordres : `POST /api/connexion|deconnexion|demo (`{actif, salle}`)|pilote|arret|reglages|retrouver|replacer|reprendre|nouvelle_carte|auto` (`replacer` : `{x, y, cap}` en mètres et degrés dans le repère de la carte ; `auto` : `{actif}`), `GET /api/direct/grille` (grille de la carte en cours, compressée) ; carte : `GET /api/carte[/nuage|grille|plan|session|scan/<i>.csv]`, `POST /api/carte/scan|supprimer|tous|filtres|demo|vider|recaler|assembler|annuler|importer?nom=`. Un seul calcul long à la fois. `409` si on modifie la carte pendant la connexion.
-- `exploration.py` ne contient aucun fil ni horloge : `planifier` (frontières, chemin, ~10 ms) tourne à 1 Hz dans un fil de `SessionDirecte`, `commande` (évitement, vitesse) à 20 Hz dans la boucle de sécurité. Les deux se testent en temps simulé (`simulation.py`).
+- `atlas/robot/exploration.py` ne contient aucun fil ni horloge : `planifier` (frontières, chemin, ~10 ms) tourne à 1 Hz dans un fil de `SessionDirecte`, `commande` (évitement, vitesse) à 20 Hz dans la boucle de sécurité. Les deux se testent en temps simulé (`atlas/simulation/simulation.py`).
 - La boucle de sécurité (50 ms) tourne côté serveur : elle envoie le pilotage au robot, coupe les moteurs si la consigne est périmée, reconnecte après une coupure.
 
 ## Tests

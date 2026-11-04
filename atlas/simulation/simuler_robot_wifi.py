@@ -1,4 +1,4 @@
-"""Robot Wi-Fi simulé sur le PC, sans moteurs : python simuler_robot_wifi.py.
+"""Robot Wi-Fi simulé sur le PC, sans moteurs : python -m atlas.simulation.simuler_robot_wifi.
 
 Dans l'application, « Essayer avec un robot simulé » le lance tout seul. À la main : adresse 127.0.0.1,
 et --salle appartement | deux_pieces | salle (voir simulation.SALLES). Le robot simulé se déplace dans une salle
@@ -10,9 +10,9 @@ import socket
 import threading
 import time
 import numpy as np
-from robot_wifi import encoder_trame, COMMANDS
+from atlas.robot.robot_wifi import encoder_trame, COMMANDS
 
-from simulation import SALLES, SALLE_PAR_DEFAUT, mesures_simulees, deplacer
+from atlas.simulation.simulation import SALLES, SALLE_PAR_DEFAUT, mesures_simulees, deplacer
 
 
 def main():

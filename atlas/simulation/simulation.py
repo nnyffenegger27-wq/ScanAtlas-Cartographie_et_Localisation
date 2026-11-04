@@ -1,10 +1,10 @@
 """Salles simulées : lidar, collisions et cinématique d'un robot mecanum, sans réseau ni matériel.
 
-Sert au robot simulé du mode démonstration (simuler_robot_wifi.py) et aux tests de l'exploration autonome.
+Sert au robot simulé du mode démonstration (atlas/simulation/simuler_robot_wifi.py) et aux tests de l'exploration autonome.
 Repère : x vers l'avant, y vers la gauche, cap en degrés dans le sens trigonométrique, comme les poses du suivi.
 """
 import numpy as np
-from robot_wifi import TrameScan
+from atlas.robot.robot_wifi import TrameScan
 
 # Salle de démonstration : 7 m × 5 m avec un petit mur intérieur en L.
 SALLE_DEMO = np.array([[[-3, -2], [4, -2]], [[4, -2], [4, 3]], [[4, 3], [-3, 3]],

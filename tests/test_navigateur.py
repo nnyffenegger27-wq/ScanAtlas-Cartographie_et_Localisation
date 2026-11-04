@@ -3,7 +3,7 @@ la carte se dessine, le clavier pilote, Espace arrête."""
 import json
 import threading
 import unittest
-import serveur
+from atlas.application import serveur
 try:
     from playwright.sync_api import sync_playwright
 except ImportError:      # pragma: no cover

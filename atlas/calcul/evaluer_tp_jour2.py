@@ -1,5 +1,5 @@
 """Comparaison TP : mêmes scans, références issues du seul scan fixe, mêmes départs.
-python evaluer_tp_jour2.py --sortie exemples/evaluation_tp_jour2.csv
+python -m atlas.calcul.evaluer_tp_jour2 --sortie exemples/evaluation_tp_jour2.csv
 Erreurs vraies en simulation ; convergence et concordance ne valent pas vérité.
 """
 import argparse
@@ -7,9 +7,9 @@ import csv
 from pathlib import Path
 from time import perf_counter
 import numpy as np
-from cartographie import demonstration,Grille,carte_vectorielle
-from localisation import erreur_pose
-from localisation_tp import ReferenceGrille,ReferenceVectorielle,ReferenceScan,localiser_sur_reference,LOCALE,MULTI
+from atlas.calcul.cartographie import demonstration,Grille,carte_vectorielle
+from atlas.calcul.localisation import erreur_pose
+from atlas.calcul.localisation_tp import ReferenceGrille,ReferenceVectorielle,ReferenceScan,localiser_sur_reference,LOCALE,MULTI
 
 PERTURBATIONS=[(0,0,0),(.1,-.1,2),(.3,-.2,6),(.5,.3,15),(.8,-.6,20),(1.,.5,25),(3.,3.,70)]
 

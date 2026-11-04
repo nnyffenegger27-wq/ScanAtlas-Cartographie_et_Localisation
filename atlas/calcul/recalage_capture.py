@@ -1,6 +1,6 @@
 """Recalage d'un lot USB après lecture série ; aucune dépendance à Tk."""
 from copy import deepcopy
-from localisation import icp_scan, recherche_icp, sous_carte, valider_solution, points_filtres
+from atlas.calcul.localisation import icp_scan, recherche_icp, sous_carte, valider_solution, points_filtres
 
 
 def recaler_capture(scans, reference=None, methode='Recherche large + ICP',

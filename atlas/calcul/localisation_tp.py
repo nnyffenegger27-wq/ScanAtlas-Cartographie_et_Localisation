@@ -9,7 +9,7 @@ import numpy as np
 from scipy.ndimage import distance_transform_edt, map_coordinates
 from scipy.spatial import cKDTree
 from scipy.optimize import least_squares
-from localisation import ResultatICP, points_filtres, transformer, erreur_pose
+from atlas.calcul.localisation import ResultatICP, points_filtres, transformer, erreur_pose
 
 LOCALE='Affinement local robuste'
 MULTI='Multi-résolution + affinement robuste'

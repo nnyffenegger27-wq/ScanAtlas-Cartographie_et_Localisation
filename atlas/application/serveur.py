@@ -16,10 +16,11 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs, unquote
-from document_carte import DocumentCarte, grille_vers_json
-from session_directe import SessionDirecte, Diffuseur
+from atlas.application.document_carte import DocumentCarte, grille_vers_json
+from atlas.robot.session_directe import SessionDirecte, Diffuseur
 
-DOSSIER_WEB = Path(__file__).with_name('web')
+RACINE = Path(__file__).resolve().parents[2]        # dossier du dépôt (celui de scanatlas.py)
+DOSSIER_WEB = RACINE / 'web'
 TYPES = {'.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
          '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json'}
 TAILLE_MAX_IMPORT = 200*1024*1024

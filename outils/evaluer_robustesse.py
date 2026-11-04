@@ -6,12 +6,12 @@ Aucune remise en ordre chronologique supposée. Réussite <=10 cm ET <=2 degrés
 """
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # modules de l'application à la racine
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # le paquet atlas est à la racine du dépôt
 import csv
 import sys
 import numpy as np
-from cartographie import lire_csv
-from localisation import recherche_icp, icp_scan, erreur_pose
+from atlas.calcul.cartographie import lire_csv
+from atlas.calcul.localisation import recherche_icp, icp_scan, erreur_pose
 
 
 def evaluer(chemin, sortie='exemples/robustesse_maptool.csv'):

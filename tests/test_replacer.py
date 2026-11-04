@@ -1,9 +1,9 @@
 """Replacer le robot : l'utilisateur indique un point et une direction approximatifs sur la carte."""
 import unittest
 import numpy as np
-from cartographie_direct import CarteDirecte
-from localisation import erreur_pose
-from simulation import SalleVirtuelle, SALLE_DEMO
+from atlas.calcul.cartographie_direct import CarteDirecte
+from atlas.calcul.localisation import erreur_pose
+from atlas.simulation.simulation import SalleVirtuelle, SALLE_DEMO
 
 
 def carte_et_robot():

@@ -4,7 +4,7 @@ from unittest.mock import patch
 from types import SimpleNamespace
 import threading
 import numpy as np
-from cartographie import Scan, Grille
+from atlas.calcul.cartographie import Scan, Grille
 
 
 def cellule(grille, point):

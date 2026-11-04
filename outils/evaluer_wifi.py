@@ -6,14 +6,14 @@ Ce banc ne mesure ni le réseau radio, ni les moteurs, ni le rolling scan.
 """
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # modules de l'application à la racine
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # le paquet atlas est à la racine du dépôt
 import csv
 from pathlib import Path
 import numpy as np
-from simuler_robot_wifi import mesures_simulees
-from cartographie_direct import CarteDirecte
-from robot_wifi import TrameScan
-from localisation import erreur_pose
+from atlas.simulation.simuler_robot_wifi import mesures_simulees
+from atlas.calcul.cartographie_direct import CarteDirecte
+from atlas.robot.robot_wifi import TrameScan
+from atlas.calcul.localisation import erreur_pose
 
 
 def evaluer(sortie='exemples/evaluation_wifi_simulation.csv'):

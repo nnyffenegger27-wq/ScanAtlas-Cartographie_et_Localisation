@@ -3,9 +3,9 @@ import os
 import time
 import unittest
 from unittest.mock import patch
-from cartographie_direct import CarteDirecte
-from localisation import erreur_pose
-from robot_usb import RobotUsb
+from atlas.calcul.cartographie_direct import CarteDirecte
+from atlas.calcul.localisation import erreur_pose
+from atlas.robot.robot_usb import RobotUsb
 from test_wifi import trame_pose
 from test_usb_direct import FauxFirmware, FauxSerie, attendre, messages
 
@@ -142,7 +142,7 @@ if __name__ == '__main__':
 def trame_en_rotation(pose_fin, omega, sequence, duree=.1):
     """Tour lidar réaliste d'un robot qui tourne : chaque rayon est mesuré à son instant, donc déformé."""
     import numpy as np
-    from robot_wifi import TrameScan
+    from atlas.robot.robot_wifi import TrameScan
     from test_wifi import salle
     relatif = salle()-np.asarray(pose_fin[:2])
     phi = np.degrees(np.arctan2(relatif[:, 1], relatif[:, 0])); r = np.linalg.norm(relatif, axis=1)
@@ -171,7 +171,7 @@ class RotationRapide(unittest.TestCase):
 
     def test_correction_neutre_a_l_arret_et_inverse_du_mouvement(self):
         import numpy as np
-        from suivi_lidar import corriger_mouvement
+        from atlas.calcul.suivi_lidar import corriger_mouvement
         m = np.column_stack([np.linspace(0, 359, 360), np.full(360, 2.), np.full(360, 200.)])
         np.testing.assert_allclose(corriger_mouvement(m, 0., np.zeros(2), .1), m, atol=1e-9)
         c = corriger_mouvement(m, 100., np.zeros(2), .1)

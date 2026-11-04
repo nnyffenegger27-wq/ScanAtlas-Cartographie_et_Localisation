@@ -5,12 +5,12 @@ Les critères de réussite utilisent la pose vraie, pas la convergence du solveu
 """
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # modules de l'application à la racine
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # le paquet atlas est à la racine du dépôt
 import argparse
 import csv
 import numpy as np
-from cartographie import demonstration
-from localisation import icp_scan, recherche_icp, erreur_pose
+from atlas.calcul.cartographie import demonstration
+from atlas.calcul.localisation import icp_scan, recherche_icp, erreur_pose
 
 
 def evaluer(sortie, comparer=False):

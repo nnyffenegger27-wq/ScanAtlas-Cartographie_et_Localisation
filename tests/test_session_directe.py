@@ -3,10 +3,10 @@ import time
 import unittest
 import numpy as np
 from unittest.mock import patch
-import session_directe
-from session_directe import SessionDirecte, Diffuseur, pourcentages
-from document_carte import DocumentCarte
-from robot_usb import RobotUsb
+from atlas.robot import session_directe
+from atlas.robot.session_directe import SessionDirecte, Diffuseur, pourcentages
+from atlas.application.document_carte import DocumentCarte
+from atlas.robot.robot_usb import RobotUsb
 from test_usb_direct import FauxFirmware, FauxSerie
 
 
@@ -156,7 +156,7 @@ class CoupuresDeLiaison(Fixture):
 
 class LectureDuSignalWifi(unittest.TestCase):
     def test_netsh_en_francais_et_en_anglais(self):
-        from robot_wifi import lire_signal_wifi
+        from atlas.robot.robot_wifi import lire_signal_wifi
         fr = "    Nom                    : Wi-Fi\n    SSID                   : ScanAtlas\n    Canal                  : 6\n    Signal                 : 74%\n"
         en = "    SSID                   : ScanAtlas\n    Channel                : 11\n    Signal                 : 100%\n"
         self.assertEqual(lire_signal_wifi(fr), (74, 6, 'ScanAtlas'))

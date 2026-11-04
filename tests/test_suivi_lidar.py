@@ -1,10 +1,10 @@
 import unittest
 import numpy as np
-from suivi_lidar import composer,inverse,predire,ReferenceSuivi,icp_droites
-from cartographie_direct import CarteDirecte
-from robot_wifi import TrameScan
-from localisation import erreur_pose
-from simuler_robot_wifi import mesures_simulees
+from atlas.calcul.suivi_lidar import composer,inverse,predire,ReferenceSuivi,icp_droites
+from atlas.calcul.cartographie_direct import CarteDirecte
+from atlas.robot.robot_wifi import TrameScan
+from atlas.calcul.localisation import erreur_pose
+from atlas.simulation.simuler_robot_wifi import mesures_simulees
 
 
 class SuiviAnalytique(unittest.TestCase):
