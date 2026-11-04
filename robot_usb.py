@@ -14,7 +14,7 @@ import threading
 import time
 import zlib
 import numpy as np
-from robot_wifi import (RobotWifi, TrameScan, HEADER, POINT, COMMANDS, commande_simple, dernier)
+from robot_wifi import (RobotWifi, TrameScan, HEADER, POINT, COMMANDS, DELAI_SANS_REPONSE, commande_simple, dernier)
 
 DEBIT_INITIAL = 115200
 DEBIT_DIRECT = 921600
@@ -142,8 +142,20 @@ class RobotUsb(RobotWifi):
     # -- connexion ---------------------------------------------------------------------------
     def _poignee_de_main(self, liaison, flux):
         debut, dernier_envoi = time.monotonic(), 0.
+        # Le firmware garde 6 s la session précédente (et son débit rapide) après une coupure : on essaie
+        # donc tour à tour 115200 puis le débit rapide, pour le rejoindre quel que soit son état.
+        debits = [DEBIT_INITIAL]+([self.debit] if self.debit != DEBIT_INITIAL else [])
+        essai, change = 0, debut
         while not self.arret.is_set():
             t = time.monotonic()
+            if len(debits) > 1 and t-change > 1.:
+                essai, change = (essai+1) % len(debits), t
+                liaison.baudrate = debits[essai]
+                try:
+                    liaison.reset_input_buffer()
+                except AttributeError:
+                    pass
+                flux.buffer.clear()
             if t-debut > self.delai_connexion:
                 raise TimeoutError('Le robot ne répond pas sur ce port : téléverser le firmware ScanAtlas_WiFi à jour '
                                    'et fermer le moniteur série d’Arduino.')
@@ -192,6 +204,7 @@ class RobotUsb(RobotWifi):
                         if suite is not None and (valeur.sequence <= suite[0] or valeur.fin_us <= suite[1]):
                             raise ValueError('Scan ancien ou redémarrage ESP32 : reconnecter.')
                         suite = (valeur.sequence, valeur.fin_us)
+                        self._noter_pause('scan', time.monotonic()-dernier_flux)
                         self.dernier_scan = dernier_flux = time.monotonic()
                         if self.journal is not None:
                             self.journal.brut(valeur)
@@ -203,15 +216,16 @@ class RobotUsb(RobotWifi):
                         numero = int(mots[2])
                         if acquitte < numero <= seq and numero in envois and time.monotonic()-envois[numero] < .5:
                             acquitte = numero
+                            self._noter_pause('acquittement', time.monotonic()-ack)
                             ack = time.monotonic()
                             with self.lock:
                                 self.effective, self.date_ack = mots[3], ack
                     elif mots[:1] == ['BUSY']:
                         raise ConnectionError('Robot déjà utilisé par une autre session.')
                 self.erreurs_flux = flux.erreurs
-                if time.monotonic()-ack > 2.:
+                if time.monotonic()-ack > DELAI_SANS_REPONSE:
                     raise TimeoutError('Robot sans réponse : commande arrêtée, reconnecter.')
-                if time.monotonic()-dernier_flux > 2.:
+                if time.monotonic()-dernier_flux > DELAI_SANS_REPONSE:
                     raise TimeoutError('Flux lidar interrompu ; moteurs arrêtés.')
         except (OSError, ValueError, UnicodeError) as exc:
             self._etat(str(exc))

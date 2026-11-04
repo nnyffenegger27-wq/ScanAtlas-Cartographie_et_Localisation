@@ -16,6 +16,8 @@ from cartographie import Scan, ANGLE_REFERENCE_DEFAUT
 
 HEADER = struct.Struct('<4sBBHIQIH')
 POINT = struct.Struct('<HHB')
+# Le firmware garde la session 6 s sans commande (moteurs coupés dès 300 ms) : le PC patiente un peu moins.
+DELAI_SANS_REPONSE = 5.
 COMMANDS = frozenset(('STOP', 'FORWARD', 'BACK', 'LEFT', 'RIGHT', 'STRAFE_L', 'STRAFE_R', 'DRIVE'))
 
 
@@ -184,6 +186,12 @@ class RobotWifi:
         except queue.Full:
             pass
 
+    def _noter_pause(self, nom, ecart, seuil=.5):
+        """Une coupure brève de la liaison n'est plus fatale (le firmware garde la session 6 s) : on la note
+        dans le journal pour pouvoir mesurer sa durée et ses causes."""
+        if ecart > seuil and self.journal is not None:
+            self.journal.evenement(f'Pause de {ecart:.1f} s sans {nom} ; la liaison a repris sans reconnexion.')
+
     def commander(self, commande='STOP', pwm=65):
         self.bail.actualiser(commande, pwm)
 
@@ -241,6 +249,7 @@ class RobotWifi:
                         if (acquitte < numero <= seq and numero in envois and
                             time.monotonic()-envois[numero] < .5):
                             acquitte = numero
+                            self._noter_pause('acquittement', time.monotonic()-ack)
                             ack = time.monotonic()
                             with self.lock:
                                 self.effective, self.date_ack = reponse[3], ack
@@ -248,7 +257,7 @@ class RobotWifi:
                         raise ConnectionError('Robot déjà contrôlé par une autre session.')
                 except socket.timeout:
                     pass
-                if time.monotonic()-(ack or debut) > (2. if self.connecte.is_set() else 3.):
+                if time.monotonic()-(ack or debut) > (DELAI_SANS_REPONSE if self.connecte.is_set() else 3.):
                     raise TimeoutError('Robot sans réponse : commande arrêtée, reconnecter.')
                 self.arret.wait(.04)
         except (OSError, ValueError, UnicodeError) as exc:
@@ -283,7 +292,7 @@ class RobotWifi:
                 try:
                     data = sock.recv(8192)
                 except socket.timeout:
-                    if time.monotonic()-dernier_recu > 2.:
+                    if time.monotonic()-dernier_recu > DELAI_SANS_REPONSE:
                         raise TimeoutError('Flux lidar interrompu ; moteurs arrêtés.')
                     continue
                 if not data:
@@ -292,6 +301,7 @@ class RobotWifi:
                     if (seq is not None and (trame.sequence <= seq or trame.fin_us <= fin)):
                         raise ValueError('Scan ancien ou redémarrage ESP32 : reconnecter.')
                     seq, fin = trame.sequence, trame.fin_us
+                    self._noter_pause('scan', time.monotonic()-dernier_recu)
                     self.dernier_scan = dernier_recu = time.monotonic()
                     if self.journal is not None:self.journal.brut(trame)
                     self.recus += 1

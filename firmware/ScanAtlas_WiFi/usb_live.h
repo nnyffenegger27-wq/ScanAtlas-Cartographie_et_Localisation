@@ -5,8 +5,9 @@
 // mais sur la console USB. Le PC ouvre la session au débit historique (115200) avec
 //   LIVE <jeton> <débit>\n
 // Le firmware répond « READY <jeton> SA2 », puis passe au débit demandé (le PC fait de même).
-// La session vit tant que des commandes arrivent (bail de 300 ms, comme en Wi-Fi) ; à la fin,
-// ou sur LIVE_STOP, le firmware revient à 115200 et le mode USB historique (SCAN N) reste utilisable.
+// Sans commande depuis 300 ms les moteurs sont coupés ; la session, elle, ne se ferme qu'après 6 s de silence
+// (ou sur LIVE_STOP) : le firmware revient alors à 115200 et le mode USB historique (SCAN N) reste utilisable.
+// Une nouvelle demande d'un autre jeton remplace une session muette depuis plus d'une seconde.
 struct LiveRequest { char token[33]; unsigned baud; };
 
 inline bool liveBaudAllowed(unsigned long long b){return b==115200||b==230400||b==460800||b==921600;}

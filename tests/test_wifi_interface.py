@@ -63,7 +63,7 @@ class InterfaceWifiReelle(unittest.TestCase):
                 attendre(lambda:fake.commandes[-1][1]=='LEFT')
                 app.wifi_zone.event_generate('<FocusOut>');app.update()
                 attendre(lambda:fake.commandes[-1][1]=='STOP')
-                self.assertFalse(app.wifi_actif.get())
+                self.assertTrue(app.wifi_actif.get())   # le robot s'arrête, la case reste cochée
                 arme();app.wifi_zone.event_generate('<KeyPress-Down>')
                 attendre(lambda:fake.commandes[-1][1]=='BACK')
                 app.onglets.select(0);app.update()

@@ -56,14 +56,23 @@ inline bool parseCommand(const char *s,Command &c) {
   }
   return false;
 }
+// Deux délais distincts. Sans commande depuis 300 ms, les MOTEURS sont coupés (sécurité, « expired »).
+// La SESSION (propriétaire, flux de scans) ne se ferme qu'après 6 s de silence (« dead ») : un trou de
+// quelques centaines de ms du Wi-Fi ou du PC ne doit plus couper tout le flux (c'était la cause des
+// reconnexions incessantes). Au retour des commandes après une coupure des moteurs, la première
+// commande est acceptée mais appliquée comme STOP (« resumed »), la suivante agit normalement.
 struct Lease {
-  bool active=false,primed=false;uint32_t last=0,seq=0;Motion motion=STOP;
-  void open(uint32_t now) {active=true;primed=false;last=now;seq=0;motion=STOP;}
-  bool expired(uint32_t now) const {return active && (uint32_t)(now-last)>300;}
-  void close(){active=false;primed=false;motion=STOP;}
+  static const uint32_t MOTOR_MS=300,SESSION_MS=6000,TAKEOVER_MS=1000;
+  bool active=false,primed=false,lapsed=false,resumed=false;uint32_t last=0,seq=0;Motion motion=STOP;
+  void open(uint32_t now) {active=true;primed=false;lapsed=false;resumed=false;last=now;seq=0;motion=STOP;}
+  bool expired(uint32_t now) const {return active && (uint32_t)(now-last)>MOTOR_MS;}
+  bool dead(uint32_t now) const {return active && (uint32_t)(now-last)>SESSION_MS;}
+  bool silent(uint32_t now) const {return active && (uint32_t)(now-last)>TAKEOVER_MS;}  // une autre session peut la remplacer
+  void close(){active=false;primed=false;lapsed=false;resumed=false;motion=STOP;}
   bool accept(const Command &c,uint32_t now) {
-    if(!active||expired(now)||c.seq<=seq||(!primed&&c.motion!=STOP))return false;
-    seq=c.seq;last=now;motion=c.motion;primed=true;return true;
+    if(!active||dead(now)||c.seq<=seq||(!primed&&c.motion!=STOP))return false;
+    resumed=expired(now);
+    seq=c.seq;last=now;motion=c.motion;primed=true;lapsed=false;return true;
   }
 };
 struct ScanFrame {uint8_t bytes[26+1200*5+4];size_t size=0;};

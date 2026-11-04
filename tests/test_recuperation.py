@@ -53,6 +53,58 @@ class RecuperationAutomatique(unittest.TestCase):
         self.assertIn('Recalage refusé', e.message)
 
 
+class PeriodeDeVerification(unittest.TestCase):
+    """Après une position retrouvée, la carte n'est enrichie qu'une fois le suivi redevenu normal."""
+    def suite(self, c, depart, pas, n, seq0):
+        sortie = []
+        for k in range(n):
+            time.sleep(.1)
+            avant = len(c.cles)
+            e = c.traiter(trame_pose([depart[0]+pas*(k+1), depart[1], depart[2]], seq0+k))
+            sortie.append((e.accepte, len(c.cles)-avant, e.message))
+        return sortie
+
+    def test_position_360_puis_cartographie_reprend_sans_scan_clef_douteux(self):
+        c = carte_suivie()
+        c.relocaliser()                                        # bouton « Position 360° »
+        vrai = [1.3, .5, 70.]
+        e = None
+        for k in range(10):
+            time.sleep(.1)
+            e = c.traiter(trame_pose(vrai, 8+k))
+            if e.accepte:
+                break
+        suivant = 9+k
+        self.assertTrue(e.accepte, e.message)
+        self.assertIn('Position retrouvée', e.message)
+        ep, ea = erreur_pose(c.pose, vrai)
+        self.assertLess(ep, .1); self.assertLess(ea, 3)
+        cles = len(c.cles)
+        resultats = self.suite(c, vrai, .2, 8, suivant)             # le robot repart à 2 m/s (pire cas) : suivi normal
+        self.assertTrue(all(a for a, _, _ in resultats), resultats)
+        # Pendant la vérification : aucun scan clé, message explicite ; ensuite la carte s'enrichit de nouveau.
+        self.assertTrue(all(n == 0 for _, n, _ in resultats[:3]), resultats)
+        self.assertIn('non enrichie', resultats[0][2])
+        self.assertGreater(len(c.cles), cles)
+
+    def test_trou_de_liaison_aussi_surveille(self):
+        c = carte_suivie()
+        c.pose_cle = c.pose.copy()
+        # Tour reçu après un trou de 0,9 s (liaison coupée un instant) : suivi accepté mais pas de scan clé.
+        time.sleep(.1)
+        e = c.traiter(trame_pose([.2, 0, 8], 8, fin=1_000_000+7*100000+900_000))
+        if e.accepte:
+            self.assertIn('non enrichie', e.message)
+
+    def test_reprise_explicite_surveillee(self):
+        c = carte_suivie()
+        c.reprendre()
+        time.sleep(.1)
+        e = c.traiter(trame_pose(c.pose, 8))
+        self.assertTrue(e.accepte, e.message)
+        self.assertEqual(c.probation, 3)
+
+
 class OuverturePortEtReconnexion(unittest.TestCase):
     def test_port_pas_encore_disponible_nouvel_essai(self):
         firmware = FauxFirmware(); serie = FauxSerie(firmware)
@@ -98,7 +150,8 @@ class ReconnexionAutomatique(unittest.TestCase):
                 fin = time.monotonic()+6
                 while time.monotonic() < fin and not (app.wifi_etat is not None and app.wifi_etat.accepte):
                     app.update(); time.sleep(.01)
-                self.assertTrue(app.wifi_etat is not None and app.wifi_etat.accepte)
+                self.assertTrue(app.wifi_etat is not None and app.wifi_etat.accepte,
+                                (app.wifi_info.get(), getattr(app.wifi_etat, 'message', None)))
                 carte = app.wifi_carte
                 app.wifi_robot.arret.set()                       # coupure subie (pas un clic sur Déconnecter)
                 fin = time.monotonic()+3
@@ -108,6 +161,9 @@ class ReconnexionAutomatique(unittest.TestCase):
                 self.assertIsNotNone(app.wifi_relance)           # une reconnexion est programmée
                 self.assertIn('Reconnexion automatique', app.wifi_info.get())
                 app.wifi_reconnecter()                           # (le délai de 3 s est court-circuité)
+                fin = time.monotonic()+4                         # le calcul précédent peut finir encore un instant
+                while time.monotonic() < fin and app.wifi_robot is None:
+                    app.update(); time.sleep(.01)
                 self.assertIsNotNone(app.wifi_robot)
                 self.assertIs(app.wifi_carte, carte)             # même carte
                 app.wifi_deconnecter()                           # un vrai clic annule tout

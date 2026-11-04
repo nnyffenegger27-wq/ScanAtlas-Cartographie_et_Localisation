@@ -46,6 +46,10 @@ Le redressement suppose que les points arrivent dans l'ordre de mesure (c'est le
 
 La case **Reconnecter automatiquement après une coupure** (activée par défaut) relance la connexion 3 s après une coupure subie, jusqu'à 8 essais, avec la même carte. En USB, le port met quelques secondes à revenir quand l'ESP32 redémarre (« Accès refusé ») : l'ouverture est réessayée pendant 8 s. Un clic sur **Déconnecter** annule la reconnexion automatique.
 
+**Coupures brèves.** Le firmware ne ferme plus la session au premier trou : sans commande pendant 300 ms il coupe les **moteurs** (sécurité inchangée), mais garde la session et le flux de scans 6 s. Au retour des commandes, la première est appliquée comme un arrêt, la suivante agit normalement. Une session muette depuis plus d'une seconde est remplacée par une nouvelle demande (plus de « Robot déjà utilisé » après un plantage), y compris en USB où le PC essaie tour à tour 115200 et le débit rapide. Le PC attend jusqu'à 5 s une réponse et note chaque pause dans `evenements.log` (« Pause de 1.2 s sans scan… »). **Il faut téléverser le firmware `ScanAtlas_WiFi` mis à jour** pour en profiter.
+
+**Vérification après une reprise.** Après une position retrouvée (récupération, « Position 360° », « Reprendre ici ») ou un trou de plus de 0,6 s entre deux tours, la carte n'est pas enrichie pendant 3 tours suivis normalement : une position douteuse ne dépose plus de scans clés. Le message indique « Carte non enrichie pendant la vérification de la position ». Après un saut sur la carte, le suivi se fait aussitôt sur le voisinage de la nouvelle position.
+
 Une recherche globale est plus coûteuse qu'un suivi local. En cas d'échec, elle est retentée au plus toutes les cinq secondes. Ce n'est pas une garantie de retrouver n'importe quelle position : il faut du recouvrement et une géométrie suffisamment distinctive. Le suivi courant utilise l'ICP point-vers-droite et une référence mise en cache ; aucune odométrie n'est inventée depuis les touches.
 
 ## Cartographier ou seulement se localiser
@@ -75,9 +79,11 @@ Le journal ne contient pas le jeton d'authentification réseau. Un problème d'�
 
 L'encart **Commandes** du panneau Pilotage est un **pavé 3 × 3** : rotation gauche, avance, rotation droite ; gauche, croix, droite ; recul. Derrière chaque flèche, un **carré vert se remplit** proportionnellement à la puissance demandée, du côté d'où part le mouvement (l'avance monte depuis le bas de la case, le recul descend depuis le haut, etc.), avec le pourcentage écrit dans la case. Au clavier le remplissage est fixe (tout ou rien, égal au réglage PWM) ; à la manette il suit l'inclinaison du stick. **La croix centrale est pleine quand le robot est à l'arrêt.** Le fond de l'encart est beige tant que le robot n'est pas connecté et vert pâle une fois connecté et le flux lidar reçu.
 
-**Le pilotage se teste sans robot** : cocher Clavier actif ou Manette Xbox sans être connecté affiche l'encart exactement comme avec un robot, mais **aucune commande n'est envoyée**. Avec un robot connecté, les commandes ne partent que si le flux lidar est récent (comme avant).
+**Clavier et manette sont actifs d'emblée** et restent cochés : un arrêt (Espace, B, bouton ARRÊT, perte de focus, déconnexion, « Position 360° », « Reprendre ici ») arrête les moteurs mais ne décoche rien. On ne décoche une case que par un clic. Les deux entrées coexistent ; si la manette est inclinée, elle prime sur le clavier. Sans manette branchée, le clavier fonctionne normalement.
 
-Clavier AZERTY : cliquer dans la zone de commandes, cocher **Clavier actif**, puis :
+**Le pilotage se teste sans robot** : sans être connecté affiche l'encart exactement comme avec un robot, mais **aucune commande n'est envoyée**. Avec un robot connecté, les commandes ne partent que si le flux lidar est récent (comme avant).
+
+Clavier AZERTY : la zone de commandes prend le focus quand on ouvre l'onglet Robot (sinon cliquer dedans), puis :
 
 | Mouvement | Touches |
 |---|---|
@@ -87,16 +93,16 @@ Clavier AZERTY : cliquer dans la zone de commandes, cocher **Clavier actif**, pu
 
 Les flèches haut/bas (surge) et gauche/droite (yaw) restent acceptées comme équivalents. **Les touches se combinent** (Z + D + E : avancer en diagonale à droite en tournant à droite) ; deux touches opposées d'un même axe s'annulent. La localisation peut être en échec sans bloquer le pilotage manuel, tant que connexion et flux lidar sont récents.
 
-Sous Windows, connecter une manette reconnue par XInput puis cocher **Manette Xbox** (il n'y a plus de bouton à maintenir : l'activation se fait à l'écran) :
+Sous Windows, il suffit de brancher une manette reconnue par XInput (la case **Manette Xbox** est cochée d'office) :
 
 | Entrée | Action |
 |---|---|
 | Stick gauche | Surge (haut / bas) et sway (gauche / droite) en même temps, proportionnels |
 | Stick droit, axe horizontal | Yaw (rotation) |
 | **RB** (un appui) | Bascule la cartographie : activée ↔ en pause (localisation seule). Le mouvement n'est pas touché |
-| **B** (ou **Espace**) | STOP immédiat **et désactivation** du pilotage : il faut recocher Clavier actif ou Manette Xbox pour reprendre. Le lidar et la localisation continuent |
+| **B** (maintenu) ou **Espace** | STOP immédiat, sans rien décocher ; le pilotage reprend dès que B est relâché. Le lidar et la localisation continuent |
 
-Recentrer les sticks ou relâcher les touches arrête déjà le mouvement. Zone morte 22 % (radiale sur le stick gauche), puissance proportionnelle plafonnée par le curseur PWM. Il faut conserver le focus dans la bande de pilotage : **perdre le focus de l'application arrête les moteurs** (évite qu'une commande reste active pendant qu'on écrit ailleurs). En revanche, une **localisation perdue ne bloque pas le pilotage** : seul l'ajout de points à la carte est suspendu.
+Recentrer les sticks ou relâcher les touches arrête déjà le mouvement. Zone morte 22 % (radiale sur le stick gauche), puissance proportionnelle plafonnée par le curseur PWM. Le clavier n'agit que si la zone de commandes a le focus et la manette que si l'onglet Robot est affiché : **sinon les moteurs s'arrêtent** (évite qu'une commande reste active pendant qu'on écrit ailleurs), et le pilotage reprend tout seul au retour. En revanche, une **localisation perdue ne bloque pas le pilotage** : seul l'ajout de points à la carte est suspendu.
 
 **Protocole.** Un mouvement sur un seul axe part toujours en `SA1` (identique à avant, compatible avec l'ancien firmware). Un mouvement combiné part en `SA2 jeton séquence vx vy w` avec trois pourcentages signés (-100 à 100 ; positifs = avance, gauche, rotation à gauche). Le firmware mélange les quatre roues mécanum et, si une roue dépasserait 100, réduit toutes les roues ensemble : la direction est conservée, seule la vitesse baisse. Le firmware annonce `READY jeton SA2` ; **il faut le reflasher pour les mouvements combinés**. Avec l'ancien firmware, l'application garde l'axe dominant et affiche « Reflasher ScanAtlas_WiFi » plutôt que de perdre la liaison.
 

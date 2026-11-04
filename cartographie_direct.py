@@ -64,6 +64,12 @@ class EtatDirect:
     enrichissement: bool = True
 
 
+# Après une récupération (position retrouvée, reprise, trou de liaison), la carte n'est pas enrichie tant que
+# ce nombre de scans consécutifs n'ont pas été suivis normalement : une mauvaise position retrouvée ne doit
+# jamais déposer de scans clés dans la carte.
+PROBATION_SCANS = 3
+
+
 class CarteDirecte:
     def __init__(self, filtres=None, scans=None, segments=None, resolution=.1):
         self.filtres = dict(filtres or dict(mini=.05, maxi=12., intensite=0))
@@ -95,6 +101,7 @@ class CarteDirecte:
         self.prochain_auto = 0.
         self._ref_recherche = None
         self._ref_n = -1
+        self.probation = 0       # scans restant à suivre normalement avant de réenrichir la carte
         if scans:
             self.charger_reference(scans, segments)
 
@@ -130,6 +137,7 @@ class CarteDirecte:
         self.localisation_globale_requise=True
         self.prochain_global=0.
         self.historique_poses=[]
+        self.probation=PROBATION_SCANS
 
     @property
     def segments(self):
@@ -145,6 +153,7 @@ class CarteDirecte:
         accepte = False
         message = ''
         rmse, methode = float('nan'), 'Ancrage'
+        sous_surveillance = False  # ce scan vient d'une récupération ou suit un trou : pas de scan clé
         try:
             if self.localisation_globale_requise and debut < self.prochain_global:
                 return self.etat(scan,False,'Position inconnue : nouvel essai global en attente.',score,debut,rmse,'Attente globale')
@@ -160,9 +169,15 @@ class CarteDirecte:
                 methode,rmse,score=resultat.methode,resultat.rmse,100*resultat.accord_fin
                 if not resultat.applicable:
                     raise ValueError('Position inconnue ou ambiguë : '+resultat.message)
-                affine=icp_droites(pts,self.reference_locale,resultat.pose,self.annuler)
+                # La référence locale du suivi ne couvre que les 14 m autour du dernier scan clé : après un saut
+                # sur la carte (Position 360°), la confirmation et le suivi se font sur le voisinage de la
+                # position trouvée, sinon le suivi reperd aussitôt le robot.
+                autour=self._reference_autour(resultat.pose)
+                affine=icp_droites(pts,autour,resultat.pose,self.annuler)
                 if not affine.applicable or affine.accord_fin<.75 or affine.rmse>.10:
                     raise ValueError('Position globale non confirmée par la géométrie locale.')
+                self.reference_locale=autour
+                sous_surveillance=True
                 scan.pose=list(affine.pose)
                 rmse,score=affine.rmse,100*affine.accord_fin
                 accepte=True
@@ -246,16 +261,23 @@ class CarteDirecte:
                     scan.pose = list(resultat.pose)
                     message = f'Position retrouvée près de la dernière pose : {score:.0f} % à 12 cm.'
                     recuperation = True
+                    sous_surveillance = True
                 else:
                     scan.pose = list(resultat.pose)
                     message = f'Suivi accepté : {score:.0f} % à 12 cm ; RMSE {resultat.rmse:.3f} m.'
+                    # Reprise explicite, ou trou entre deux tours (liaison coupée un instant) : surveillance.
+                    sous_surveillance = explicite or dt_reel > .6
             if self.annuler.is_set():
                 raise ValueError('Cartographie arrêtée.')
             ep, ea = erreur_pose(scan.pose, self.pose_cle)
             # Carte vide en « Localisation seule » : le premier scan reçu sert de référence (origine fixe)
             # plutôt que de ne rien faire ; les suivants sont ensuite localisés sans enrichir la carte.
             amorce = not self.enrichir and not len(self.points)
-            cle = (self.enrichir or amorce) and (self.fin_us is None or ep >= .15 or ea >= 5. or trame.fin_us-self.fin_cle >= 2_000_000)
+            surveille = sous_surveillance or self.probation > 0
+            cle = (self.enrichir or amorce) and (self.fin_us is None or (not surveille and (
+                ep >= .15 or ea >= 5. or trame.fin_us-self.fin_cle >= 2_000_000)))
+            if surveille and self.enrichir and self.fin_us is not None:
+                message += ' Carte non enrichie pendant la vérification de la position.'
             if amorce:
                 message = 'Localisation seule sans carte : ce scan sert de référence (origine fixe).'
             if cle:
@@ -277,6 +299,10 @@ class CarteDirecte:
                 self.cles.append(scan)
                 self.pose_cle, self.fin_cle = np.array(scan.pose), trame.fin_us
             self.localisation_globale_requise = False
+            if sous_surveillance:
+                self.probation = PROBATION_SCANS
+            elif self.probation > 0:
+                self.probation -= 1
             self.pose, self.fin_us = np.array(scan.pose), trame.fin_us
             if recuperation:
                 self.historique_poses = []
@@ -304,6 +330,12 @@ class CarteDirecte:
         return EtatDirect(scan,accepte,message,score,perf_counter()-debut,self.points.copy(),
                           self.segments,np.asarray(self.trajectoire),len(self.cles),tuple(self.cles),
                           rmse,methode,self.grille,self.enrichir)
+
+    def _reference_autour(self, pose, rayon=14.):
+        """Référence de suivi construite sur les points de la carte proches de `pose`."""
+        p = self.points
+        proches = p[np.linalg.norm(p-np.asarray(pose[:2]), axis=1) < rayon]
+        return ReferenceSuivi(proches if len(proches) >= 30 else p)
 
     def _recuperer(self, scan, pts, trame, debut):
         """Recherche élargie autour de la dernière pose, tous angles ; None si rien de sûr.
@@ -343,6 +375,7 @@ class CarteDirecte:
         self.perdu = False
         self.reprise = True
         self.historique_poses = []
+        self.probation = PROBATION_SCANS
 
     def _ajouter_segments(self, scan):
         carte = [(s.copy(), p.copy()) for s, p in self.appuis]

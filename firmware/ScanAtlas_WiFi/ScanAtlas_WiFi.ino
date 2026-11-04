@@ -59,8 +59,12 @@ void commandTask(void *) {
   Lease lease;uint16_t ownerPort=0;Motion applied=STOP;Command current={};
   for(;;){
     uint32_t now=millis();
-    if(lease.expired(now)){
-      logLiaison("Bail Wi-Fi expire : plus de commande recue depuis 300 ms.");
+    if(lease.expired(now)&&!lease.lapsed){
+      logLiaison("Wi-Fi : plus de commande depuis 300 ms, moteurs coupes (session gardee 6 s).");
+      car.stop();applied=STOP;current=Command{};lease.lapsed=true;
+    }
+    if(lease.dead(now)){
+      logLiaison("Session Wi-Fi fermee : plus de commande depuis 6 s.");
       lease.close();car.stop();applied=STOP;current=Command{};
       xSemaphoreTake(ownerMutex,portMAX_DELAY);ownerActive=false;xSemaphoreGive(ownerMutex);
     }
@@ -75,6 +79,13 @@ void commandTask(void *) {
       char tok[33],extra;
       if(sscanf(buf,"HELLO %32s %c",tok,&extra)==1&&tokenValid(tok)){
         bool blocked=false;
+        // Une session muette depuis plus d'une seconde (PC planté, câble ou Wi-Fi coupé) cède la place
+        // à une nouvelle demande : on n'attend plus la fin des 6 s pour se reconnecter.
+        if(lease.silent(now)&&!(ip==ownerIP&&port==ownerPort&&!strcmp(tok,ownerToken))){
+          logLiaison("Session Wi-Fi remplacee par une nouvelle demande.");
+          lease.close();car.stop();applied=STOP;current=Command{};
+          xSemaphoreTake(ownerMutex,portMAX_DELAY);ownerActive=false;xSemaphoreGive(ownerMutex);
+        }
         if(!lease.active){
           xSemaphoreTake(ownerMutex,portMAX_DELAY);blocked=liveActive;xSemaphoreGive(ownerMutex);
           if(!blocked){
@@ -94,7 +105,7 @@ void commandTask(void *) {
         Command cmd;
         if(parseCommand(buf,cmd)&&ip==ownerIP&&port==ownerPort&&!strcmp(cmd.token,ownerToken)&&lease.accept(cmd,now)){
           Command effective=cmd;
-          if(!fresh){effective.motion=STOP;effective.vx=effective.vy=effective.w=0;}
+          if(!fresh||lease.resumed){effective.motion=STOP;effective.vx=effective.vy=effective.w=0;}
           if(!sameDrive(effective,current)){applyCommand(effective);applied=effective.motion;current=effective;}
           char out[96];snprintf(out,sizeof(out),"SA1 %s %lu %s\n",ownerToken,(unsigned long)cmd.seq,MOTIONS[effective.motion]);reply(out,ip,port);
         }
@@ -128,7 +139,7 @@ void scanTask(void *) {
       if(!allowed)break;
       if(xQueueReceive(scans,&frame,pdMS_TO_TICKS(100))!=pdTRUE)continue;
       size_t offset=0;start=millis();
-      while(offset<frame.size&&client.connected()&&millis()-start<300){
+      while(offset<frame.size&&client.connected()&&millis()-start<2000){  // un trou Wi-Fi de 300 ms ne ferme plus le flux
         // Envoi borné par socket ; tâche séparée du watchdog et de l'UART.
         size_t sent=client.write(frame.bytes+offset,frame.size-offset);
         if(!sent)break;offset+=sent;
@@ -196,18 +207,24 @@ void setup(){
   }
   Serial.print("ScanAtlas AP : ");Serial.println(WiFi.softAPIP());
 }
+// Débit réellement réglé sur la console (le PC doit parler au même débit).
+static unsigned serialBaud=115200;
+void setSerialBaud(unsigned baud){
+  if(baud==serialBaud)return;
+  Serial.flush();delay(20);Serial.updateBaudRate(baud);serialBaud=baud;
+}
 // Ferme la liaison filaire : arrêt moteurs et retour au débit historique.
 void liveClose(const char *why){
   xSemaphoreTake(ownerMutex,portMAX_DELAY);liveActive=false;xSemaphoreGive(ownerMutex);
   car.stop();liveApplied=STOP;liveCurrent=Command{};
-  bool fast=live.baud!=115200;live.close();
-  if(fast){Serial.flush();Serial.updateBaudRate(115200);}
+  live.close();
+  setSerialBaud(115200);
   logLiaison("Liaison filaire fermee : %s.",why);
 }
 void liveCommand(const Command &cmd,uint32_t now){
   if(!live.owns(cmd.token)||!live.lease.accept(cmd,now))return;
   Command effective=cmd;
-  if(!live.fresh(now)){effective.motion=STOP;effective.vx=effective.vy=effective.w=0;}
+  if(!live.fresh(now)||live.lease.resumed){effective.motion=STOP;effective.vx=effective.vy=effective.w=0;}
   if(!sameDrive(effective,liveCurrent)){applyCommand(effective);liveApplied=effective.motion;liveCurrent=effective;}
   Serial.printf("SA1 %s %lu %s\n",live.token,(unsigned long)cmd.seq,MOTIONS[effective.motion]);
 }
@@ -216,13 +233,16 @@ void handleLine(const char *line,uint32_t now){
   LiveRequest request;Command cmd;unsigned count;
   if(parseLive(line,request)){
     xSemaphoreTake(ownerMutex,portMAX_DELAY);
+    // Une session filaire muette depuis plus d'une seconde (PC replanté, câble débranché) est remplacée
+    // par la nouvelle demande, sans attendre les 6 s de fermeture et sans repasser à 115200.
+    if(live.active&&strcmp(live.token,request.token)&&live.lease.silent(now)){live.close();liveActive=false;}
     UsbLive::Open result=ownerActive?UsbLive::REFUSED:live.open(request,now);
     if(result==UsbLive::OPENED){liveActive=true;usbRemaining=0;xQueueReset(scansUSB);}
     xSemaphoreGive(ownerMutex);
     if(result==UsbLive::REFUSED){Serial.println("BUSY");return;}
     if(result==UsbLive::OPENED){car.stop();liveApplied=STOP;liveCurrent=Command{};}
     Serial.printf("READY %s SA2\n",request.token);
-    if(result==UsbLive::OPENED&&request.baud!=115200){Serial.flush();delay(20);Serial.updateBaudRate(request.baud);}
+    setSerialBaud(request.baud);
     return;
   }
   if(isLiveStop(line)){if(live.active)liveClose("arret demande par le PC");return;}
@@ -261,7 +281,12 @@ void loop(){
   }
   if(live.active){
     uint32_t now=millis();
-    if(live.lease.expired(now))liveClose("plus de commande depuis 300 ms");
+    if(live.lease.dead(now))liveClose("plus de commande depuis 6 s");
+    else if(live.lease.expired(now)&&!live.lease.lapsed){
+      // Trou de commandes : moteurs coupés tout de suite, session gardée (le flux de scans continue).
+      car.stop();liveApplied=STOP;liveCurrent=Command{};live.lease.lapsed=true;
+      logLiaison("Liaison filaire : plus de commande depuis 300 ms, moteurs coupes (session gardee 6 s).");
+    }
     else if(!live.fresh(now)&&liveApplied!=STOP){car.stop();liveApplied=STOP;liveCurrent=Command{};}
   }
   // Un tour par trame, CRC UART puis CRC réseau. La file ne garde que le dernier.

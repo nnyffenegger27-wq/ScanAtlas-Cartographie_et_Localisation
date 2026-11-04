@@ -112,6 +112,15 @@ int main(){
   Lease l;l.open(0xfffffff0);assert(l.accept(c,0xfffffff5));assert(!l.expired(20));assert(l.expired(400));
   l.open(100);c.seq=2;c.motion=FORWARD;assert(!l.accept(c,101));c.motion=STOP;assert(l.accept(c,102));
   assert(!l.accept(c,103));c.seq=3;c.motion=FORWARD;assert(l.accept(c,104));
+  {  // Trou de commandes : moteurs coupés à 300 ms, session gardée jusqu'à 6 s, reprise en deux temps.
+    Lease g;Command k;k.seq=1;k.motion=STOP;g.open(1000);assert(g.accept(k,1010));
+    assert(!g.expired(1300)&&g.expired(1311)&&!g.dead(1311)&&!g.silent(1311));
+    assert(g.silent(2011)&&!g.dead(6000)&&g.dead(7011));
+    k.seq=2;k.motion=FORWARD;assert(g.accept(k,3000)&&g.resumed&&!g.lapsed);   // reprise : appliquée comme STOP
+    k.seq=3;assert(g.accept(k,3040)&&!g.resumed);                              // puis normalement
+    k.seq=4;assert(!g.accept(k,3041+6001));                                    // session morte : refus
+    g.open(0);k.seq=1;k.motion=STOP;assert(g.accept(k,10));g.close();assert(!g.active&&!g.expired(99999));
+  }
   assert(!parseCommand("SA1 0123456789abcdef0123456789abcdef 4 FORWARD 255",c));
   assert(!parseCommand("SA1 0123456789abcdef0123456789abcdef 4 DRIVE 50",c));
   // Commande combinée SA2 : vecteur signé, arrêt si tout est nul, bornes strictes.

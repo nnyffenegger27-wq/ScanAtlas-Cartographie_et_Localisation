@@ -43,7 +43,7 @@ journal_direct.py                tours.jsonl, session_secours.json, evenements.l
 encart_commandes.py, apparence.py, manette.py   pavé de commandes, palette, manette XInput
 simuler_robot_wifi.py            robot simulé sur le PC (sans matériel)
 firmware/ScanAtlas_WiFi/         firmware ESP32 (voir §5)
-tests/                           218 tests, voir §8
+tests/                           224 tests, voir §8
 docs/                            documentation (ce fichier, guide, journal, etc.)
 outils/                          scripts d'évaluation reproductibles (python outils/<nom>.py)
 materiel/                        firmware de démonstration d'origine du châssis, test lidar, CAO
@@ -81,7 +81,7 @@ Compilation : Arduino IDE, carte « ESP32 Dev Module », Arduino-ESP32 2.0.17, o
 
 - Choix PWM / I2C **à la compilation**, jamais à chaud (une mauvaise sélection enverrait des signaux sur les broches de l'autre carte).
 - Sens et vitesse réglés dans `motor_config.h` (`AXIS_SWAY_SIGN = -1` par défaut : sway inversé constaté sur le robot ; pourcentage converti en PWM 0..255 par `powerToDuty`, ce qui corrige la lenteur due à un pourcentage envoyé tel quel comme PWM).
-- Clavier AZERTY : Z/S avance / recule, Q/D déplacement latéral, A/E rotation (flèches équivalentes). Plus de bouton LB : le pilotage s'active à l'écran. B (manette) ou Espace désarme le pilotage sans toucher au lidar ni à la localisation. RB bascule la cartographie. Le pilotage continue même si la localisation est perdue. Perte de focus de la fenêtre : arrêt.
+- Clavier AZERTY : Z/S avance / recule, Q/D déplacement latéral, A/E rotation (flèches équivalentes). Plus de bouton LB : le pilotage s'active à l'écran. Clavier et manette sont cochés d'emblée et ne sont jamais décochés par un arrêt (B tenu / Espace / perte de focus = STOP seulement). RB bascule la cartographie. Le pilotage continue même si la localisation est perdue. Perte de focus de la fenêtre : arrêt.
 - Pavé de commandes (flèches) : le carré vert dynamique est derrière chaque flèche avec le pourcentage ; pas de barres Surge / Sway / Yaw (double information, refusé par l'utilisateur).
 - Sécurité : tout arrêt d'urgence est fait par le **bail de 300 ms du firmware**, indépendant du PC.
 - Aucun nom de projet extérieur ne doit apparaître dans les fichiers du dépôt comme source d'inspiration.
@@ -97,7 +97,7 @@ Compilation : Arduino IDE, carte « ESP32 Dev Module », Arduino-ESP32 2.0.17, o
 ## 8. Tester
 
 ```
-python -m unittest discover -s tests          # 218 tests, ~45 s
+python -m unittest discover -s tests          # 224 tests, ~65 s
 ```
 
 Tk est nécessaire pour les tests d'interface (Linux sans écran : `xvfb-run -a python -m unittest discover -s tests`). Le test `tests/test_usb_direct.py` contient de faux en-têtes Arduino pour vérifier la syntaxe du `.ino` avec g++. Les tests moteurs compilent les vrais en-têtes du firmware avec g++ (`tests/test_motor_*.py`). Banc de suivi : `python outils/evaluer_wifi.py`. Robot simulé : `python simuler_robot_wifi.py`.

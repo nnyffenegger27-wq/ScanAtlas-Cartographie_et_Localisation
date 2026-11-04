@@ -122,6 +122,20 @@ class InterfacePilotageReelle(unittest.TestCase):
         finally:
             racine.destroy()
 
+    def test_entrees_actives_d_emblee_et_jamais_decochees_par_un_arret(self):
+        from app import Atelier
+        app = Atelier(); app.geometry('1500x950')
+        try:
+            self.assertTrue(app.wifi_actif.get() and app.wifi_manette_active.get())
+            app.onglets.select(app.wifi_cadre); app.update()
+            for action in (app.wifi_arreter, app.wifi_relocaliser, app.wifi_reprendre, app.wifi_deconnecter):
+                action()
+                self.assertTrue(app.wifi_actif.get() and app.wifi_manette_active.get(), action.__name__)
+            app.wifi_deconnecter(automatique=True)
+            self.assertTrue(app.wifi_actif.get() and app.wifi_manette_active.get())
+        finally:
+            app.destroy()
+
     def test_mode_test_sans_robot_clavier_manette_et_rb(self):
         from app import Atelier
         from encart_commandes import FOND_CONNECTE, FOND_HORS_LIGNE
@@ -142,7 +156,7 @@ class InterfacePilotageReelle(unittest.TestCase):
             app.wifi_zone.event_generate('<KeyRelease-z>'); app.update(); app.wifi_pilotage()
             self.assertEqual(app.wifi_encart._valeurs, (0, 60, 60))
             app.wifi_zone.event_generate('<FocusOut>'); app.update()
-            self.assertFalse(app.wifi_actif.get())          # Perte de focus : entrées désarmées.
+            self.assertTrue(app.wifi_actif.get())           # Perte de focus : robot arrêté, case toujours cochée.
             app.wifi_pilotage()
             self.assertEqual(app.wifi_encart._valeurs, (0, 0, 0))
 
@@ -155,7 +169,8 @@ class InterfacePilotageReelle(unittest.TestCase):
                 EtatManette(True, 0., 0., 0., True, False),            # RB pressé : reprise
                 EtatManette(True, .5, 0., 0., False, True),            # B : coupe et désactive
                 EtatManette(False)])                                   # manette débranchée
-            app.wifi_manette_active.set(True); app.wifi_activer_manette(); app.wifi_zone.focus_force(); app.update()
+            self.assertTrue(app.wifi_actif.get() and app.wifi_manette_active.get())   # les deux d'emblée
+            app.wifi_activer_manette(); app.wifi_zone.focus_force(); app.update()
             self.assertTrue(app.wifi_manette_active.get())
             self.assertEqual(app.wifi_mode.get(), 'Cartographier')
             app.wifi_pilotage()
@@ -165,17 +180,16 @@ class InterfacePilotageReelle(unittest.TestCase):
             app.wifi_pilotage(); self.assertEqual(app.wifi_mode.get(), 'Localisation seule')
             app.wifi_pilotage(); app.wifi_pilotage()
             self.assertEqual(app.wifi_mode.get(), 'Cartographier'); self.assertTrue(app.wifi_cartographier.is_set())
-            app.wifi_pilotage()                              # B : arrêt immédiat, pilotage désactivé
-            self.assertFalse(app.wifi_manette_active.get())
+            app.wifi_pilotage()                              # B : arrêt immédiat, sans désarmer la manette
+            self.assertTrue(app.wifi_manette_active.get())
             self.assertEqual(app.wifi_encart._valeurs, (0, 0, 0))
-            self.assertIn('Manette B', app.wifi_info.get())
             self.assertEqual(app.wifi_mode.get(), 'Cartographier')   # B ne touche ni la cartographie ni la localisation
-            app.wifi_pilotage()                              # inactive : le stick n'a plus d'effet
+            app.wifi_pilotage()                              # manette débranchée : le clavier reste utilisable
+            self.assertTrue(app.wifi_manette_active.get() and app.wifi_actif.get())
             self.assertEqual(app.wifi_encart._valeurs, (0, 0, 0))
-            app.wifi_manette_active.set(True); app.wifi_activer_manette(); app.wifi_zone.focus_force(); app.update()
-            app.wifi_pilotage()
-            self.assertFalse(app.wifi_manette_active.get())  # Manette absente : désarmée.
-            self.assertEqual(app.wifi_encart._valeurs, (0, 0, 0))
+            self.assertIn('absente', app.wifi_info.get())
+            app.wifi_zone.event_generate('<KeyPress-z>'); app.update(); app.wifi_pilotage()
+            self.assertEqual(app.wifi_encart._valeurs, (60, 0, 0))
         finally:
             app.destroy()
 

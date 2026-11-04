@@ -63,8 +63,10 @@ class InterfaceWifi:
         self.wifi_stop=threading.Event();self.wifi_reprise=threading.Event()
         self.wifi_global=threading.Event();self.wifi_cartographier=threading.Event();self.wifi_cartographier.set()
         self.wifi_clavier=ClavierRobot();self.wifi_relachements={}
-        self.wifi_actif=tk.BooleanVar(value=False)
-        self.wifi_manette_active=tk.BooleanVar(value=False)
+        # Clavier et manette sont actifs d'emblée et le restent : arrêter le robot ne désarme plus les entrées.
+        self.wifi_actif=tk.BooleanVar(value=True)
+        self.wifi_manette_active=tk.BooleanVar(value=True)
+        self.wifi_manette_signalee=False
         self.wifi_rb_precedent=False
         self.wifi_yaw_max=tk.IntVar(value=60)   # % de la puissance autorisé en rotation : tourner trop vite déforme le tour lidar
         self.wifi_auto_recup=tk.BooleanVar(value=True)
@@ -201,9 +203,8 @@ class InterfaceWifi:
         self.wifi_info.set('Recherche globale demandée ; la carte attend une pose validée.')
 
     def wifi_activer_manette(self):
-        active=self.wifi_manette_active.get();self.wifi_arreter()
-        self.wifi_manette_active.set(active)
-        if active:
+        self.wifi_arreter();self.wifi_manette_signalee=False
+        if self.wifi_manette_active.get():
             self.wifi_zone.focus_set()
             if self.wifi_robot is None:
                 self.wifi_info.set('Mode test : la manette s’affiche dans l’encart, rien n’est envoyé (robot non connecté).')
@@ -328,8 +329,8 @@ class InterfaceWifi:
         self.wifi_thread.start()
 
     def wifi_arreter(self):
-        self.wifi_actif.set(False)
-        self.wifi_manette_active.set(False)
+        """Arrête le robot (touches relâchées, STOP). Les cases Clavier et Manette restent cochées :
+        elles ne se décochent que par un clic de l'utilisateur."""
         self.wifi_clavier.vider()
         self.wifi_commande.set('STOP')
         self.wifi_rb_precedent=False
@@ -344,6 +345,10 @@ class InterfaceWifi:
         self.wifi_relance=None
         if self.wifi_robot is None and self.wifi_auto_connexion.get() and self.wifi_tentatives<=8:
             self.wifi_connecter()
+            # Le calcul précédent finit encore (recherche globale en cours) : la reconnexion était refusée sans
+            # être reprogrammée, d'où des reconnexions « qui ne partent pas ». On réessaie dans un instant.
+            if self.wifi_robot is None and self.wifi_thread is not None and self.wifi_thread.is_alive():
+                self.wifi_relance=self.after(500,self.wifi_reconnecter)
 
     def wifi_deconnecter(self, automatique=False):
         if not automatique:
@@ -373,20 +378,19 @@ class InterfaceWifi:
     def wifi_activer(self):
         self.wifi_clavier.vider()
         if self.wifi_actif.get():
-            self.wifi_manette_active.set(False)
-            if self.wifi_robot is not None and not self.wifi_robot_pret():
-                self.wifi_arreter()
-                self.wifi_info.set('Attendre la connexion et le flux lidar avant d’activer le clavier.')
-            else:
-                self.wifi_zone.focus_set()
-                if self.wifi_robot is None:
-                    self.wifi_info.set('Mode test : les commandes s’affichent dans l’encart, rien n’est envoyé (robot non connecté).')
+            self.wifi_zone.focus_set()
+            if self.wifi_robot is None:
+                self.wifi_info.set('Mode test : les commandes s’affichent dans l’encart, rien n’est envoyé (robot non connecté).')
+            elif not self.wifi_robot_pret():
+                self.wifi_info.set('Clavier prêt ; les commandes partiront dès que le flux lidar sera reçu.')
 
     def wifi_changer_onglet(self, event=None):
         if str(self.onglets.select()) != str(self.wifi_cadre):
             self.wifi_arreter()
-        elif self.wifi_etat is not None:
-            self.wifi_dessiner(self.wifi_etat)
+        else:
+            self.wifi_zone.focus_set()   # le clavier répond tout de suite, sans clic préalable
+            if self.wifi_etat is not None:
+                self.wifi_dessiner(self.wifi_etat)
 
     def wifi_touche(self, event):
         touche = event.keysym if event.keysym in TOUCHES else event.keysym.lower()
@@ -520,29 +524,37 @@ class InterfaceWifi:
         aucun paquet ne part. Avec robot, le flux lidar doit être récent, comme avant.
         """
         robot=self.wifi_robot
-        voulu=self.wifi_actif.get() or self.wifi_manette_active.get()
+        onglet=str(self.onglets.select())==str(self.wifi_cadre)
         try:
-            focus=voulu and self.focus_get()==self.wifi_zone and str(self.onglets.select())==str(self.wifi_cadre)
+            focus=onglet and self.focus_get()==self.wifi_zone
         except KeyError:
-            focus=False  # Tk signale ainsi le focus d'un menu déroulant : c'est une perte de focus.
-        if voulu and (not focus or (robot is not None and not self.wifi_robot_pret())):
-            self.wifi_arreter()  # Perte de focus, d'onglet ou de flux lidar : STOP et entrées désarmées.
+            focus=False  # Tk signale ainsi le focus d'un menu déroulant : le clavier perd le focus, pas la manette.
+        pret_robot=robot is None or self.wifi_robot_pret()
         niveaux,note=(0,0,0),''
-        if self.wifi_manette_active.get():
-            etat=self.manette.lire_etat()
-            if not etat.presente:
-                self.wifi_arreter()
-                self.wifi_info.set('Manette Xbox absente ; pilotage arrêté. Windows / XInput requis.')
-            else:
-                niveaux=(etat.surge,etat.sway,etat.yaw)
-                if etat.stop:
-                    self.wifi_arreter()  # B : arrêt immédiat, pilotage désactivé jusqu'à réactivation.
-                    niveaux=(0,0,0)
-                    self.wifi_info.set('Manette B : pilotage coupé. Recocher la manette ou le clavier pour reprendre ; lidar et localisation continuent.')
-                elif etat.rb and not self.wifi_rb_precedent:self.wifi_basculer_cartographie()
-                self.wifi_rb_precedent=etat.rb
-        elif self.wifi_actif.get():
-            niveaux=self.wifi_clavier.vecteur()
+        # Les deux entrées coexistent ; la manette (si elle bouge) prime sur le clavier. Rien ne part sans le
+        # flux lidar, sans l'onglet (manette) ou sans le focus de la zone (clavier) ; le robot s'arrête
+        # simplement, les cases restent cochées.
+        if not pret_robot or not onglet:
+            self.wifi_arreter()
+        else:
+            clavier=(0,0,0)
+            if self.wifi_actif.get():
+                if focus:clavier=self.wifi_clavier.vecteur()
+                else:self.wifi_clavier.vider()
+            niveaux=clavier
+            if self.wifi_manette_active.get():
+                etat=self.manette.lire_etat()
+                if not etat.presente:
+                    if not self.wifi_manette_signalee:
+                        self.wifi_manette_signalee=True
+                        self.wifi_info.set('Manette Xbox absente (Windows / XInput requis) : le clavier reste utilisable.')
+                else:
+                    self.wifi_manette_signalee=False
+                    stick=(etat.surge,etat.sway,etat.yaw)
+                    if etat.stop:niveaux=(0,0,0)   # B : arrêt tant que le bouton est tenu
+                    elif any(stick):niveaux=stick
+                    if etat.rb and not self.wifi_rb_precedent:self.wifi_basculer_cartographie()
+                    self.wifi_rb_precedent=etat.rb
         pwm=int(self.wifi_pwm.get())
         if not 0<=pwm<=100:
             raise ValueError('PWM hors limite')
