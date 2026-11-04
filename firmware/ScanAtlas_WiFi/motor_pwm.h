@@ -45,6 +45,11 @@ public:
     if(power>0)write(a,min(power,255));
     else if(power<0)write(b,min(-power,255));
   }
+  // Commande combinée : chaque roue reçoit son pourcentage mélangé (vx, vy, w).
+  void drive(int vx,int vy,int w){
+    int mixed[4];mecanumMix(vx,vy,w,mixed);
+    for(int i=0;i<4;++i)wheel(WHEEL_MOTOR[i],mixed[i]*WHEEL_SIGN[i]);
+  }
   void apply(Motion m,unsigned pwm){
     // Roues mecanum en X : FL FR RL RR. Profil et polarités configurables.
     static const int signs[7][4]={{0,0,0,0},{1,1,1,1},{-1,-1,-1,-1},

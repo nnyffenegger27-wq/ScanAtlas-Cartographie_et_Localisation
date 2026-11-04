@@ -50,9 +50,25 @@ Le journal ne contient pas le jeton d'authentification réseau. Un problème d'�
 
 ## Clavier et manette Xbox
 
-Cocher **Clavier actif** place le focus dans la bande de commandes : flèches haut/bas pour avancer/reculer, gauche/droite pour tourner, A/D pour le déplacement latéral. La localisation peut être en échec sans bloquer le pilotage manuel, tant que connexion et flux lidar sont récents.
+L'encart **Commandes** du panneau Pilotage montre en direct les trois axes : **Surge** (avancer / reculer), **Sway** (gauche / droite) et **Yaw** (rotation). Chaque axe a deux cases ; une case se remplit en vert depuis le centre, proportionnellement à la puissance commandée, en pourcentage du réglage PWM. Au clavier le remplissage est fixe (tout ou rien, égal au réglage PWM) ; à la manette il suit l'inclinaison du stick. Le fond de l'encart est beige tant que le robot n'est pas connecté et vert pâle une fois connecté et le flux lidar reçu.
 
-Sous Windows, connecter une manette reconnue par XInput puis cocher **Manette Xbox**. Maintenir **LB** pour autoriser une commande. Stick gauche : translation avant/arrière ou latérale ; stick droit horizontal : rotation. L'axe dominant est utilisé ; les mouvements combinés ne sont pas implémentés dans le protocole actuel. La puissance est proportionnelle au stick, plafonnée par le curseur. Zone morte 22 %. B impose STOP, relâcher LB impose STOP. Il faut conserver le focus dans la bande de pilotage.
+**Le pilotage se teste sans robot** : cocher Clavier actif ou Manette Xbox sans être connecté affiche l'encart exactement comme avec un robot, mais **aucune commande n'est envoyée**. Avec un robot connecté, les commandes ne partent que si le flux lidar est récent (comme avant).
+
+Clavier : cliquer dans la zone de commandes, puis ↑ ↓ (surge), A D (sway : A = gauche, D = droite), ← → (yaw). **Les touches se combinent** (↑ + A + ← donne avance, gauche et rotation à gauche en même temps) ; deux touches opposées d'un même axe s'annulent. La localisation peut être en échec sans bloquer le pilotage manuel, tant que connexion et flux lidar sont récents.
+
+Sous Windows, connecter une manette reconnue par XInput puis cocher **Manette Xbox** :
+
+| Entrée | Action |
+|---|---|
+| Stick gauche | Surge (haut / bas) et sway (gauche / droite) en même temps, proportionnels |
+| Stick droit, axe horizontal | Yaw (rotation) |
+| **LB maintenu** | Autorise le mouvement (homme mort) ; relâché = STOP |
+| **RB** (un appui) | Bascule la cartographie : activée ↔ en pause (localisation seule). Le mouvement n'est pas touché |
+| **B** | STOP immédiat |
+
+Zone morte 22 % (radiale sur le stick gauche), puissance proportionnelle plafonnée par le curseur PWM. Il faut conserver le focus dans la bande de pilotage.
+
+**Protocole.** Un mouvement sur un seul axe part toujours en `SA1` (identique à avant, compatible avec l'ancien firmware). Un mouvement combiné part en `SA2 jeton séquence vx vy w` avec trois pourcentages signés (-100 à 100 ; positifs = avance, gauche, rotation à gauche). Le firmware mélange les quatre roues mécanum et, si une roue dépasserait 100, réduit toutes les roues ensemble : la direction est conservée, seule la vitesse baisse. Le firmware annonce `READY jeton SA2` ; **il faut le reflasher pour les mouvements combinés**. Avec l'ancien firmware, l'application garde l'axe dominant et affiche « Reflasher ScanAtlas_WiFi » plutôt que de perdre la liaison.
 
 Espace, Échap, perte de focus, changement d'espace, disparition de la manette et perte du lidar ou de la connexion conservent les arrêts. Le plafond reste 100/255. Les lignes PC / ESP32 distinguent une commande émise et une commande effective acquittée ; elles ne mesurent pas la rotation des roues.
 
@@ -83,7 +99,7 @@ Un bail de pilotage Wi-Fi actif refuse une nouvelle capture USB. L'application d
 
 ## Validation et limites
 
-Les vérifications couvrent le calcul historique, les trois références du TP, la conservation des sessions, la grille figée en localisation seule, une pose initiale inconnue à 145°, le journal, l'annulation de pose, les axes Xbox, le CSV USB et les appels PWM sur API simulée 2.x/3.x. Un test Tk sur écran virtuel contrôle les trois espaces, la grande carte, les vues, le clavier, la perte de suivi et sa récupération.
+Les vérifications couvrent le calcul historique, le mixage mécanum et l'analyse `SA2` du firmware compilés côté hôte, la négociation avec un ancien firmware, la conversion manette, l'encart des commandes, les trois références du TP, la conservation des sessions, la grille figée en localisation seule, une pose initiale inconnue à 145°, le journal, l'annulation de pose, les axes Xbox, le CSV USB et les appels PWM sur API simulée 2.x/3.x. Un test Tk sur écran virtuel contrôle les trois espaces, la grande carte, les vues, le clavier, la perte de suivi et sa récupération.
 
 La compilation cible produit un binaire ESP32. Elle ne valide pas les branchements, l'emplacement des roues, les polarités, le seuil de démarrage des moteurs, la radio, le pilote Windows de la manette ou la déformation d'un scan pendant le mouvement. La fermeture de boucle et la navigation autonome restent à développer. Un environnement répétitif peut produire une ambiguïté ; aucune mesure réelle d'erreur absolue n'est déduite du score de concordance.
 
@@ -93,3 +109,11 @@ La compilation cible produit un binaire ESP32. Elle ne valide pas les branchemen
 - Microsoft, XInputGetState : https://learn.microsoft.com/en-us/windows/win32/api/xinput/nf-xinput-xinputgetstate
 - Microsoft, XINPUT_GAMEPAD : https://learn.microsoft.com/en-us/windows/win32/api/xinput/ns-xinput-xinput_gamepad
 - Les références antérieures sur le scan matching figurent dans SUIVI_CONTINU.md.
+
+## Capture directe dans Localisation
+
+Le panneau de droite de l'onglet **Localisation** commence par **Capture directe**. **Capturer et localiser** reçoit un ou plusieurs scans (USB ou Wi-Fi, source choisie dans ce panneau ; port USB, baud et adresse Wi-Fi restent dans Acquisition) et les superpose automatiquement **au dernier scan de la liste**, qui sert de référence et de pose de départ. La localisation est toujours active ici, quelle que soit la case de l'onglet Acquisition.
+
+Méthodes : **Recherche large + ICP** (par défaut : fenêtre de ± x, y et ± orientation autour de la pose du dernier scan), **ICP local** (rapide, pour de petits déplacements) ou **recherche sur la carte cumulée 360°** (toute la carte, sans fenêtre ; les scans non raccordés forment des groupes en attente). Le résultat reste dans Localisation : référence en gris, nouveau scan à sa pose en vert (orange si non localisé), avec le motif de l'échec le cas échéant. Une mesure n'est jamais perdue : un scan non localisé est conservé, décoché Carte.
+
+Le panneau repliable **Réglages ICP** donne les curseurs et champs de distance d'appariement, d'itérations et de fenêtre de recherche. Ce sont les **mêmes réglages** que pour l'acquisition automatique et l'assemblage : un seul jeu pour toute l'application. Les fenêtres ne servent qu'à « Recherche large + ICP ».

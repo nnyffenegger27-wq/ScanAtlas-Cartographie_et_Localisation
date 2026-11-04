@@ -13,16 +13,42 @@ inline uint32_t crc32sa(const uint8_t *p,size_t n) {
   while(n--) { c^=*p++;for(int i=0;i<8;++i)c=(c>>1)^(0xedb88320u&(-(int32_t)(c&1))); }
   return ~c;
 }
-enum Motion { STOP, FORWARD, BACK, LEFT, RIGHT, STRAFE_L, STRAFE_R };
-static const char *const MOTIONS[]={"STOP","FORWARD","BACK","LEFT","RIGHT","STRAFE_L","STRAFE_R"};
+enum Motion { STOP, FORWARD, BACK, LEFT, RIGHT, STRAFE_L, STRAFE_R, DRIVE };
+static const char *const MOTIONS[]={"STOP","FORWARD","BACK","LEFT","RIGHT","STRAFE_L","STRAFE_R","DRIVE"};
 inline bool tokenValid(const char *s) {
   if(strlen(s)!=32)return false;
   for(int i=0;i<32;++i)if(!((s[i]>='0'&&s[i]<='9')||(s[i]>='a'&&s[i]<='f')))return false;
   return true;
 }
-struct Command { char token[33];uint32_t seq;Motion motion;unsigned pwm; };
+// vx : avance (+) / recule (-) ; vy : gauche (+) / droite (-) ; w : rotation
+// à gauche (+) / à droite (-). Pourcentages de -100 à 100, même échelle que pwm.
+struct Command { char token[33];uint32_t seq;Motion motion;unsigned pwm;int vx,vy,w; };
+inline int absInt(int v){return v<0?-v:v;}
+inline int max3(int a,int b,int c){return a>b?(a>c?a:c):(b>c?b:c);}
+inline bool sameDrive(const Command &a,const Command &b){
+  return a.motion==b.motion&&a.pwm==b.pwm&&a.vx==b.vx&&a.vy==b.vy&&a.w==b.w;
+}
+// Mixage mécanum en X, ordre des roues : avant gauche, avant droite, arrière
+// gauche, arrière droite. Si une roue dépasse 100, tout est réduit ensemble :
+// la direction demandée est conservée, seule la vitesse diminue.
+inline void mecanumMix(int vx,int vy,int w,int out[4]){
+  int m[4]={vx-vy-w,vx+vy+w,vx+vy-w,vx-vy+w};
+  int peak=0;
+  for(int i=0;i<4;++i)if(absInt(m[i])>peak)peak=absInt(m[i]);
+  for(int i=0;i<4;++i)out[i]=peak>100?m[i]*100/peak:m[i];
+}
 inline bool parseCommand(const char *s,Command &c) {
-  char cmd[16],extra;unsigned long long seq;unsigned pwm;
+  char cmd[16],extra;unsigned long long seq;unsigned pwm;int vx,vy,w;
+  c.vx=c.vy=c.w=0;
+  if(!strncmp(s,"SA2 ",4)){
+    // Commande combinée : SA2 jeton séquence vx vy w
+    if(sscanf(s,"SA2 %32s %llu %d %d %d %c",c.token,&seq,&vx,&vy,&w,&extra)!=5 ||
+       !tokenValid(c.token)||seq>0xffffffffull||!seq||
+       absInt(vx)>100||absInt(vy)>100||absInt(w)>100)return false;
+    c.seq=(uint32_t)seq;c.vx=vx;c.vy=vy;c.w=w;
+    c.pwm=(unsigned)max3(absInt(vx),absInt(vy),absInt(w));
+    c.motion=c.pwm?DRIVE:STOP;return true;
+  }
   if(sscanf(s,"SA1 %32s %llu %15s %u %c",c.token,&seq,cmd,&pwm,&extra)!=4 ||
      !tokenValid(c.token)||seq>0xffffffffull||!seq||pwm>100)return false;
   for(int i=0;i<7;++i)if(!strcmp(cmd,MOTIONS[i])) {

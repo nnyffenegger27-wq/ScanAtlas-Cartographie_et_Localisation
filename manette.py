@@ -1,14 +1,61 @@
 """Manettes Xbox sous Windows via XInput, sans dépendance supplémentaire.
 
-Le maintien de LB autorise le mouvement. Relâchement, déconnexion, perte de
-focus et Espace rétablissent STOP par les mêmes baux que le clavier.
+Stick gauche : surge (avant/arrière) et sway (gauche/droite) ensemble.
+Stick droit, axe horizontal : yaw (rotation). Le maintien de LB autorise le
+mouvement ; B arrête ; un appui sur RB bascule la cartographie. Relâchement,
+déconnexion, perte de focus et Espace rétablissent STOP par les mêmes baux que
+le clavier. Les conversions ci-dessous sont des fonctions pures, testables sans
+manette.
 """
+from dataclasses import dataclass
 import ctypes
+import math
 import sys
+
+ZONE_MORTE = .22
+BOUTON_LB, BOUTON_RB, BOUTON_B = 0x100, 0x200, 0x2000
+
+
+def _sans_zone_morte(valeur, zone=ZONE_MORTE):
+    """Zone morte linéaire : 0 sous le seuil, puis remise à l'échelle jusqu'à 1."""
+    magnitude = abs(valeur)
+    if magnitude <= zone:
+        return 0.
+    return math.copysign(min(1., (magnitude-zone)/(1.-zone)), valeur)
+
+
+def vecteur_manette(lx, ly, rx, boutons):
+    """(surge, sway, yaw) dans [-1, 1], positifs = avance, gauche, rotation à gauche.
+
+    Zone morte radiale sur le stick gauche : une diagonale franche garde les deux
+    axes, un léger effleurement ne produit rien. Sans LB ou avec B, tout est nul.
+    """
+    if boutons & BOUTON_B or not boutons & BOUTON_LB:
+        return 0., 0., 0.
+    magnitude = math.hypot(lx, ly)
+    if magnitude <= ZONE_MORTE:
+        surge = sway = 0.
+    else:
+        facteur = min(1., (magnitude-ZONE_MORTE)/(1.-ZONE_MORTE))/magnitude
+        surge, sway = ly*facteur, -lx*facteur  # Stick vers la droite = déplacement à droite.
+    yaw = _sans_zone_morte(-rx)               # Stick vers la droite = rotation à droite.
+    clip = lambda v: max(-1., min(1., v))
+    return clip(surge), clip(sway), clip(yaw)
+
+
+@dataclass(frozen=True)
+class EtatManette:
+    presente: bool = False
+    surge: float = 0.
+    sway: float = 0.
+    yaw: float = 0.
+    lb: bool = False
+    rb: bool = False
+    stop: bool = False
 
 
 def commande_axes(x,y,rotation,boutons):
-    if boutons & 0x2000 or not boutons & 0x100:  # B = arrêt ; LB maintenu.
+    if boutons & BOUTON_B or not boutons & BOUTON_LB:  # B = arrêt ; LB maintenu.
         return 'STOP',0
     valeurs=[('FORWARD' if y>0 else 'BACK',abs(y)),
              ('STRAFE_R' if x>0 else 'STRAFE_L',abs(x)),
@@ -37,6 +84,18 @@ class ManetteXbox:
                     self.api.restype=ctypes.c_uint32
                     break
                 except OSError:continue
+
+    def lire_etat(self):
+        """Lecture complète : vecteur de conduite et boutons, sans effet de bord."""
+        if self.api is None:return EtatManette()
+        for index in range(4):
+            etat=State()
+            if self.api(index,ctypes.byref(etat))==0:
+                p=etat.pad
+                surge,sway,yaw=vecteur_manette(p.lx/32768.,p.ly/32768.,p.rx/32768.,p.buttons)
+                return EtatManette(True,surge,sway,yaw,bool(p.buttons&BOUTON_LB),
+                                   bool(p.buttons&BOUTON_RB),bool(p.buttons&BOUTON_B))
+        return EtatManette()
 
     def lire(self):
         if self.api is None:return False,'STOP',0

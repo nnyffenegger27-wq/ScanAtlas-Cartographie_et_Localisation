@@ -46,6 +46,21 @@ for(int i=0;i<4;++i){
 #endif
 }
 c.stop();for(unsigned v:values)assert(v==0);
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+#define CH(n) values[MOTOR_PINS[n]]
+#else
+#define CH(n) values[n]
+#endif
+// Commande combinée : FL FR RL RR = moteurs M1..M4, canaux A (avant) puis B (arrière).
+c.drive(60,0,0);for(int i=0;i<4;++i){assert(CH(2*i)==60);assert(CH(2*i+1)==0);}
+c.drive(0,50,0);   // gauche : FL et RR reculent, FR et RL avancent
+assert(CH(0)==0&&CH(1)==50);assert(CH(2)==50&&CH(3)==0);assert(CH(4)==50&&CH(5)==0);assert(CH(6)==0&&CH(7)==50);
+c.drive(0,0,100);  // rotation à gauche : côté gauche recule, côté droit avance
+assert(CH(1)==100&&CH(0)==0);assert(CH(2)==100&&CH(3)==0);assert(CH(5)==100&&CH(4)==0);assert(CH(6)==100&&CH(7)==0);
+c.drive(100,100,0);  // saturation : FL et RR s'annulent, FR et RL à 100
+assert(CH(0)==0&&CH(1)==0);assert(CH(2)==100);assert(CH(4)==100);assert(CH(6)==0&&CH(7)==0);
+c.drive(0,0,0);for(unsigned v:values)assert(v==0);
+c.drive(60,0,0);c.apply(STOP,65);for(unsigned v:values)assert(v==0);
 }
 ''')
             for version in (2,3):

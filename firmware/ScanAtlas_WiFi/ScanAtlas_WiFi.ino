@@ -21,24 +21,25 @@ SemaphoreHandle_t ownerMutex;
 char ownerToken[33]={0};IPAddress ownerIP;bool ownerActive=false;
 uint32_t dataAlive=0;  // millis du dernier tour transféré (pas de backlog moteur).
 
-void applyMotion(Motion m,unsigned pwm) {
-  car.apply(m,pwm);
+void applyCommand(const Command &c) {
+  if(c.motion==DRIVE)car.drive(c.vx,c.vy,c.w);
+  else car.apply(c.motion,c.pwm);
 }
 void reply(const char *s,IPAddress ip,uint16_t port){
   udp.beginPacket(ip,port);udp.write((const uint8_t*)s,strlen(s));udp.endPacket();
 }
 
 void commandTask(void *) {
-  Lease lease;uint16_t ownerPort=0;Motion applied=STOP;unsigned oldPwm=0;
+  Lease lease;uint16_t ownerPort=0;Motion applied=STOP;Command current={};
   for(;;){
     uint32_t now=millis();
     if(lease.expired(now)){
-      lease.close();car.stop();applied=STOP;
+      lease.close();car.stop();applied=STOP;current=Command{};
       xSemaphoreTake(ownerMutex,portMAX_DELAY);ownerActive=false;xSemaphoreGive(ownerMutex);
     }
     // Si le PC ne reçoit plus les scans, on n'entretient pas un mouvement aveugle.
     xSemaphoreTake(ownerMutex,portMAX_DELAY);bool fresh=usbRemaining==0&&dataAlive!=0&&uint32_t(millis()-dataAlive)<600;xSemaphoreGive(ownerMutex);
-    if(!fresh&&applied!=STOP){car.stop();applied=STOP;}
+    if(!fresh&&applied!=STOP){car.stop();applied=STOP;current=Command{};}
     int n=udp.parsePacket();
     if(n>0){
       char buf[128];int got=udp.read(buf,sizeof(buf)-1);buf[got>0?got:0]=0;
@@ -47,20 +48,22 @@ void commandTask(void *) {
       char tok[33],extra;
       if(sscanf(buf,"HELLO %32s %c",tok,&extra)==1&&tokenValid(tok)){
         if(!lease.active){
-          car.stop();applied=STOP;lease.open(now);ownerPort=port;
+          car.stop();applied=STOP;current=Command{};lease.open(now);ownerPort=port;
           xSemaphoreTake(ownerMutex,portMAX_DELAY);
           strcpy(ownerToken,tok);ownerIP=ip;ownerActive=true;dataAlive=0;
           xSemaphoreGive(ownerMutex);
         }
         if(ip==ownerIP&&port==ownerPort&&!strcmp(tok,ownerToken)){
-          char out[48];snprintf(out,sizeof(out),"READY %s\n",tok);reply(out,ip,port);
+          // « SA2 » annonce la commande combinée ; un ancien firmware répond « READY jeton » seul.
+          char out[56];snprintf(out,sizeof(out),"READY %s SA2\n",tok);reply(out,ip,port);
         }else reply("BUSY\n",ip,port);
       }else{
         Command cmd;
         if(parseCommand(buf,cmd)&&ip==ownerIP&&port==ownerPort&&!strcmp(cmd.token,ownerToken)&&lease.accept(cmd,now)){
-          Motion effective=fresh?cmd.motion:STOP;
-          if(effective!=applied||cmd.pwm!=oldPwm){applyMotion(effective,cmd.pwm);applied=effective;oldPwm=cmd.pwm;}
-          char out[96];snprintf(out,sizeof(out),"SA1 %s %lu %s\n",ownerToken,(unsigned long)cmd.seq,MOTIONS[effective]);reply(out,ip,port);
+          Command effective=cmd;
+          if(!fresh){effective.motion=STOP;effective.vx=effective.vy=effective.w=0;}
+          if(!sameDrive(effective,current)){applyCommand(effective);applied=effective.motion;current=effective;}
+          char out[96];snprintf(out,sizeof(out),"SA1 %s %lu %s\n",ownerToken,(unsigned long)cmd.seq,MOTIONS[effective.motion]);reply(out,ip,port);
         }
       }
     }

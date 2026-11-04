@@ -15,9 +15,12 @@ from robot_wifi import RobotWifi, dernier
 from cartographie_direct import CarteDirecte
 from cartographie import mesures_valides
 from apparence import curseur, FOND, SURFACE, ENCRE, SECONDAIRE, ACCENT
+from encart_commandes import EncartCommandes, pourcentages
 
 TOUCHES = {'Up':'FORWARD', 'Down':'BACK', 'Left':'LEFT', 'Right':'RIGHT',
            'a':'STRAFE_L', 'd':'STRAFE_R'}
+# (axe, signe) : axe 0 = surge (avance +), 1 = sway (gauche +), 2 = yaw (rotation gauche +).
+AXES_CLAVIER = {'Up':(0, 1), 'Down':(0, -1), 'a':(1, 1), 'd':(1, -1), 'Left':(2, 1), 'Right':(2, -1)}
 
 
 class ClavierRobot:
@@ -38,6 +41,14 @@ class ClavierRobot:
     def commande(self):
         return TOUCHES[next(iter(self.touches))] if len(self.touches) == 1 else 'STOP'
 
+    def vecteur(self):
+        """(surge, sway, yaw) en -1/0/1 : les touches se combinent, les opposées s'annulent."""
+        v = [0, 0, 0]
+        for touche in self.touches:
+            axe, signe = AXES_CLAVIER[touche]
+            v[axe] += signe
+        return tuple(v)
+
 
 class InterfaceWifi:
     def interface_wifi(self, cadre):
@@ -49,6 +60,7 @@ class InterfaceWifi:
         self.wifi_clavier=ClavierRobot();self.wifi_relachements={}
         self.wifi_actif=tk.BooleanVar(value=False)
         self.wifi_manette_active=tk.BooleanVar(value=False)
+        self.wifi_rb_precedent=False
         self.wifi_mode=tk.StringVar(value='Cartographier')
         self.wifi_reference=tk.StringVar(value='Nouvelle carte')
         self.wifi_vue=tk.StringVar(value='Vectorielle')
@@ -113,8 +125,11 @@ class InterfaceWifi:
         ttk.Label(panneau,text='Pilotage',style='Section.TLabel').pack(anchor='w')
         ttk.Checkbutton(panneau,text='Clavier actif',variable=self.wifi_actif,command=self.wifi_activer).pack(anchor='w')
         ttk.Checkbutton(panneau,text='Manette Xbox · maintenir LB',variable=self.wifi_manette_active,command=self.wifi_activer_manette).pack(anchor='w')
-        self.wifi_zone=tk.Label(panneau,text='↑ / ↓ avancer · ← / → tourner\nA / D déplacement latéral',takefocus=True,
-            background=FOND,foreground=SECONDAIRE,pady=8)
+        ttk.Label(panneau,text='Stick gauche : surge + sway · stick droit : yaw\nRB : cartographie activée / en pause · B : arrêt',
+                  style='SousTitre.TLabel',wraplength=270).pack(anchor='w',pady=(2,4))
+        self.wifi_encart=EncartCommandes(panneau);self.wifi_encart.pack(fill='x',pady=(2,6))
+        self.wifi_zone=tk.Label(panneau,text='Clique ici puis : ↑ ↓ avancer · ← → tourner · A D latéral',takefocus=True,
+            background=FOND,foreground=SECONDAIRE,pady=8,wraplength=270)
         self.wifi_zone.pack(fill='x')
         self.wifi_zone.bind('<Button-1>',lambda e:self.wifi_zone.focus_set())
         self.wifi_zone.bind('<KeyPress>',self.wifi_touche);self.wifi_zone.bind('<KeyRelease>',self.wifi_relacher)
@@ -160,7 +175,10 @@ class InterfaceWifi:
     def wifi_activer_manette(self):
         active=self.wifi_manette_active.get();self.wifi_arreter()
         self.wifi_manette_active.set(active)
-        if active:self.wifi_zone.focus_set()
+        if active:
+            self.wifi_zone.focus_set()
+            if self.wifi_robot is None:
+                self.wifi_info.set('Mode test : la manette s’affiche dans l’encart, rien n’est envoyé (robot non connecté).')
 
     def wifi_ouvrir_journal(self):
         self.wifi_arreter()
@@ -266,6 +284,7 @@ class InterfaceWifi:
         self.wifi_manette_active.set(False)
         self.wifi_clavier.vider()
         self.wifi_commande.set('STOP')
+        self.wifi_rb_precedent=False
         if self.wifi_robot is not None:
             self.wifi_robot.commander('STOP')
 
@@ -284,16 +303,23 @@ class InterfaceWifi:
         self.wifi_badge.configure(text='HORS CONNEXION',foreground=SECONDAIRE)
         self.wifi_info.set('Déconnecté ; la dernière carte reste exportable.')
 
+    def wifi_robot_pret(self):
+        """Robot connecté avec un flux lidar récent : seul cas où une commande part."""
+        robot=self.wifi_robot
+        return (robot is not None and robot.connecte.is_set() and
+                time.monotonic()-robot.dernier_scan <= .6)
+
     def wifi_activer(self):
         self.wifi_clavier.vider()
         if self.wifi_actif.get():
             self.wifi_manette_active.set(False)
-            if (self.wifi_robot is None or not self.wifi_robot.connecte.is_set() or
-                time.monotonic()-self.wifi_robot.dernier_scan > .6):
+            if self.wifi_robot is not None and not self.wifi_robot_pret():
                 self.wifi_arreter()
                 self.wifi_info.set('Attendre la connexion et le flux lidar avant d’activer le clavier.')
             else:
                 self.wifi_zone.focus_set()
+                if self.wifi_robot is None:
+                    self.wifi_info.set('Mode test : les commandes s’affichent dans l’encart, rien n’est envoyé (robot non connecté).')
 
     def wifi_changer_onglet(self, event=None):
         if str(self.onglets.select()) != str(self.wifi_cadre):
@@ -321,7 +347,11 @@ class InterfaceWifi:
                 self.wifi_relachements.pop(touche, None)
                 self.wifi_clavier.relacher(touche)
                 if self.wifi_robot is not None:
-                    self.wifi_robot.commander('STOP')
+                    # Réémet tout de suite ce qui reste pressé (STOP si plus rien).
+                    try:
+                        self.wifi_robot.conduire(*pourcentages(*self.wifi_clavier.vecteur(),self.wifi_pwm.get()))
+                    except (ValueError, tk.TclError):
+                        self.wifi_robot.commander('STOP')
             self.wifi_relachements[touche] = self.after_idle(terminer)
             return 'break'
 
@@ -400,28 +430,59 @@ class InterfaceWifi:
                         str(self.onglets.select())==str(self.wifi_cadre)):
                         self.wifi_dessiner(etat)
                         self.wifi_dernier_dessin = time.monotonic()
-                actif = ((self.wifi_actif.get() or self.wifi_manette_active.get()) and self.focus_get() == self.wifi_zone and
-                         str(self.onglets.select()) == str(self.wifi_cadre) and
-                         robot.connecte.is_set() and time.monotonic()-robot.dernier_scan < .6)
-                if (self.wifi_actif.get() or self.wifi_manette_active.get()) and not actif:
-                    self.wifi_arreter()
-                try:
-                    pwm = int(self.wifi_pwm.get())
-                    if not 0 <= pwm <= 100:
-                        raise ValueError('PWM hors limite')
-                    cmd = self.wifi_clavier.commande() if actif and self.wifi_actif.get() else 'STOP'
-                    if actif and self.wifi_manette_active.get():
-                        presente,cmd,niveau=self.manette.lire()
-                        if not presente:
-                            self.wifi_arreter();cmd='STOP'
-                            self.wifi_info.set('Manette Xbox absente ; pilotage arrêté. Windows / XInput requis.')
-                        pwm=int(pwm*niveau)
-                    robot.commander(cmd, pwm)
-                    diagnostic = robot.diagnostic_commande()
-                    self.wifi_commande.set(f"PC : {diagnostic['envoyee']} | ESP32 : {diagnostic['effective']}")
-                except (ValueError, tk.TclError):
-                    self.wifi_arreter()
+        try:
+            self.wifi_pilotage()
+        except (ValueError, KeyError, tk.TclError):
+            self.wifi_arreter()
         self.after(75, self.wifi_poll)
+
+    def wifi_basculer_cartographie(self):
+        """RB : alterne cartographie active / localisation seule, sans toucher au mouvement."""
+        cartographie=self.wifi_mode.get()!='Cartographier'
+        self.wifi_mode.set('Cartographier' if cartographie else 'Localisation seule')
+        self.wifi_mode_changer()
+        self.wifi_info.set('Manette RB : cartographie activée.' if cartographie
+                           else 'Manette RB : cartographie en pause, localisation seule.')
+
+    def wifi_pilotage(self):
+        """Entrées → encart → robot, à chaque cycle, avec ou sans robot connecté.
+
+        Sans robot, l'encart montre exactement ce qui serait envoyé (mode test) mais
+        aucun paquet ne part. Avec robot, le flux lidar doit être récent, comme avant.
+        """
+        robot=self.wifi_robot
+        voulu=self.wifi_actif.get() or self.wifi_manette_active.get()
+        try:
+            focus=voulu and self.focus_get()==self.wifi_zone and str(self.onglets.select())==str(self.wifi_cadre)
+        except KeyError:
+            focus=False  # Tk signale ainsi le focus d'un menu déroulant : c'est une perte de focus.
+        if voulu and (not focus or (robot is not None and not self.wifi_robot_pret())):
+            self.wifi_arreter()  # Perte de focus, d'onglet ou de flux lidar : STOP et entrées désarmées.
+        niveaux,note=(0,0,0),''
+        if self.wifi_manette_active.get():
+            etat=self.manette.lire_etat()
+            if not etat.presente:
+                self.wifi_arreter()
+                self.wifi_info.set('Manette Xbox absente ; pilotage arrêté. Windows / XInput requis.')
+            else:
+                niveaux=(etat.surge,etat.sway,etat.yaw)
+                if not etat.lb:note='Maintiens LB pour autoriser le mouvement.'
+                if etat.rb and not self.wifi_rb_precedent:self.wifi_basculer_cartographie()
+                self.wifi_rb_precedent=etat.rb
+        elif self.wifi_actif.get():
+            niveaux=self.wifi_clavier.vecteur()
+        pwm=int(self.wifi_pwm.get())
+        if not 0<=pwm<=100:
+            raise ValueError('PWM hors limite')
+        surge,sway,yaw=pourcentages(*niveaux,pwm)
+        pret=self.wifi_robot_pret()
+        if robot is not None and pret:
+            robot.conduire(surge,sway,yaw)
+            diagnostic=robot.diagnostic_commande()
+            self.wifi_commande.set(f"PC : {diagnostic['envoyee']} | ESP32 : {diagnostic['effective']}")
+        elif robot is None:
+            self.wifi_commande.set('Mode test : rien n’est envoyé (robot non connecté).' if (surge or sway or yaw) else 'STOP · robot non connecté')
+        self.wifi_encart.afficher(surge,sway,yaw,pret,note)
 
     def wifi_dessiner(self, etat):
         ax = self.wifi_axes

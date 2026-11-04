@@ -12,7 +12,7 @@ from unittest.mock import patch
 import numpy as np
 from cartographie import Scan
 from robot_wifi import (BailCommande, DecodeurScans, encoder_trame, TrameScan,
-                        RobotWifi, dernier)
+                        RobotWifi, dernier, valider_vecteur)
 from cartographie_direct import CarteDirecte
 from interface_wifi import ClavierRobot
 from localisation import erreur_pose
@@ -65,6 +65,29 @@ class Protocole(unittest.TestCase):
         c.relacher('Down');self.assertEqual(c.commande(),'FORWARD')
         c.vider();self.assertEqual(c.commande(),'STOP')
 
+    def test_bail_vecteur_expire_et_vecteur_nul_est_un_arret(self):
+        bail=BailCommande()
+        bail.actualiser('DRIVE',60,maintenant=10,vecteur=(60,-30,15))
+        self.assertEqual(bail.lire_complet(10.1),('DRIVE',60,(60,-30,15)))
+        self.assertEqual(bail.lire_complet(10.3)[0::2],('STOP',(0,0,0)))
+        bail.actualiser('DRIVE',0,maintenant=20,vecteur=(0,0,0))
+        self.assertEqual(bail.lire(20.1)[0],'STOP')
+        for mauvais in [(101,0,0),(0,-101,0),(0,0,float('nan')),(0,0,float('inf'))]:
+            with self.assertRaises(ValueError):bail.actualiser('DRIVE',50,vecteur=mauvais)
+        with self.assertRaises(ValueError):valider_vecteur('a',0,0)
+        self.assertEqual(valider_vecteur(49.6,-0.4,100),(50,0,100))
+
+    def test_clavier_combine_et_touches_opposees(self):
+        c=ClavierRobot()
+        self.assertEqual(c.vecteur(),(0,0,0))
+        c.presser('Up');c.presser('a');c.presser('Left')
+        self.assertEqual(c.vecteur(),(1,1,1))          # avance + gauche + rotation gauche
+        c.presser('Down');self.assertEqual(c.vecteur(),(0,1,1))   # avance/recul s'annulent
+        c.relacher('Up');self.assertEqual(c.vecteur(),(-1,1,1))
+        c.presser('d');self.assertEqual(c.vecteur(),(-1,0,1))
+        c.presser('Right');self.assertEqual(c.vecteur(),(-1,0,0))
+        c.vider();self.assertEqual(c.vecteur(),(0,0,0))
+
     def test_cpp_watchdog_parseur_et_trame_compatibles(self):
         dossier=Path(__file__).resolve().parents[1]/'firmware'/'ScanAtlas_WiFi'
         with tempfile.TemporaryDirectory() as tmp:
@@ -80,6 +103,35 @@ int main(){
   l.open(100);c.seq=2;c.motion=FORWARD;assert(!l.accept(c,101));c.motion=STOP;assert(l.accept(c,102));
   assert(!l.accept(c,103));c.seq=3;c.motion=FORWARD;assert(l.accept(c,104));
   assert(!parseCommand("SA1 0123456789abcdef0123456789abcdef 4 FORWARD 255",c));
+  assert(!parseCommand("SA1 0123456789abcdef0123456789abcdef 4 DRIVE 50",c));
+  // Commande combinée SA2 : vecteur signé, arrêt si tout est nul, bornes strictes.
+  assert(parseCommand("SA2 0123456789abcdef0123456789abcdef 5 60 -30 15",c));
+  assert(c.motion==DRIVE&&c.vx==60&&c.vy==-30&&c.w==15&&c.pwm==60&&c.seq==5);
+  assert(parseCommand("SA2 0123456789abcdef0123456789abcdef 6 0 0 0",c)&&c.motion==STOP&&c.pwm==0);
+  assert(parseCommand("SA2 0123456789abcdef0123456789abcdef 7 -100 100 -100",c));
+  assert(!parseCommand("SA2 0123456789abcdef0123456789abcdef 8 101 0 0",c));
+  assert(!parseCommand("SA2 0123456789abcdef0123456789abcdef 8 0 -101 0",c));
+  assert(!parseCommand("SA2 0123456789abcdef0123456789abcdef 0 10 0 0",c));
+  assert(!parseCommand("SA2 0123456789abcdef0123456789abcdef 9 10 0",c));
+  assert(!parseCommand("SA2 0123456789abcdef0123456789abcdef 9 10 0 0 7",c));
+  assert(!parseCommand("SA2 zz23456789abcdef0123456789abcdef 9 10 0 0",c));
+  l.open(500);parseCommand("SA2 0123456789abcdef0123456789abcdef 1 40 0 0",c);
+  assert(!l.accept(c,501));  // Un mouvement ne peut pas ouvrir le bail : STOP d'abord.
+  parseCommand("SA2 0123456789abcdef0123456789abcdef 2 0 0 0",c);assert(l.accept(c,502));
+  parseCommand("SA2 0123456789abcdef0123456789abcdef 3 40 0 0",c);assert(l.accept(c,503)&&l.motion==DRIVE);
+  {
+    int m[4];
+    mecanumMix(100,0,0,m);assert(m[0]==100&&m[1]==100&&m[2]==100&&m[3]==100);
+    mecanumMix(0,100,0,m);assert(m[0]==-100&&m[1]==100&&m[2]==100&&m[3]==-100);   // gauche
+    mecanumMix(0,0,100,m);assert(m[0]==-100&&m[1]==100&&m[2]==-100&&m[3]==100);   // rotation gauche
+    mecanumMix(0,0,0,m);for(int i=0;i<4;++i)assert(m[i]==0);
+    mecanumMix(100,100,0,m);assert(m[0]==0&&m[1]==100&&m[2]==100&&m[3]==0);        // saturation proportionnelle
+    mecanumMix(100,0,-100,m);assert(m[0]==100&&m[1]==0&&m[2]==100&&m[3]==0);
+    mecanumMix(50,25,-25,m);assert(m[0]==50&&m[1]==50&&m[2]==100&&m[3]==0);
+    mecanumMix(100,100,100,m);for(int i=0;i<4;++i)assert(absInt(m[i])<=100);
+    Command a,b;a.motion=b.motion=DRIVE;a.pwm=b.pwm=50;a.vx=b.vx=50;a.vy=b.vy=0;a.w=b.w=0;
+    assert(sameDrive(a,b));b.w=10;assert(!sameDrive(a,b));
+  }
   LidarParser p;ScanFrame frame;int frames=0;
   for(int turn=0;turn<4;++turn)for(int k=0;k<30;++k){
     uint8_t b[47]={0x54,0x2c};put16(b+2,3600);put16(b+4,k*1200);put16(b+42,k*1200+1100);
@@ -129,11 +181,11 @@ class SuiviDirect(unittest.TestCase):
 
 
 class FauxRobot:
-    def __init__(self, vieux=False, retard_ack=False, force_stop=False):
+    def __init__(self, vieux=False, retard_ack=False, force_stop=False, ancien_firmware=False):
         self.udp=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);self.udp.bind(('127.0.0.1',0));self.udp.settimeout(.05)
         self.tcp=socket.socket();self.tcp.bind(('127.0.0.1',0));self.tcp.listen();self.tcp.settimeout(.1)
         self.fin=threading.Event();self.commandes=[];self.flux=True;self.vieux=vieux
-        self.force_stop=force_stop;self.degrade=False
+        self.force_stop=force_stop;self.degrade=False;self.vecteurs=[];self.ancien_firmware=ancien_firmware
         self.retard_ack=retard_ack;self.ack_precedent=''
         self.threads=[threading.Thread(target=self.commandes_loop,daemon=True),threading.Thread(target=self.scans_loop,daemon=True)]
         for t in self.threads:t.start()
@@ -143,7 +195,14 @@ class FauxRobot:
             try:raw,addr=self.udp.recvfrom(256)
             except socket.timeout:continue
             p=raw.decode().split()
-            if p[0]=='HELLO':rep=f'READY {p[1]}\n'
+            if p[0]=='HELLO':rep=f'READY {p[1]}\n' if self.ancien_firmware else f'READY {p[1]} SA2\n'
+            elif p[0]=='SA2' and self.ancien_firmware:continue   # Commande inconnue : aucune réponse.
+            elif p[0]=='SA2':
+                v=tuple(int(x) for x in p[3:6]);etat='DRIVE' if any(v) else 'STOP'
+                self.vecteurs.append(v);self.commandes.append((time.monotonic(),etat))
+                rep=f'SA1 {p[1]} {p[2]} {etat}\n'
+                if self.force_stop:rep=f'SA1 {p[1]} {p[2]} STOP\n'
+                if self.retard_ack:rep,self.ack_precedent=self.ack_precedent,rep
             else:
                 self.commandes.append((time.monotonic(),p[3]));rep=' '.join(p[:4])+'\n'
                 if self.force_stop:rep=' '.join(p[:3])+ ' STOP\n'
@@ -193,6 +252,46 @@ class ReseauReelBoucleLocale(unittest.TestCase):
             for _ in range(5):r.commander('FORWARD');time.sleep(.06)
             self.assertEqual(faux.commandes[-1][1],'STOP')
             self.assertLessEqual(r.scans.qsize(),1)
+        finally:r.fermer();faux.fermer()
+
+    def test_commande_combinee_envoyee_en_sa2_puis_arret(self):
+        faux=FauxRobot();r=RobotWifi('127.0.0.1',faux.udp.getsockname()[1],faux.tcp.getsockname()[1])
+        try:
+            r.demarrer();self.attendre(lambda:r.recus>0)
+            for _ in range(6):r.conduire(60,-30,15);time.sleep(.06)
+            self.attendre(lambda:(60,-30,15) in faux.vecteurs)
+            self.attendre(lambda:r.diagnostic_commande()['effective']=='DRIVE')
+            self.assertFalse(r.arret.is_set())
+            r.conduire(0,0,0);self.attendre(lambda:faux.commandes[-1][1]=='STOP')
+            with self.assertRaises(ValueError):r.conduire(101,0,0)
+            r.conduire(30,-20,0);self.attendre(lambda:(30,-20,0) in faux.vecteurs)
+            self.attendre(lambda:faux.commandes[-1][1]=='STOP',timeout=2.)   # Le bail UI expire sans renouvellement.
+        finally:r.fermer();faux.fermer()
+
+    def test_un_seul_axe_reste_en_sa1_compatible_et_combine_en_sa2(self):
+        faux=FauxRobot();r=RobotWifi('127.0.0.1',faux.udp.getsockname()[1],faux.tcp.getsockname()[1])
+        try:
+            r.demarrer();self.attendre(lambda:r.recus>0)
+            self.assertTrue(r.combine)
+            for _ in range(5):r.conduire(65,0,0);time.sleep(.06)
+            self.attendre(lambda:any(c=='FORWARD' for _,c in faux.commandes))
+            self.assertEqual(faux.vecteurs,[])           # Rien en SA2 pour un seul axe.
+            for _ in range(5):r.conduire(0,0,-40);time.sleep(.06)
+            self.attendre(lambda:any(c=='RIGHT' for _,c in faux.commandes))
+            self.assertEqual(faux.vecteurs,[])
+            for _ in range(5):r.conduire(65,0,-40);time.sleep(.06)
+            self.attendre(lambda:(65,0,-40) in faux.vecteurs)
+        finally:r.fermer();faux.fermer()
+
+    def test_ancien_firmware_garde_la_liaison_et_l_axe_dominant(self):
+        faux=FauxRobot(ancien_firmware=True);r=RobotWifi('127.0.0.1',faux.udp.getsockname()[1],faux.tcp.getsockname()[1])
+        try:
+            r.demarrer();self.attendre(lambda:r.recus>0)
+            self.assertFalse(r.combine)
+            for _ in range(8):r.conduire(65,0,-40);time.sleep(.06)
+            self.attendre(lambda:any(c=='FORWARD' for _,c in faux.commandes))   # Axe dominant, pas de coupure.
+            self.assertEqual(faux.vecteurs,[]);self.assertFalse(r.arret.is_set())
+            self.assertTrue(any('Reflasher' in m for m in list(r.etats.queue)),list(r.etats.queue))
         finally:r.fermer();faux.fermer()
 
     def test_rejeu_de_scan_force_deconnexion(self):

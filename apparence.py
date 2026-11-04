@@ -59,7 +59,9 @@ def appliquer_theme(root):
 
 PLAGES = {'mini':(0,4,.05),'maxi':(1,20,.1),'intensite':(0,255,1),
           'resolution':(.01,.3,.01),'saut':(.05,1,.01),'erreur':(.01,.3,.01),
-          'angle_max':(1,15,1),'distance_max':(.02,3,.01)}
+          'angle_max':(1,15,1),'distance_max':(.02,3,.01),
+          'icp_distance':(.05,1.5,.01),'icp_iterations':(10,300,1),
+          'icp_fenetre_xy':(.1,3,.1),'icp_fenetre_angle':(5,90,1)}
 
 
 def curseur(parent, variable, minimum, maximum, pas=1, command=None):
@@ -78,6 +80,20 @@ def curseur(parent, variable, minimum, maximum, pas=1, command=None):
     scale.pack(fill='x',pady=(2,5))
     return scale
 
+
+
+def cadre_defilant(parent, largeur=335):
+    """Colonne verticale avec ascenseur ; renvoie le cadre intérieur où placer les widgets."""
+    zone = tk.Canvas(parent, width=largeur, background=FOND, highlightthickness=0)
+    ascenseur = ttk.Scrollbar(parent, orient='vertical', command=zone.yview)
+    zone.configure(yscrollcommand=ascenseur.set)
+    ascenseur.pack(side='right', fill='y')
+    zone.pack(side='left', fill='both', expand=True)
+    interieur = ttk.Frame(zone, padding=(0, 0, 6, 0))
+    fenetre = zone.create_window((0, 0), window=interieur, anchor='nw')
+    interieur.bind('<Configure>', lambda e: zone.configure(scrollregion=zone.bbox('all')))
+    zone.bind('<Configure>', lambda e: zone.itemconfigure(fenetre, width=e.width))
+    return interieur
 
 
 class Repliable(ttk.Frame):

@@ -76,9 +76,10 @@ class CaptureInterface(unittest.TestCase):
         class Label:
             def configure(self, **kw): self.texte=kw['text']
         a=SimpleNamespace(travail=False,scans=[],inclus=[],visibles=[],
-            vars={'auto_icp':Variable('1' if auto else '0')},port=Variable('COM3'),
+            vars={'auto_icp':Variable('1' if auto else '0'),'loc_methode':Variable('Recherche large + ICP')},port=Variable('COM3'),
             annuler=threading.Event(),messages=queue.Queue(),statut=Variable(),
-            info_capture=Label())
+            info_capture=Label(),capture_depuis_localisation=False)
+        a.informer_capture=lambda texte:a.info_capture.configure(text=texte)
         a.nombre=lambda cle: {'baud':115200,'quantite':1}[cle]
         a.annuler_geste=lambda:None
         a.parametres_recalage=lambda:('Recherche large + ICP',{})

@@ -6,13 +6,16 @@ from tkinter import ttk,filedialog,messagebox
 import numpy as np
 from cartographie import Scan
 from localisation import points_filtres,transformer
+from localisation_globale import METHODE_GLOBALE
+from apparence import Repliable
 from localisation_tp import (ReferenceGrille,ReferenceVectorielle,ReferenceScan,
                              localiser_sur_reference,LOCALE,MULTI)
 
 
 class InterfaceTP:
     def interface_tp(self,cadre):
-        ttk.Label(cadre,text='Recaler un scan',style='Section.TLabel').pack(anchor='w',pady=(2,8))
+        self.interface_capture_localisation(cadre)
+        ttk.Label(cadre,text='Recaler un scan',style='Section.TLabel').pack(anchor='w',pady=(10,8))
         ttk.Label(cadre,text='Scan mobile').pack(anchor='w')
         self.choix_mobile_tp=ttk.Combobox(cadre,state='readonly',width=29)
         self.choix_mobile_tp.pack(fill='x',pady=(3,8))
@@ -38,7 +41,6 @@ class InterfaceTP:
                    command=lambda:self.proteger(self.lancer_evaluation_tp)).pack(fill='x')
         self.info_tp=ttk.Label(cadre,text='Résultats de pose à vérifier ; concordance et RMSE ne sont pas des erreurs vraies.',wraplength=315)
         self.info_tp.pack(anchor='w')
-        from apparence import Repliable
         avance=Repliable(cadre,'Pose initiale',ouvert=False);avance.pack(fill='x',pady=8)
         for cle,texte in [('x','x (m)'),('y','y (m)'),('orientation','Orientation (°)')]:
             ligne=ttk.Frame(avance.contenu);ligne.pack(fill='x',pady=2)
@@ -47,6 +49,52 @@ class InterfaceTP:
         ttk.Button(avance.contenu,text='Appliquer la pose initiale',command=lambda:self.proteger(self.appliquer_pose)).pack(fill='x')
         self.resultat_tp=None
         self.actualiser_choix_tp()
+
+    def interface_capture_localisation(self,cadre):
+        """Capture directe : le nouveau scan est localisé sur le dernier scan de la liste."""
+        ttk.Label(cadre,text='Capture directe',style='Section.TLabel').pack(anchor='w',pady=(2,4))
+        ttk.Label(cadre,text='Source').pack(anchor='w')
+        ttk.Combobox(cadre,textvariable=self.capture_source,values=['USB','Wi-Fi'],state='readonly').pack(fill='x',pady=(2,6))
+        ttk.Label(cadre,text='Méthode').pack(anchor='w')
+        ttk.Combobox(cadre,textvariable=self.vars['loc_methode'],state='readonly',
+                     values=['Recherche large + ICP','ICP local',METHODE_GLOBALE]).pack(fill='x',pady=(2,6))
+        self.champ(cadre,'quantite','Nombre de scans (1 à 20)',1)
+        ttk.Label(cadre,text='Le nouveau scan part de la pose du dernier scan de la liste. '
+                  'Carte cumulée 360° : recherche sur toute la carte, sans fenêtre. '
+                  'Port USB, baud et adresse Wi-Fi : onglet Acquisition. Garde le lidar immobile pendant la capture.',
+                  wraplength=300,style='SousTitre.TLabel').pack(anchor='w',pady=(0,6))
+        actions=ttk.Frame(cadre);actions.pack(fill='x')
+        ttk.Button(actions,text='Capturer et localiser',style='Accent.TButton',
+                   command=lambda:self.proteger(lambda:self.lancer_capture(depuis_localisation=True))).pack(side='left',fill='x',expand=True)
+        ttk.Button(actions,text='Annuler',command=self.annuler.set).pack(side='left',padx=(6,0))
+        reglages=Repliable(cadre,'Réglages ICP',ouvert=False);reglages.pack(fill='x',pady=(8,0))
+        self.champ(reglages.contenu,'icp_distance','Distance max d’appariement (m)',.5)
+        self.champ(reglages.contenu,'icp_iterations','Itérations maximales',80)
+        self.champ(reglages.contenu,'icp_fenetre_xy','Recherche large : ± x et y (m)',1.)
+        self.champ(reglages.contenu,'icp_fenetre_angle','Recherche large : ± orientation (°)',30.)
+        ttk.Label(reglages.contenu,text='Les fenêtres ne servent qu’à « Recherche large + ICP ». '
+                  'Mêmes réglages que l’acquisition automatique et l’assemblage.',
+                  wraplength=290,style='SousTitre.TLabel').pack(anchor='w')
+        ttk.Separator(cadre).pack(fill='x',pady=(10,0))
+
+    def dessiner_capture_localisation(self,reference,nouveaux):
+        """Superposition après une capture localisée : référence en gris, nouveaux scans à leur pose."""
+        ax=self.axes['TP Localisation'];ax.clear()
+        try:filtres=self.filtres()
+        except ValueError:filtres=dict(mini=.05,maxi=12.,intensite=0)
+        if reference is not None:
+            p=points_filtres(reference,filtres)
+            ax.scatter(p[:,0],p[:,1],s=6,c='#7d8991',label='Dernier scan avant capture')
+            ax.plot(*reference.pose[:2],marker='+',c='#7d8991')
+        for i,scan in enumerate(nouveaux):
+            valide=bool(scan.suivi_recalage and scan.suivi_recalage.get('valide'))
+            couleur='#138961' if valide else '#d88422'
+            p=points_filtres(scan,filtres)
+            ax.scatter(p[:,0],p[:,1],s=6,c=couleur,alpha=.8,label=('Nouveau scan localisé' if valide else 'Nouveau scan non localisé') if i==0 or valide!=bool(nouveaux[0].suivi_recalage and nouveaux[0].suivi_recalage.get('valide')) else None)
+            ax.plot(*scan.pose[:2],marker='x',c=couleur)
+        ax.set_title('Capture localisée sur le dernier scan')
+        if ax.get_legend_handles_labels()[0]:ax.legend(fontsize=8)
+        self.fin_dessin('TP Localisation')
 
     def selection_mobile_tp(self,event=None):
         i=self.choix_mobile_tp.current()

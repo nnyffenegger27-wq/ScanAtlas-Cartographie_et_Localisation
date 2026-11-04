@@ -23,7 +23,7 @@ from localisation_globale import localisation_globale, METHODE_GLOBALE
 from assemblage_global import assembler_scans
 from interface_tp import InterfaceTP
 from interface_wifi import InterfaceWifi
-from apparence import appliquer_theme, curseur, PLAGES
+from apparence import appliquer_theme, curseur, PLAGES, cadre_defilant
 from localisation_tp import LOCALE as TP_LOCALE, MULTI as TP_MULTI
 
 AIDE = '''PARCOURS CONSEILLÉ
@@ -187,6 +187,7 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
         self.sous_onglets.pack(fill='both',expand=True)
         self.onglets.bind('<<NotebookTabChanged>>',self.adapter_espace,add='+')
         self.axes, self.canvas = {}, {}
+        self.preparer_variables_capture()
         for titre in ['Nuages', 'Grille', 'Segments', 'Carte vectorielle', 'TP Localisation', 'Acquisition USB', 'Robot Wi-Fi']:
             parent=self.onglets if titre in ('TP Localisation','Robot Wi-Fi') else self.sous_onglets
             cadre = ttk.Frame(parent, padding=8)
@@ -197,8 +198,13 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
             if titre == 'Acquisition USB':
                 self.interface_usb(cadre)
                 continue
-            barre = ttk.Frame(cadre)
-            barre.pack(side='right',fill='y',padx=(12,0)) if titre=='TP Localisation' else barre.pack(fill='x')
+            if titre == 'TP Localisation':
+                colonne = ttk.Frame(cadre)
+                colonne.pack(side='right', fill='y', padx=(12,0))
+                barre = cadre_defilant(colonne)  # Capture + réglages ICP + comparaison : la colonne défile.
+            else:
+                barre = ttk.Frame(cadre)
+                barre.pack(fill='x')
             if titre == 'TP Localisation':
                 self.interface_tp(barre)
             elif titre == 'Grille':
@@ -263,10 +269,30 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
         ligne = ttk.Frame(ensemble)
         ligne.pack(fill='x', pady=2)
         ttk.Label(ligne,text=titre,wraplength=185).pack(side='left')
-        self.vars[cle] = tk.StringVar(value=str(valeur))
+        if cle not in self.vars:  # Une variable déjà créée est partagée avec les autres onglets.
+            self.vars[cle] = tk.StringVar(value=str(valeur))
         ttk.Entry(ligne, textvariable=self.vars[cle], width=8).pack(side='right')
         if cle in PLAGES:
             curseur(ensemble,self.vars[cle],*PLAGES[cle])
+
+    def preparer_variables_capture(self):
+        """Variables de capture et d'ICP créées une fois, partagées par Acquisition et Localisation."""
+        defauts = dict(baud=115200, quantite=1, auto_icp='0', icp_methode=METHODE_GLOBALE, icp_distance=.5,
+                       icp_iterations=80, icp_fenetre_xy=1., icp_fenetre_angle=30.,
+                       loc_methode='Recherche large + ICP')
+        for cle, valeur in defauts.items():
+            self.vars.setdefault(cle, tk.StringVar(value=str(valeur)))
+        self.capture_source = tk.StringVar(value='USB')
+        self.capture_hote = tk.StringVar(value='192.168.4.1')
+        self.port = tk.StringVar()
+        self.capture_depuis_localisation = False
+
+    def informer_capture(self, texte):
+        """Message de capture visible dans Acquisition et dans Localisation."""
+        for nom in ('info_capture', 'info_tp'):
+            cible = getattr(self, nom, None)
+            if cible is not None:
+                cible.configure(text=texte)
 
     def nombre(self, cle):
         try:
@@ -870,11 +896,12 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
         except ValueError:
             return False
 
-    def parametres_recalage(self):
+    def parametres_recalage(self, methode=None):
         distance, iterations = self.nombre('icp_distance'), self.nombre('icp_iterations')
         if distance <= 0 or iterations != int(iterations) or not 1 <= iterations <= 300:
             raise ValueError('Distance positive et nombre entier d’itérations entre 1 et 300 requis.')
-        methode = self.vars['icp_methode'].get()
+        if methode is None:
+            methode = self.vars['icp_methode'].get()
         options = {}
         if methode == 'Recherche large + ICP':
             xy, angle = self.nombre('icp_fenetre_xy'), self.nombre('icp_fenetre_angle')
@@ -1032,25 +1059,19 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
         self.statut.set('Pose ICP appliquée. Les mesures brutes sont conservées.')
 
     def interface_usb(self, cadre):
-        # Réglages historiques conservés pour les sessions ; plus de second onglet de localisation.
-        for cle,valeur in dict(icp_methode=METHODE_GLOBALE,icp_distance=.5,icp_iterations=80,
-                               icp_fenetre_xy=1.,icp_fenetre_angle=30.).items():
-            self.vars[cle]=tk.StringVar(value=str(valeur))
+        # Les réglages ICP et de capture sont créés dans preparer_variables_capture et
+        # partagés avec l'onglet Localisation.
         ttk.Label(cadre,text='Capturer des scans réels depuis l’ESP32',style='Titre.TLabel').pack(anchor='w',pady=12)
         ttk.Label(cadre,text='USB : firmware ScanAtlas_WiFi avec commande SCAN, ou ancien firmware CSV.\nFerme le moniteur série Arduino et Teleplot avant de connecter le port.',wraplength=700).pack(anchor='w',pady=10)
-        self.capture_source = tk.StringVar(value='USB')
-        self.capture_hote = tk.StringVar(value='192.168.4.1')
         ttk.Label(cadre,text='Source : USB (firmware CSV historique) ou Wi-Fi (firmware ScanAtlas_WiFi)').pack(anchor='w')
         ttk.Combobox(cadre,textvariable=self.capture_source,values=['USB','Wi-Fi'],state='readonly').pack(fill='x')
         ttk.Label(cadre,text='Adresse Wi-Fi (ignorée en USB)').pack(anchor='w')
         ttk.Entry(cadre,textvariable=self.capture_hote).pack(fill='x')
-        self.port = tk.StringVar()
         self.ports = ttk.Combobox(cadre,textvariable=self.port)
         self.ports.pack(fill='x')
         self.bouton(cadre,'Actualiser la liste des ports',self.actualiser_ports)
         self.champ(cadre,'baud','Baud ESP32 → PC (Serial.begin)',115200)
         self.champ(cadre,'quantite','Nombre de scans à capturer (1 à 20)',1)
-        self.vars['auto_icp'] = tk.StringVar(value='0')
         ttk.Checkbutton(cadre, text='Localiser automatiquement sur la carte cumulée (360°)',
                         variable=self.vars['auto_icp'], onvalue='1', offvalue='0',
                         command=lambda: self.info_capture.configure(text='Recalage automatique activé : les poses acceptées seront appliquées.'
@@ -1073,7 +1094,8 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
             self.port.set(ports[0])
         self.statut.set(f'{len(ports)} port(s) détecté(s). Tu peux aussi saisir COM3, COM4… manuellement.')
 
-    def lancer_capture(self):
+    def lancer_capture(self, depuis_localisation=False):
+        """Capture USB/Wi-Fi. Depuis Localisation : toujours localisée, sur le dernier scan de la liste."""
         if self.travail:
             raise ValueError('Un calcul ou une capture est déjà en cours.')
         source = self.capture_source.get() if hasattr(self,'capture_source') else 'USB'
@@ -1091,7 +1113,7 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
             self.wifi_deconnecter()  # Conserve la carte et les scans de session.
 
         self.annuler_geste()
-        automatique = self.vars['auto_icp'].get() == '1'
+        automatique = depuis_localisation or self.vars['auto_icp'].get() == '1'
         reference = self.scans[-1] if self.scans else None
         copie = deepcopy(reference)
         originaux_globaux = list(self.scans)
@@ -1101,14 +1123,16 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
         self.contexte_capture_historique = [(s, deepcopy(s)) for s in self.scans]
         methode, options, filtres = None, {}, {}
         if automatique:
-            methode, options = self.parametres_recalage()
+            methode, options = (self.parametres_recalage(self.vars['loc_methode'].get())
+                                if depuis_localisation else self.parametres_recalage())
             if methode != METHODE_GLOBALE and reference is not None and reference.suivi_recalage and not reference.suivi_recalage['valide']:
                 raise ValueError('Le dernier scan n’est pas recalé. Corrige sa pose manuellement ou dans Localisation avant de reprendre le recalage automatique.')
             filtres = self.filtres()
+        self.capture_depuis_localisation = bool(depuis_localisation)
         self.travail=True
         self.annuler.clear()
         self.statut.set('Capture en cours : attente d’un scan complet…')
-        self.info_capture.configure(text=('Auto global activé · premier scan fixe et carte cumulée. Réception en cours…'
+        self.informer_capture(('Auto global activé · premier scan fixe et carte cumulée. Réception en cours…'
             if automatique and methode == METHODE_GLOBALE else f'Auto activé · référence : scan {len(self.scans)} — {reference.nom}. Réception en cours…'
             if automatique and reference is not None else 'Auto activé · premier scan : création de la référence.'
             if automatique else 'Auto désactivé · capture sans localisation.'))
@@ -1172,9 +1196,13 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
         self.actualiser(len(self.scans)-1)
         attentes=[s for s in nouveaux if not s.suivi_recalage['valide']]
         texte='\n'.join(s.nom+' : '+s.suivi_recalage['message'] for s in nouveaux)
-        self.info_capture.configure(text=texte)
+        self.informer_capture(texte)
         self.statut.set(f'Capture globale : {len(nouveaux)-len(attentes)} raccordé(s), {len(attentes)} en attente.')
+        if self.capture_depuis_localisation:
+            self.dessiner_capture_localisation(originaux[-1] if originaux else None, nouveaux)
         if attentes: messagebox.showwarning('Scans en attente de raccordement',texte,parent=self)
+        if self.capture_depuis_localisation:
+            return
         onglets=getattr(self,'sous_onglets',getattr(self,'onglets',None))
         if onglets is not None:
             for tab in onglets.tabs():
@@ -1223,11 +1251,14 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
                      'Vérifie la superposition et enregistre la session.')
         else:
             texte = 'Premier scan enregistré comme référence. Aucun scan précédent : aucune localisation à effectuer.'
-        self.info_capture.configure(text=texte)
+        self.informer_capture(texte)
         self.statut.set(texte)
+        if self.capture_depuis_localisation:
+            # Rester dans Localisation et tracer la superposition avant toute fenêtre d'alerte.
+            self.dessiner_capture_localisation(reference, scans)
         if refus:
             messagebox.showwarning('Échec de localisation automatique', texte, parent=self)
-        elif reussis:
+        elif reussis and not self.capture_depuis_localisation:
             # Montrer la superposition réellement appliquée, pas seulement un compteur.
             onglets = getattr(self, 'sous_onglets', getattr(self,'onglets',None))
             if onglets is not None:
@@ -1244,7 +1275,7 @@ class Atelier(InterfaceWifi, InterfaceTP, tk.Tk):
                     self.statut.set(data)
                 elif type_=='capture_statut':
                     self.statut.set(data)
-                    self.info_capture.configure(text=data)
+                    self.informer_capture(data)
                 elif type_=='scans':
                     if data:
                         self.ajouter(data)

@@ -16,7 +16,7 @@ from cartographie import Scan, ANGLE_REFERENCE_DEFAUT
 
 HEADER = struct.Struct('<4sBBHIQIH')
 POINT = struct.Struct('<HHB')
-COMMANDS = frozenset(('STOP', 'FORWARD', 'BACK', 'LEFT', 'RIGHT', 'STRAFE_L', 'STRAFE_R'))
+COMMANDS = frozenset(('STOP', 'FORWARD', 'BACK', 'LEFT', 'RIGHT', 'STRAFE_L', 'STRAFE_R', 'DRIVE'))
 
 
 @dataclass
@@ -88,24 +88,58 @@ def dernier(queue_, valeur):
             pass
 
 
+def valider_vecteur(vx, vy, w):
+    """Trois entiers de -100 à 100 : avance (+), gauche (+), rotation à gauche (+)."""
+    try:
+        valeurs = tuple(int(round(v)) for v in (vx, vy, w))
+    except (TypeError, ValueError, OverflowError):
+        raise ValueError('Commande moteur invalide.')
+    if any(not -100 <= v <= 100 for v in valeurs) or not all(np.isfinite([vx, vy, w])):
+        raise ValueError('Commande moteur invalide.')
+    return valeurs
+
+
+_SIMPLES = {(0, 1):'FORWARD', (0, -1):'BACK', (1, 1):'STRAFE_L', (1, -1):'STRAFE_R',
+            (2, 1):'LEFT', (2, -1):'RIGHT'}
+
+
+def commande_simple(vecteur):
+    """Équivalent SA1 (nom, puissance) d'un vecteur à un seul axe non nul ; sinon None."""
+    actifs = [i for i, v in enumerate(vecteur) if v]
+    if len(actifs) != 1:
+        return None
+    i = actifs[0]
+    return _SIMPLES[(i, 1 if vecteur[i] > 0 else -1)], abs(vecteur[i])
+
+
 class BailCommande:
     def __init__(self):
         self.lock = threading.Lock()
         self.commande = 'STOP'
         self.pwm = 65
+        self.vecteur = (0, 0, 0)
         self.pulse = 0.
 
-    def actualiser(self, commande, pwm=65, maintenant=None):
+    def actualiser(self, commande, pwm=65, maintenant=None, vecteur=(0, 0, 0)):
         if commande not in COMMANDS or not 0 <= pwm <= 100:
             raise ValueError('Commande moteur invalide.')
+        vecteur = valider_vecteur(*vecteur)
+        if commande == 'DRIVE' and vecteur == (0, 0, 0):
+            commande = 'STOP'  # Un vecteur nul est un arrêt, jamais un mouvement.
         with self.lock:
-            self.commande, self.pwm = commande, int(pwm)
+            self.commande, self.pwm, self.vecteur = commande, int(pwm), vecteur
             self.pulse = time.monotonic() if maintenant is None else maintenant
 
-    def lire(self, maintenant=None):
+    def lire_complet(self, maintenant=None):
         t = time.monotonic() if maintenant is None else maintenant
         with self.lock:
-            return (self.commande if 0 <= t-self.pulse < .25 else 'STOP'), self.pwm
+            if 0 <= t-self.pulse < .25:
+                return self.commande, self.pwm, self.vecteur
+            return 'STOP', self.pwm, (0, 0, 0)
+
+    def lire(self, maintenant=None):
+        commande, pwm, _ = self.lire_complet(maintenant)
+        return commande, pwm
 
 
 class RobotWifi:
@@ -123,6 +157,8 @@ class RobotWifi:
         self.threads = []
         self.recus = 0
         self.envoyee = "STOP"
+        self.combine = False  # Le firmware connecté comprend-il SA2 ? Annoncé dans READY.
+        self.avis_combine = False
         self.effective = "EN ATTENTE"
         self.date_ack = 0.
         self.journal = None
@@ -149,6 +185,11 @@ class RobotWifi:
     def commander(self, commande='STOP', pwm=65):
         self.bail.actualiser(commande, pwm)
 
+    def conduire(self, avance=0, gauche=0, rotation=0):
+        """Mouvement combiné en pourcentages signés ; (0, 0, 0) arrête le robot."""
+        vecteur = valider_vecteur(avance, gauche, rotation)
+        self.bail.actualiser('DRIVE' if any(vecteur) else 'STOP', max(map(abs, vecteur)), vecteur=vecteur)
+
     def _commandes(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.settimeout(.04)
@@ -162,18 +203,32 @@ class RobotWifi:
                 if not self.connecte.is_set():
                     sock.send(f'HELLO {self.session}\n'.encode('ascii'))
                 else:
-                    cmd, pwm = self.bail.lire(t)
+                    cmd, pwm, vecteur = self.bail.lire_complet(t)
                     if t-self.dernier_scan > .6:
-                        cmd = 'STOP'
+                        cmd, vecteur = 'STOP', (0, 0, 0)
                     seq += 1
-                    sock.send(f'SA1 {self.session} {seq} {cmd} {pwm}\n'.encode('ascii'))
+                    simple = commande_simple(vecteur) if cmd == 'DRIVE' else None
+                    if cmd == 'DRIVE' and simple is None and not self.combine:
+                        # Ancien firmware : on garde l'axe le plus fort plutôt que de perdre la liaison.
+                        axe = max(range(3), key=lambda i: abs(vecteur[i]))
+                        simple = commande_simple(tuple(v if i == axe else 0 for i, v in enumerate(vecteur)))
+                        if not self.avis_combine:
+                            self.avis_combine = True
+                            self._etat('Firmware sans déplacement combiné : seul l’axe dominant est envoyé. Reflasher ScanAtlas_WiFi.')
+                    if simple is not None:
+                        cmd, pwm = simple
+                    if cmd == 'DRIVE':
+                        sock.send(f'SA2 {self.session} {seq} {vecteur[0]} {vecteur[1]} {vecteur[2]}\n'.encode('ascii'))
+                    else:
+                        sock.send(f'SA1 {self.session} {seq} {cmd} {pwm}\n'.encode('ascii'))
                     with self.lock:
                         self.envoyee = cmd
                     envois[seq] = t
                     envois = {n:date for n,date in envois.items() if t-date < .5}
                 try:
                     reponse = sock.recv(256).decode('ascii').strip().split()
-                    if reponse == ['READY', self.session]:
+                    if reponse[:2] == ['READY', self.session] and reponse[2:] in ([], ['SA2']):
+                        self.combine = reponse[2:] == ['SA2']
                         if not self.connecte.is_set():
                             self._etat('Connecté au robot ; moteurs arrêtés.')
                             self.connecte.set()
