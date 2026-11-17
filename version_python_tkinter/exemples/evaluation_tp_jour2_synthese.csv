@@ -1,0 +1,7 @@
+reference,methode,essais,reussites,corrects_acceptes,faux_acceptes,refus,taux_reussite,mediane_s,p95_s
+Grille,Affinement local robuste,7,5,5,0,2,0.7142857142857143,0.02644169100040017,0.05077857520000177
+Grille,Multi-résolution + affinement robuste,7,6,6,0,1,0.8571428571428571,0.2600548240002354,0.8174894543999921
+Carte vectorielle,Affinement local robuste,7,5,5,1,1,0.7142857142857143,0.021381595000093512,0.051631362700163656
+Carte vectorielle,Multi-résolution + affinement robuste,7,6,6,0,1,0.8571428571428571,0.21695456699990245,0.23953060780017948
+Scan,Affinement local robuste,7,5,4,0,3,0.7142857142857143,0.06952927800011821,0.16616670329985936
+Scan,Multi-résolution + affinement robuste,7,6,6,0,1,0.8571428571428571,0.4186966239999492,0.8339865974001894

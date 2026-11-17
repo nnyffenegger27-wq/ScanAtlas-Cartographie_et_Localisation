@@ -1,0 +1,14 @@
+LD06 ATELIER — DÉMARRAGE WINDOWS
+
+1. Décompresse entièrement ce dossier ZIP.
+2. Double-clique sur installer_windows.bat (Python 3.10+ doit être installé).
+3. Double-clique sur lancer_windows.bat.
+4. Clique sur « Démonstration simulée » pour essayer sans matériel.
+
+Pour tes mesures réelles : Acquisition USB, ou Importer CSV.
+Ferme le moniteur série Arduino avant la capture USB.
+
+Le guide docs/LISEZ_MOI.md explique chaque étape et le code.
+Le bouton « Comprendre l'application » affiche aussi les explications.
+
+La démonstration est SIMULÉE : elle ne remplace pas tes scans réels de salle.

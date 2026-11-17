@@ -2,16 +2,32 @@
 
 TP EIGSI « Cartographie et localisation » (SLAM 2D). Un robot Keyestudio Mecanum Car V2 (ESP32) porte un lidar LD06 : il roule, la carte se dessine sur le PC, et le robot s'y retrouve. Le robot peut aussi **explorer seul** une pièce, et on peut le **replacer** sur la carte s'il se perd. Tout le calcul est en Python ; l'application s'utilise dans le navigateur, **sans robot** grâce à des salles simulées.
 
-> **Où suis-je ?** Cette page est le README de la branche **`main`** : la **version finale**, celle à lancer et à présenter.
-> Les versions précédentes (Tkinter) restent téléchargeables : la branche `jours-1-2` et deux autres branches. Voir [Qui est quoi](#1-qui-est-quoi--les-quatre-versions).
+## Pour le professeur : les deux versions, où les trouver
+
+Ce dépôt contient **les deux versions du projet**, chacune dans son dossier, sans rien à changer ni à télécharger d'autre :
+
+| | Version | Où | Se lance avec | Pour voir |
+| --- | --- | --- | --- | --- |
+| **A** | **Version web** (finale) | **à la racine de ce dépôt** (dossiers `atlas/`, `web/`) | `lancer_windows.bat` (macOS / Linux : `lancer_mac_linux.sh`) → s'ouvre dans le navigateur | Le SLAM en direct, l'exploration autonome, le replacement, le TP Jour 2 intégré, le **compte rendu** (onglet « Le projet ») |
+| **B** | **Version Python / Tkinter** (la dernière qui fonctionne) | dossier [`version_python_tkinter/`](version_python_tkinter/) | `installer_windows.bat` puis `lancer_windows.bat` **dans ce dossier** → s'ouvre dans une fenêtre | Les outils des jours 1 et 2 tels qu'ils ont été écrits : nuages, grille, segments, carte vectorielle, localisation, pilotage Wi-Fi |
+
+Les deux versions utilisent les **mêmes méthodes de calcul** (grille d'occupation, segments, carte vectorielle, ICP, localisation sur trois références). La version web existe parce que Tkinter / Matplotlib était trop lourd pour piloter le robot et cartographier en même temps ; le raisonnement complet est dans l'onglet **Le projet** de la version A.
+
+**Les deux se lancent sans robot** (salles simulées en A, démonstration simulée en B).
+
+**Pour vérifier les commits demandés** (au moins un par heure de TP) : la branche [`jours-1-2`](https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation/tree/jours-1-2) contient l'historique réel des jours 1 et 2 (34 commits des 2 et 3 novembre). Son README relie chaque étape de l'énoncé à ses fichiers et à ses commits. L'historique de la version web est celui de `main` (`git log`).
+
+**Où est quoi dans le compte rendu :** la page « Le projet » de la version A reprend les étapes de l'énoncé une à une (ce qui a été fait, dans quel fichier, où c'est dans la version finale) et montre la version Python en images.
+
+> Autres branches (archives, ne servent qu'à retracer l'historique) : `version-2-refonte-tkinter` (refonte du 4 novembre) et `version-3-tkinter-avancee` (identique au dossier `version_python_tkinter/`).
 
 ## Sommaire
 
 1. [Qui est quoi : les quatre versions](#1-qui-est-quoi--les-quatre-versions)
-2. [Lancer la version finale](#2-lancer-la-version-finale)
+2. [Lancer la version web](#2-lancer-la-version-finale)
 3. [Ce qu'on peut faire dans l'application](#3-ce-quon-peut-faire-dans-lapplication)
 4. [L'onglet « Le projet »](#4-longlet--le-projet-)
-5. [Lancer la première version (`main`, Tkinter)](#5-lancer-la-première-version-main-tkinter)
+5. [Lancer la version Python (Tkinter)](#5-lancer-la-version-python-tkinter)
 6. [Plan du dépôt](#6-plan-du-dépôt)
 7. [Le robot et son firmware](#7-le-robot-et-son-firmware)
 8. [Tests et documentation](#8-tests-et-documentation)
@@ -20,14 +36,14 @@ TP EIGSI « Cartographie et localisation » (SLAM 2D). Un robot Keyestudio Mecan
 
 ## 1. Qui est quoi : les quatre versions
 
-Le dépôt contient quatre versions du même projet, dans l'ordre où elles ont été écrites. Elles sont toutes complètes et se téléchargent séparément (bouton vert **Code ▸ Download ZIP** sur GitHub après avoir choisi la branche, ou les liens ci-dessous).
+Le projet a été écrit en quatre étapes. Les étapes 3 et 4 sont celles qu'on peut lancer depuis ce dépôt (versions **B** et **A** ci-dessus) ; les deux premières sont consultables dans leurs branches.
 
-| | Où la trouver | C'est… | Interface | À utiliser pour |
-| --- | --- | --- | --- | --- |
-| **4** | **branche `main`** ← *vous êtes ici* | **La version finale.** Mêmes calculs que les versions précédentes, plus : interface web (écrans Direct et Carte, onglet « Le projet »), SLAM en direct, **exploration autonome**, **replacement guidé**, grandes salles simulées, suivi corrigé d'après les vraies sessions du robot, TP Jour 2 intégré à l'écran Carte. | Navigateur | La démonstration, l'évaluation, le travail actuel |
-| **3** | branche [`version-3-tkinter-avancee`](https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation/tree/version-3-tkinter-avancee) · [ZIP](https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation/archive/refs/heads/version-3-tkinter-avancee.zip) | **La version Tkinter la plus avancée** (16 commits du 4 novembre) : commandes combinées (avancer + côté + tourner), choix du pilote moteur PWM ou I2C, acquisition USB directe, reprise automatique du suivi et reconnexion, redressement du tour lidar en rotation. | Fenêtres Tkinter | Voir l'étape intermédiaire, comparer avec le web |
-| **2** | branche [`version-2-refonte-tkinter`](https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation/tree/version-2-refonte-tkinter) · [ZIP](https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation/archive/refs/heads/version-2-refonte-tkinter.zip) | **La refonte du 4 novembre** (« LD06 Atelier ») : le TP des jours 1 et 2 repris proprement, avec pilotage Wi-Fi du robot, pilote moteur PWM, cartes d'essai. Ses documents (guides, résultats du Jour 2, journal) sont à la racine, tels que remis. | Fenêtres Tkinter | Les rendus du TP tels qu'ils étaient |
-| **1** | branche [`jours-1-2`](https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation/tree/jours-1-2) · [ZIP](https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation/archive/refs/heads/jours-1-2.zip) | **Le travail des jours 1 et 2, avec son historique réel** (34 commits des 2 et 3 novembre). Son README relie chaque étape de l'énoncé à ses fichiers et à ses commits. | Fenêtres Tkinter | Vérifier les commits demandés, voir le travail dans l'ordre où il a été fait |
+| Étape | Où | C'est… | Interface |
+| --- | --- | --- | --- |
+| **4** | **`main`, racine du dépôt** ← *vous êtes ici* (version **A**) | **La version finale.** Mêmes calculs que les versions précédentes, plus : interface web (écrans Direct et Carte, onglet « Le projet »), SLAM en direct, **exploration autonome**, **replacement guidé**, grandes salles simulées, suivi corrigé d'après les vraies sessions du robot, TP Jour 2 intégré à l'écran Carte. | Navigateur |
+| **3** | [`version_python_tkinter/`](version_python_tkinter/) (version **B**) · branche [`version-3-tkinter-avancee`](https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation/tree/version-3-tkinter-avancee) | **La version Python la plus avancée** (16 commits du 4 novembre) : commandes combinées (avancer + côté + tourner), choix du pilote moteur PWM ou I2C, acquisition USB directe, reprise automatique du suivi et reconnexion, redressement du tour lidar en rotation. C'est là que j'ai décidé de passer au web (trop lourd en temps réel). | Fenêtres Tkinter |
+| **2** | branche [`version-2-refonte-tkinter`](https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation/tree/version-2-refonte-tkinter) | **La refonte du 4 novembre** (« LD06 Atelier ») : le TP des jours 1 et 2 repris proprement, avec pilotage Wi-Fi du robot, pilote moteur PWM, cartes d'essai. | Fenêtres Tkinter |
+| **1** | branche [`jours-1-2`](https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation/tree/jours-1-2) | **Le travail des jours 1 et 2, avec son historique réel** (34 commits des 2 et 3 novembre). | Fenêtres Tkinter |
 
 **Pourquoi plusieurs versions ?** La version 1 est le travail des deux premiers jours tel qu'il a été commité, la 2 le TP repris proprement : il marchait, mais l'interface Tkinter / Matplotlib était trop lourde pour piloter le robot et cartographier en même temps. La version 3 améliore le pilotage et la liaison. La version 4 change d'interface (web) pour la fluidité et ajoute l'autonomie. Le détail du raisonnement est dans l'onglet **Le projet** (§4) et dans [`docs/JOURNAL_PROJET.md`](docs/JOURNAL_PROJET.md).
 
@@ -92,15 +108,15 @@ Dans l'application, dans la barre du haut, à côté de *Direct* et *Carte* (ou 
 
 ---
 
-## 5. Lancer une version Tkinter (1, 2 ou 3)
+## 5. Lancer la version Python (Tkinter)
 
-Cette version est indépendante : on la télécharge séparément.
+Elle est dans le dossier [`version_python_tkinter/`](version_python_tkinter/), complète et indépendante de la version web (elle a ses propres fichiers et son propre `requirements.txt`).
 
-```
-git clone -b version-3-tkinter-avancee https://github.com/nnyffenegger27-wq/ScanAtlas-Cartographie_et_Localisation.git ScanAtlas-tkinter
-```
+1. Ouvrir le dossier `version_python_tkinter/`.
+2. Windows : double-clic sur `installer_windows.bat` (une fois), puis sur `lancer_windows.bat`. Ailleurs : `pip install -r requirements.txt` (numpy, scipy, matplotlib, pyserial ; Tkinter est fourni avec Python) puis `python app.py`.
+3. Cliquer sur **« Démonstration simulée »** pour essayer sans matériel. Pour des mesures réelles : *Acquisition USB* ou *Importer CSV*.
 
-Windows : `installer_windows.bat`, puis `lancer_windows.bat` (dans le dossier téléchargé). Ailleurs : `pip install -r requirements.txt` (numpy, scipy, matplotlib, pyserial ; Tkinter est fourni avec Python) puis `python app.py`. Le mode d'emploi est dans `LISEZ_MOI.md` à la racine de la version 2. Les versions 1 et 3 se lancent de la même façon. Les guides correspondants sont aussi copiés ici dans [`docs/archives_tkinter/`](docs/archives_tkinter/).
+Son mode d'emploi est dans [`version_python_tkinter/docs/LISEZ_MOI.md`](version_python_tkinter/docs/LISEZ_MOI.md), et son README (`version_python_tkinter/README.md`) liste ses onglets. Les jours 1 et 2 d'origine, avec leur historique de commits, sont dans la branche `jours-1-2`.
 
 ---
 
@@ -115,6 +131,7 @@ Le code Python est dans le paquet **`atlas/`**, rangé en quatre dossiers ; à l
 | `atlas/robot/` | `robot_wifi.py`, `robot_usb.py` : liaisons · `session_directe.py` : pilotage, reconnexion, démonstration · `journal_direct.py` : journaux · `exploration.py` : exploration autonome |
 | `atlas/calcul/` | SLAM et TP : `cartographie_direct.py` + `suivi_lidar.py` (suivi en direct, carte incrémentale, replacement) · `cartographie.py` (grille, segments, carte vectorielle) · `localisation*.py`, `assemblage_global.py`, `recalage_capture.py` (ICP, recherche sur 360°, trois références) · `evaluer_tp_jour2.py` (les 42 essais) |
 | `atlas/simulation/` | `simulation.py` : salles simulées · `simuler_robot_wifi.py` : robot simulé sur le PC (démonstration et tests) |
+| `version_python_tkinter/` | **la version Python (Tkinter)**, complète et autonome (voir §5) |
 | `web/` | interface (HTML, CSS, JavaScript sans dépendance) ; `presentation.html` = onglet « Le projet » |
 | `firmware/ScanAtlas_WiFi/` | firmware de l'ESP32 (Wi-Fi, lidar, moteurs) |
 | `materiel/` | fichiers d'origine du châssis, test du lidar, support lidar (CAO) |

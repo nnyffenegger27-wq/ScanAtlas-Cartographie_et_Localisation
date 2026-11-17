@@ -1,0 +1,3 @@
+cas,erreur_position_m,erreur_angle_deg,temps_s,accepte,concordance,contradictions,succes
+Demi-tour,0.0028988941916349023,0.04908795042820202,4.640043335999962,True,0.9666666666666667,0.0,True
+"Déplacement 4,47 m et demi-tour",0.0008282694739344332,0.029802658387211522,15.708195604999673,True,1.0,0.0,True
