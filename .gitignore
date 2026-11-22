@@ -18,3 +18,6 @@ exports/
 Thumbs.db
 /__pycache__
 *.pyc
+
+# Préparations locales des captures (images finales dans web/presentation-assets/)
+/outils/captures_tk/

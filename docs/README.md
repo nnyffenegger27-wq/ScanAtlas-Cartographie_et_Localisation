@@ -2,10 +2,14 @@
 
 | Je veux… | Lire |
 | --- | --- |
+| retrouver les sessions réelles et les données simulées | [Cartes/README.md](../Cartes/README.md) |
+| refaire une figure ou une évaluation | [outils/README.md](../outils/README.md) |
+| connaître les prérequis des tests | [tests/README.md](../tests/README.md) |
 | utiliser l'application | [GUIDE_WEB.md](GUIDE_WEB.md) |
 | comprendre l'état du projet, l'architecture, les décisions | [REPRISE_PROJET.md](REPRISE_PROJET.md) |
 | suivre le fil du projet jour après jour (essais, problèmes, corrections) | [JOURNAL_PROJET.md](JOURNAL_PROJET.md) |
 | voir le parcours expliqué (buts, problèmes, solutions) | l'onglet **Le projet** de l'application (`web/presentation.html`) |
+| consulter les commits fournis avec le ZIP, sans accès GitHub | [GUIDE_HISTORIQUE.md](GUIDE_HISTORIQUE.md) |
 | travailler avec Git / GitHub | [GUIDE_GITHUB.md](GUIDE_GITHUB.md) |
 
 ## `methodes/` — les méthodes du TP et leurs résultats

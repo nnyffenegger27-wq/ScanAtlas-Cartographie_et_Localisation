@@ -1,0 +1,17 @@
+﻿ancien_nom,nouveau_chemin,nombre_scans_session
+scanenautonomie.json,01_resultats_slam/toutes_les_pieces_autonomie.json,736
+18-56-04-11-2026 cartographie semi autonome.json,01_resultats_slam/parcours_semi_autonome_2026-11-04.json,578
+session_ld06.json,02_acquisitions_usb/meme_position_4_scans.json,4
+scanmultiposition_ld06.json,02_acquisitions_usb/multi_positions_14_scans.json,14
+Scansuperpose.json,03_essais_recalage/superposition_essai_01.json,13
+Scansuperpose V2.json,03_essais_recalage/superposition_essai_02.json,13
+Scansuperpose V3.json,03_essais_recalage/superposition_essai_03.json,13
+Localisation.json,03_essais_recalage/localisation_session.json,12
+testlocalisation.json,03_essais_recalage/localisation_essai_01.json,7
+testlocalisation V2.json,03_essais_recalage/localisation_essai_02.json,5
+Test plusieur scans pas la meme position.json,03_essais_recalage/placement_manuel_multi_positions.json,13
+MapToolNico1,04_donnees_simulees/maptool_nicolas,
+ScanJules,04_donnees_simulees/maptool_jules_01,
+ScanJules 2,04_donnees_simulees/maptool_jules_02,
+ScanJules.zip,04_donnees_simulees/archives/maptool_jules_01.zip,
+ScanJules 2.zip,04_donnees_simulees/archives/maptool_jules_02.zip,

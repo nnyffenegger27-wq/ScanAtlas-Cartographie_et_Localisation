@@ -32,3 +32,63 @@ html:has(body.presentation){height:auto;scroll-behavior:smooth;scroll-padding-to
 @media(max-width:900px){.galerie-tk{grid-template-columns:1fr}}
 @media print{.galerie-tk figure{break-inside:avoid}}
 .versions-4{grid-template-columns:repeat(2,1fr)}.versions-4 article{border-bottom:1px solid var(--trait)}@media(max-width:680px){.versions-4{grid-template-columns:1fr}}
+
+/* Vue du relevé final : conserver la figure entière à l'impression. */
+.resultat-reel figure{max-width:1100px;margin:24px auto}.resultat-reel .suite{margin-top:22px}@media print{@page{size:A4;margin:14mm}.resultat-reel{break-before:page}.resultat-reel figure{break-inside:avoid}.resultat-reel .agrandir-image img{max-height:155mm;object-fit:contain}}
+
+/* Mise en page du document remis : tableaux complets, titres et notes regroupés. */
+@media print {
+  body.presentation{font-size:10pt;line-height:1.45}
+  .presentation p,.outil p,.references p,.choix-grille p,.journal-details p,.protocole p{font-size:10pt;line-height:1.45}
+  .presentation h2{font-size:22pt;line-height:1.2}
+  .presentation h3,.journal-partie>h3,.outil h3{font-size:15pt;line-height:1.25}
+  .presentation h4,.choix-grille h4{font-size:11pt}
+  h2,h3,h4,summary{break-after:avoid}
+  p{orphans:3;widows:3}
+  .chapitre{padding:0 0 12px}
+  .titre-section{margin-bottom:20px}
+  .journal-partie{padding:18px 0}
+  .journal-partie>h3{margin:8px 0 14px}
+  .fil{gap:16px;margin:26px 0 20px;padding-top:14px}
+  .references{gap:16px;margin-bottom:18px}
+  .versions-depot{break-after:avoid}
+  .versions-depot article{padding-top:12px}
+  .note-version{font-size:9pt;line-height:1.4}
+  .choix-grille{gap:8px 24px}
+  .choix-grille article{break-inside:avoid}
+  .outil{margin-bottom:26px;gap:24px}
+  .table-scroll{overflow:visible;border-radius:0}
+  .resultats{table-layout:fixed;white-space:normal;break-inside:auto}
+  .resultats thead{display:table-header-group}
+  .resultats tr{break-inside:avoid}
+  .resultats th,.resultats td,.table-problemes .resultats th,.table-problemes .resultats td,#enonce .table-problemes .resultats th[scope=row],#enonce .table-problemes .resultats td{min-width:0!important;padding:8px;font-size:8pt;line-height:1.4;overflow-wrap:anywhere}
+  .table-problemes .resultats th:nth-child(1){width:18%}
+  .table-problemes .resultats th:nth-child(2){width:32%}
+  .table-problemes .resultats th:nth-child(3){width:26%}
+  .table-problemes .resultats th:nth-child(4){width:24%}
+  .galerie-tk{gap:16px}
+  .galerie-tk figure{padding:5px}
+  .galerie-tk figcaption{font-size:8pt}
+  .etapes-localisation{margin:18px 0}
+  .etapes-localisation li{padding-bottom:14px}
+  .etape-depliable>summary{font-size:11pt}
+  .comparaison-visuelle{gap:24px;padding:18px 0}
+  .lecture-resultats,.suite{gap:24px;margin-top:18px}
+  .resultat-reel figure{margin:12px auto}
+  .resultat-reel .agrandir-image img{max-height:120mm}
+  .resultat-reel{padding-bottom:0}
+  .resultat-reel>.note-version{break-before:avoid}
+  .sources{font-size:9pt}
+  @page{@bottom-right{content:counter(page);font:9pt Arial;color:#526365}}
+}
+@media print {
+  .resultat-reel .agrandir-image img{max-height:105mm}
+  .resultat-reel .suite{grid-template-columns:1fr 1fr;gap:18px;margin:10px 0;padding-top:10px}
+  .resultat-reel .suite h3{font-size:11pt;margin:6px 0}
+  .resultat-reel .suite p{font-size:9pt;line-height:1.35}
+}
+
+/* Améliorations du SLAM : conserver chaque explication ensemble à l'impression. */
+@media print{.ameliorations-slam{break-before:page}.ameliorations-slam .choix-grille{display:block}.ameliorations-slam article{break-inside:avoid;margin-bottom:16px}.replacement-explique{break-before:page}.replacement-explique p{max-width:none}}
+@media print{.replacement-explique{break-before:auto;break-inside:avoid}}
+.presentation code{overflow-wrap:anywhere}

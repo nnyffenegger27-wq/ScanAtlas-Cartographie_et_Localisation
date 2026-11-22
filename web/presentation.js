@@ -19,5 +19,5 @@ addEventListener('scroll',()=>{if(!attenteLecture){attenteLecture=true;requestAn
 addEventListener('resize',progression);progression();
 // À l'impression, les étapes sont toutes développées, puis l'état de lecture est restauré.
 let replis=[];
-addEventListener('beforeprint',()=>{replis=[...document.querySelectorAll('.etape-depliable')].filter(d=>!d.open);for(const d of replis)d.open=true;});
+addEventListener('beforeprint',()=>{replis=[...document.querySelectorAll('details')].filter(d=>!d.open);for(const d of replis)d.open=true;});
 addEventListener('afterprint',()=>{for(const d of replis)d.open=false;replis=[];});

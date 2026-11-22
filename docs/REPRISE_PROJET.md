@@ -2,7 +2,7 @@
 
 Document écrit pour qu'un nouvel intervenant (personne ou assistant) reprenne le travail sans l'historique des conversations. À lire en premier ; le détail daté des essais est dans [JOURNAL_PROJET.md](JOURNAL_PROJET.md), l'usage dans [GUIDE_WEB.md](GUIDE_WEB.md).
 
-Mis à jour le 4 novembre 2026 (interface web, branche `main`). Ce qui n'a pas été essayé sur le vrai robot est signalé comme tel : aucun test matériel n'a pu être fait par l'assistant, seulement des tests sur ordinateur.
+Mis à jour le 22 novembre 2026 (interface web, branche `main`). Ce qui n'a pas été essayé sur le vrai robot est signalé comme tel : aucun test matériel n'a pu être fait par l'assistant, seulement des tests sur ordinateur.
 
 ## 1. Le projet en une page
 
@@ -107,7 +107,11 @@ python -m unittest discover -s tests          # 190 tests, ~80 s
 
 Plus besoin de Tk ni d'écran virtuel. `tests/test_navigateur.py` pilote un vrai Chromium et est ignoré sans Playwright (`pip install playwright && playwright install chromium`). Le test `tests/test_usb_direct.py` contient de faux en-têtes Arduino pour vérifier la syntaxe du `.ino` avec g++. Les tests moteurs compilent les vrais en-têtes du firmware avec g++ (`tests/test_motor_*.py`). Banc de suivi : `python outils/evaluer_wifi.py`. Robot simulé : `python simuler_robot_wifi.py`.
 
-## 9. Suite prévue (par ordre)
+## 9. État du rendu et suite éventuelle
+
+Précision de l’utilisateur le 22 novembre : `Cartes/01_resultats_slam/toutes_les_pieces_autonomie.json` est le relevé de toutes les pièces (736 scans). La session semi-autonome de 578 scans est un autre fichier. Le robot n’est plus disponible : ne pas demander de nouveaux essais matériels pour terminer ce rendu. Travailler avec les mesures et journaux conservés ; ne pas présenter les poses estimées comme une vérité terrain. Le compte rendu et son PDF comprennent désormais une vue d’ensemble du relevé réel.
+
+Les points ci-dessous sont des pistes si le matériel redevient disponible, pas des essais restant à réaliser pour cette livraison.
 
 1. **Valider sur le robot** : exploration autonome (sens des axes, `RAYON_ROBOT`, puissance minimale pour avancer), replacement par indice, piles 18650, firmware à jour, sens du sway, vitesse, Localisation seule, filaire. Lire `evenements.log` et le moniteur série en cas de coupure.
 2. **Interface web** : valider sur Windows (rendu, manette dans le navigateur, port occupé) ; la fusion est faite (`main` est la version web) ; retours d'usage à noter dans le journal.

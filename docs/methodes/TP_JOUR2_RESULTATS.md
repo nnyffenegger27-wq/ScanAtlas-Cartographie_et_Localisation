@@ -87,7 +87,7 @@ Ce banc porte sur deux scans simulés d’une même géométrie, déjà utilisé
 
 Aucune pose réelle mesurée au sol avec une incertitude documentée n’a été fournie pour cette comparaison. Les poses réglées manuellement sur des scans ne sont pas traitées comme une vérité exacte. L’erreur vraie sur le robot et le taux de réussite physique ne sont donc pas annoncés.
 
-Pour compléter l’essai matériel, relever les poses par une méthode indépendante et renseigner le fichier references_robot_modele.csv : méthode, x, y, orientation et incertitudes associées. Indiquer la résolution de mesure et la répétabilité ; mesurer aussi le décalage du lidar sur le châssis. Comparer les méthodes sur les mêmes enregistrements et les mêmes départs. Si l’incertitude de référence est du même ordre que le seuil de réussite, préciser les cas dont la classification est indécidable plutôt que leur attribuer une réussite certaine.
+Le robot n’est plus disponible au moment du rendu. Aucun nouvel essai matériel n’est donc annoncé. Si le matériel redevient disponible, relever les poses par une méthode indépendante et renseigner le fichier references_robot_modele.csv : méthode, x, y, orientation et incertitudes associées. Indiquer la résolution de mesure et la répétabilité ; mesurer aussi le décalage du lidar sur le châssis. Comparer les méthodes sur les mêmes enregistrements et les mêmes départs. Si l’incertitude de référence est du même ordre que le seuil de réussite, préciser les cas dont la classification est indécidable plutôt que leur attribuer une réussite certaine.
 
 ## Sources et rôle des bibliothèques
 

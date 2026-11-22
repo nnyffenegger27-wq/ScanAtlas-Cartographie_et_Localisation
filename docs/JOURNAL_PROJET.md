@@ -901,3 +901,49 @@ Demande : que le professeur ait accès aux deux versions (web et Python) et que 
 ## 22 novembre 2026 (21 h 30) — captures Tkinter refaites
 
 Les captures « nuages, grille, segments, carte vectorielle » du compte rendu venaient de `scanmultiposition_ld06.json`, dont presque tous les scans avaient la pose (0, 0, 0) alors qu'ils avaient été pris à des endroits différents : tout se superposait à l'origine, d'où une carte illisible. Refaites avec `Cartes/session_ld06.json` (4 scans USB réels de la même pièce, pris au même endroit : la superposition au centre est correcte et on lit la pièce). Les légendes et le PDF sont mis à jour ; les chiffres cités sont ceux affichés par l'application (grille 260 × 289 cellules ; 48 segments de carte, 94 fusions, 19 coupes). Les captures « localisation » et « direct » n'ont pas changé.
+
+
+## 22 novembre 2026 — relecture du rendu et rangement
+
+L’utilisateur précise que `scanenautonomie.json` est le relevé de toutes les pièces et qu’il n’a plus accès au robot. Le compte rendu a été corrigé en conséquence : 736 scans, distincts de l’autre session semi-autonome de 578 scans. Les mentions « plusieurs pièces à valider » sont remplacées par une distinction entre résultat obtenu, précision non mesurée et répétabilité non évaluée.
+
+Ajout d’une figure des 736 scans et de leurs poses enregistrées, sans recalage supplémentaire : 332 856 mesures après les filtres de session, affichage allégé à 39 442 points (carrés de 3 cm). La figure conserve les murs doublés et les points dispersés. La ligne relie des poses estimées ; ce n’est pas une mesure indépendante de la trajectoire. Script reproductible : `outils/produire_carte_finale.py`. Aucun fichier de mesure ni pose n’a été modifié.
+
+Relecture du bilan dans un ton personnel, sans annoncer de nouveaux tests matériels. Clarification du banc simulé (deux scans, une seule géométrie, sans bruit ajouté), correction de l’ancienne numérotation des versions. README et index de données mis à jour. Les chiffres des temps publiés sont conservés ; la reproduction des 42 essais retrouve les mêmes réussites/refus/faux positifs.
+
+Rangement : préparations locales `captures_tk/` déplacées dans `outils/captures_tk/`, chemin du script adapté, dossier ignoré par Git. Tentative de retrait des dossiers matériel vides restés à la racine (certains sont protégés par Windows et peuvent rester présents) ; les sources de référence restent dans `materiel/`. Ajout des index `outils/README.md` et `tests/README.md`. Les sessions et anciennes versions sont conservées à leur emplacement pour préserver les liens.
+
+Validation avant modification : 238 tests exécutés, 15 échecs, 30 erreurs, 12 ignorés (222,8 s). Compilateur `g++` absent et refus réseau Windows 10013 dans l’environnement de relecture ; les tests de connexion expirent aussi. Les 45 tests du cœur du TP passent et les 42 essais sont reproduits. Ces limites ne sont pas présentées comme une validation du robot.
+
+
+Finalisation : les dossiers matériel vides ont finalement pu être retirés avec les outils Windows après vérification qu’ils ne contenaient aucun fichier. Les explications repliées sont développées à l’impression. Tableaux ajustés au format A4, notes regroupées et pages numérotées ; PDF régénéré et contrôlé visuellement (26 pages). Le titre et les ajouts restent descriptifs, sans inventer de mesures ni de nouveaux essais.
+
+Validation après modification : 238 tests en 224,7 s, avec les mêmes 15 échecs, 30 erreurs et 12 ignorés qu’avant. Les 45 tests ciblés du cœur du TP passent à nouveau ; syntaxe du JavaScript de présentation et liens locaux vérifiés. Aucun changement dans les acquisitions, le firmware ou les modules de calcul existants. Une archive du rendu est préparée à partir des fichiers suivis et des nouveaux fichiers utiles, sans environnements Python, caches ni captures de préparation ; l’historique Git reste accessible par le lien du README.
+
+
+## 22 novembre 2026 — mieux expliquer les améliorations du SLAM
+
+À la demande de l’utilisateur, le compte rendu détaille le nettoyage des anciens points contredits par des rayons libres, les segments périmés, la réduction de densité, les scans clés, les sauvegardes espacées dans un fil séparé et la densification limitée à l’arrêt. Les chiffres historiques (97 → 38 ms) restent identifiés comme des mesures de développement consignées dans le journal. Ajout des précautions après une récupération et de la correction des mesures pendant un tour en mouvement.
+
+Le replacement guidé est expliqué depuis le geste à la souris : point approximatif, glissement pour donner le cap, recherche de 1 m / ±50°, confirmation géométrique puis trois scans de suivi avant réenrichissement automatique. Distinction avec la recherche globale « Me retrouver ». Aucun nouveau résultat matériel n’est annoncé ; ces changements concernent uniquement les explications et leur mise en page.
+
+La suite complète exécutée avant ce lot avait les mêmes limites environnementales documentées (238 tests : 15 échecs, 30 erreurs, 12 ignorés) ; les 45 tests du cœur du TP passaient.
+
+Le PDF enrichi tient en 28 pages. Les nouveaux passages ont été contrôlés visuellement. Les tests dédiés au replacement (4 tests) et à la charge/nettoyage de carte (20 tests) passent. Les observations décrites sont celles du code et des journaux conservés, sans nouvel essai physique.
+
+Validation après ce lot documentaire : suite complète terminée en 237,1 s, avec les mêmes 238 tests, 15 échecs, 30 erreurs et 12 ignorés qu'avant (limites de compilateur et réseau déjà documentées). PDF et archive du rendu actualisés.
+
+
+## 22 novembre 2026 — classement et noms des cartes pour le rendu
+
+À la demande de l’utilisateur, les cartes de la version finale sont réparties en quatre dossiers numérotés : résultats SLAM, acquisitions USB, essais de recalage et données simulées MapTool. `scanenautonomie.json` devient `Cartes/01_resultats_slam/toutes_les_pieces_autonomie.json`. Les anciens noms sont conservés dans `Cartes/correspondance_noms.csv` et dans le tableau de l’index. La copie de la version Tkinter et les entrées historiques du journal gardent leur organisation d’origine.
+
+Les déplacements ont été vérifiés par empreintes SHA-256 avant et après : aucune acquisition, pose ou archive n’a été modifiée. Les liens actuels du README, du compte rendu, du document de reprise et du script de figure sont mis à jour. Les variantes d’essais restent conservées et ne sont pas présentées comme un classement de qualité. Deux descriptions alternatives d’images ont aussi été corrigées (quatre scans USB et 48 segments, conformément aux légendes existantes).
+
+État avant ce lot : la suite complète précédente avait 238 tests, avec les mêmes 15 échecs, 30 erreurs et 12 ignorés liés à l’environnement ; les tests dédiés au replacement et à la charge de carte passaient. Le classement ne modifie aucun algorithme.
+
+Validation du classement : les 11 sessions JSON s’ouvrent avec l’importeur de l’application ; les deux archives ZIP donnent 15 et 5 scans ; les 29 CSV MapTool se lisent. Le script de figure retrouve 736 scans, 332 856 mesures filtrées et 39 442 points dessinés. Le PDF de 28 pages est régénéré et contrôlé visuellement.
+
+Suite complète après classement : 238 tests en 235,1 s, 16 échecs, 30 erreurs, 12 ignorés. Aux limites de compilateur et réseau déjà constatées s’ajoute un échec de temporisation dans le test de reconnexion ; relancé seul, ce test passe (1 test, 0,25 s). Aucun calcul, transport ou test n’a été modifié pour masquer ces résultats.
+
+Vérification de livraison : le dépôt GitHub est privé. Le ZIP final contient donc une copie Git portable des quatre branches utiles dans historique_git/ et un guide pour l’évaluateur. Cette copie a été vérifiée et clonée hors ligne ; origin/jours-1-2 est bien consultable. Le dossier principal du ZIP contient les corrections locales du rendu ; le bundle conserve les commits enregistrés auparavant. L’archive ne contient ni environnements Python, ni caches, ni sauvegardes de travail personnelles.

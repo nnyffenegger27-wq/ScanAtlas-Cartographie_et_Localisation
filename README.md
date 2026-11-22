@@ -4,9 +4,13 @@ TP EIGSI « Cartographie et localisation » (SLAM 2D). Un robot Keyestudio Mecan
 
 ## Pour le professeur : par où commencer
 
-1. **Lire le compte rendu** : [`COMPTE_RENDU.pdf`](COMPTE_RENDU.pdf) (32 pages, lisible directement sur GitHub) : les buts, l'énoncé étape par étape, le cheminement et les problèmes rencontrés, les essais chiffrés, le bilan. C'est la même page que l'onglet « Le projet » de l'application (`web/presentation.html`).
+1. **Lire le compte rendu** : [`COMPTE_RENDU.pdf`](COMPTE_RENDU.pdf) (lisible directement sur GitHub) : les buts, l'énoncé étape par étape, le cheminement et les problèmes rencontrés, les essais chiffrés, le bilan. C'est la même page que l'onglet « Le projet » de l'application (`web/presentation.html`).
 2. **Essayer les outils** : les deux versions ci-dessous se lancent sans robot.
 3. **Vérifier l'historique Git** : branche `jours-1-2` (voir plus bas).
+
+**Le résultat réel à ouvrir en premier :** `Cartes/01_resultats_slam/toutes_les_pieces_autonomie.json` contient le relevé de toutes les pièces (736 scans). L’importer dans l’écran **Carte**, puis choisir Points, Occupation ou Plan. Une [vue d’ensemble avec le parcours estimé](web/presentation-assets/carte-toutes-pieces.png) est aussi dans le compte rendu. Les poses sont celles enregistrées pendant l’essai ; leur précision absolue n’a pas été mesurée. Je n’ai plus accès au robot pour faire de nouvelles mesures.
+
+**Historique fourni dans le ZIP :** le dépôt GitHub est privé. Le dossier `historique_git/` de l’archive contient une copie portable des quatre branches, consultable hors ligne. Le [guide de lecture](docs/GUIDE_HISTORIQUE.md) donne les commandes ; l’application n’en a pas besoin.
 
 ## Les deux versions, où les trouver
 
@@ -85,7 +89,7 @@ Le navigateur s'ouvre sur `http://127.0.0.1:8765/`. La fenêtre noire (ou le ter
 1. Sur l'écran d'accueil du **Direct**, choisir une salle (appartement de 16 m × 10 m, deux pièces, salle simple) puis **Essayer sans robot**.
 2. Piloter au clavier : **Z / S** avancer, reculer · **Q / D** déplacement latéral · **A / E** tourner · lâcher les touches arrête le robot (bouton **Arrêt** en cas de besoin). La carte se dessine pendant que le « robot » roule.
 3. Cliquer **Explorer seul** : le robot simulé parcourt toute la salle et s'arrête avec « Exploration terminée ».
-4. Onglet **Carte** : *Importer* → `Cartes/scanenautonomie.json` (un vrai scan fait par le robot en autonomie), ou *Importer* des scans réels de `Cartes/`. Changer de couche : Points, Occupation (grille), Plan (carte vectorielle).
+4. Onglet **Carte** : *Importer* → `Cartes/01_resultats_slam/toutes_les_pieces_autonomie.json` (le relevé réel de toutes les pièces, 736 scans enregistrés), ou *Importer* des scans réels de `Cartes/`. Changer de couche : Points, Occupation (grille), Plan (carte vectorielle).
 5. Écran Carte → **Évaluer les méthodes (TP)** : lance les 42 essais du TP Jour 2 (3 références × 2 stratégies × 7 départs) et propose les exports CSV.
 
 ### Avec le robot
@@ -165,5 +169,7 @@ Le code Python est dans le paquet **`atlas/`**, rangé en quatre dossiers ; à l
 ```
 python -m unittest discover -s tests        # ~2 min ; le test navigateur est ignoré sans Playwright
 ```
+
+Pour savoir quels scripts utiliser : [`outils/README.md`](outils/README.md). Les prérequis des tests sont détaillés dans [`tests/README.md`](tests/README.md).
 
 Documentation : [`docs/README.md`](docs/README.md) indique quel document lire (guide d'utilisation, reprise du projet, journal jour par jour, méthodes du TP, archives Tkinter). Pour reprendre le travail : [`docs/REPRISE_PROJET.md`](docs/REPRISE_PROJET.md), puis la fin de [`docs/JOURNAL_PROJET.md`](docs/JOURNAL_PROJET.md).
