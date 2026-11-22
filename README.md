@@ -2,7 +2,13 @@
 
 TP EIGSI « Cartographie et localisation » (SLAM 2D). Un robot Keyestudio Mecanum Car V2 (ESP32) porte un lidar LD06 : il roule, la carte se dessine sur le PC, et le robot s'y retrouve. Le robot peut aussi **explorer seul** une pièce, et on peut le **replacer** sur la carte s'il se perd. Tout le calcul est en Python ; l'application s'utilise dans le navigateur, **sans robot** grâce à des salles simulées.
 
-## Pour le professeur : les deux versions, où les trouver
+## Pour le professeur : par où commencer
+
+1. **Lire le compte rendu** : [`COMPTE_RENDU.pdf`](COMPTE_RENDU.pdf) (32 pages, lisible directement sur GitHub) : les buts, l'énoncé étape par étape, le cheminement et les problèmes rencontrés, les essais chiffrés, le bilan. C'est la même page que l'onglet « Le projet » de l'application (`web/presentation.html`).
+2. **Essayer les outils** : les deux versions ci-dessous se lancent sans robot.
+3. **Vérifier l'historique Git** : branche `jours-1-2` (voir plus bas).
+
+## Les deux versions, où les trouver
 
 Ce dépôt contient **les deux versions du projet**, chacune dans son dossier, sans rien à changer ni à télécharger d'autre :
 
@@ -132,6 +138,7 @@ Le code Python est dans le paquet **`atlas/`**, rangé en quatre dossiers ; à l
 | `atlas/calcul/` | SLAM et TP : `cartographie_direct.py` + `suivi_lidar.py` (suivi en direct, carte incrémentale, replacement) · `cartographie.py` (grille, segments, carte vectorielle) · `localisation*.py`, `assemblage_global.py`, `recalage_capture.py` (ICP, recherche sur 360°, trois références) · `evaluer_tp_jour2.py` (les 42 essais) |
 | `atlas/simulation/` | `simulation.py` : salles simulées · `simuler_robot_wifi.py` : robot simulé sur le PC (démonstration et tests) |
 | `version_python_tkinter/` | **la version Python (Tkinter)**, complète et autonome (voir §5) |
+| `COMPTE_RENDU.pdf` | le compte rendu en PDF (copie de `web/presentation.html`) |
 | `web/` | interface (HTML, CSS, JavaScript sans dépendance) ; `presentation.html` = onglet « Le projet » |
 | `firmware/ScanAtlas_WiFi/` | firmware de l'ESP32 (Wi-Fi, lidar, moteurs) |
 | `materiel/` | fichiers d'origine du châssis, test du lidar, support lidar (CAO) |
